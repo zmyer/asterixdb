@@ -21,7 +21,6 @@ package org.apache.asterix.optimizer.rules;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.lang.common.util.FunctionUtil;
 import org.apache.asterix.om.base.ADouble;
 import org.apache.asterix.om.base.AFloat;
@@ -50,6 +49,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 /**
  * Looks for a select operator, containing a condition:
@@ -183,16 +183,16 @@ public class SimilarityCheckRule implements IAlgebraicRewriteRule {
         if (simCheckFuncExpr != null) {
             // Create a new assign under matchingAssign which assigns the result of our similarity-check function to a variable.
             LogicalVariable newVar = context.newVar();
-            AssignOperator newAssign = new AssignOperator(newVar,
-                    new MutableObject<ILogicalExpression>(simCheckFuncExpr));
+            AssignOperator newAssign =
+                    new AssignOperator(newVar, new MutableObject<ILogicalExpression>(simCheckFuncExpr));
             // Hook up inputs.
             newAssign.getInputs()
                     .add(new MutableObject<ILogicalOperator>(matchingAssign.getInputs().get(0).getValue()));
             matchingAssign.getInputs().get(0).setValue(newAssign);
 
-            // Replace select condition with a get-item on newVar.
+            // Replace select condition with a get-item on newVarFromExpression.
             List<Mutable<ILogicalExpression>> selectGetItemArgs = new ArrayList<Mutable<ILogicalExpression>>();
-            // First arg is a variable reference expr on newVar.
+            // First arg is a variable reference expr on newVarFromExpression.
             selectGetItemArgs.add(new MutableObject<ILogicalExpression>(new VariableReferenceExpression(newVar)));
             // Second arg is the item index to be accessed, here 0.
             selectGetItemArgs.add(new MutableObject<ILogicalExpression>(
@@ -202,9 +202,10 @@ public class SimilarityCheckRule implements IAlgebraicRewriteRule {
             // Replace the old similarity function call with the new getItemExpr.
             expRef.setValue(selectGetItemExpr);
 
-            // Replace expr corresponding to original variable in the original assign with a get-item on newVar.
+            // Replace expr corresponding to original variable in the original assign with a get-item on
+            // newVarFromExpression.
             List<Mutable<ILogicalExpression>> assignGetItemArgs = new ArrayList<Mutable<ILogicalExpression>>();
-            // First arg is a variable reference expr on newVar.
+            // First arg is a variable reference expr on newVarFromExpression.
             assignGetItemArgs.add(new MutableObject<ILogicalExpression>(new VariableReferenceExpression(newVar)));
             // Second arg is the item index to be accessed, here 1.
             assignGetItemArgs.add(new MutableObject<ILogicalExpression>(
@@ -287,8 +288,8 @@ public class SimilarityCheckRule implements IAlgebraicRewriteRule {
         if (funcExpr.getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE) {
             AInt32 aInt = new AInt32(0);
             try {
-                aInt = (AInt32) ATypeHierarchy.convertNumericTypeObject(constVal.getObject(), ATypeTag.INT32);
-            } catch (AsterixException e) {
+                aInt = (AInt32) ATypeHierarchy.convertNumericTypeObject(constVal.getObject(), ATypeTag.INTEGER);
+            } catch (HyracksDataException e) {
                 throw new AlgebricksException(e);
             }
 

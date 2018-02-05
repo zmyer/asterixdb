@@ -40,8 +40,8 @@ public class EmptyTupleSourceRuntimeFactory implements IPushRuntimeFactory {
     }
 
     @Override
-    public IPushRuntime createPushRuntime(final IHyracksTaskContext ctx) throws HyracksDataException {
-        return new AbstractOneInputSourcePushRuntime() {
+    public IPushRuntime[] createPushRuntime(final IHyracksTaskContext ctx) throws HyracksDataException {
+        return new IPushRuntime[] { new AbstractOneInputSourcePushRuntime() {
 
             private final ArrayTupleBuilder tb = new ArrayTupleBuilder(0);
             private final FrameTupleAppender appender = new FrameTupleAppender(new VSizeFrame(ctx));
@@ -56,6 +56,11 @@ public class EmptyTupleSourceRuntimeFactory implements IPushRuntimeFactory {
             }
 
             @Override
+            public void fail() throws HyracksDataException {
+                writer.fail();
+            }
+
+            @Override
             public void close() throws HyracksDataException {
                 writer.close();
             }
@@ -64,6 +69,6 @@ public class EmptyTupleSourceRuntimeFactory implements IPushRuntimeFactory {
             public void flush() throws HyracksDataException {
                 appender.flush(writer);
             }
-        };
+        } };
     }
 }

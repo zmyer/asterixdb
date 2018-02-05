@@ -24,12 +24,12 @@ import java.util.Random;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.TestOperationSelector.TestOperation;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.common.datagen.DataGenThread;
 import org.apache.hyracks.storage.am.common.datagen.TupleBatch;
+import org.apache.hyracks.storage.am.common.impls.IndexAccessParameters;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexCursor;
 
 public abstract class AbstractIndexTestWorker extends Thread implements ITreeIndexTestWorker {
     private final Random rnd;
@@ -39,13 +39,15 @@ public abstract class AbstractIndexTestWorker extends Thread implements ITreeInd
 
     protected final IIndexAccessor indexAccessor;
 
-    public AbstractIndexTestWorker(DataGenThread dataGen, TestOperationSelector opSelector, IIndex index, int numBatches)
-            throws HyracksDataException {
+    public AbstractIndexTestWorker(DataGenThread dataGen, TestOperationSelector opSelector, IIndex index,
+            int numBatches) throws HyracksDataException {
         this.dataGen = dataGen;
         this.opSelector = opSelector;
         this.numBatches = numBatches;
         this.rnd = new Random();
-        this.indexAccessor = index.createAccessor(TestOperationCallback.INSTANCE, TestOperationCallback.INSTANCE);
+        IndexAccessParameters actx =
+                new IndexAccessParameters(TestOperationCallback.INSTANCE, TestOperationCallback.INSTANCE);
+        this.indexAccessor = index.createAccessor(actx);
     }
 
     @Override
@@ -65,13 +67,13 @@ public abstract class AbstractIndexTestWorker extends Thread implements ITreeInd
         }
     }
 
-    protected void consumeCursorTuples(IIndexCursor cursor) throws HyracksDataException, IndexException {
+    protected void consumeCursorTuples(IIndexCursor cursor) throws HyracksDataException {
         try {
             while (cursor.hasNext()) {
                 cursor.next();
             }
         } finally {
-            cursor.close();
+            cursor.destroy();
         }
     }
 }

@@ -22,20 +22,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilter;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentId;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentId.IdCompareResult;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMMemoryComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
 import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
+import org.apache.hyracks.storage.am.lsm.common.util.LSMComponentIdUtils;
+import org.apache.hyracks.storage.common.buffercache.IBufferCache;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent implements ILSMMemoryComponent {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private final IVirtualBufferCache vbc;
     private final AtomicBoolean isModified;
     private int writerCount;
     private boolean requestedToBeActive;
     private final MemoryComponentMetadata metadata;
+    private ILSMComponentId componentId;
 
-    public AbstractLSMMemoryComponent(IVirtualBufferCache vbc, boolean isActive, ILSMComponentFilter filter) {
-        super(filter);
+    public AbstractLSMMemoryComponent(AbstractLSMIndex lsmIndex, IVirtualBufferCache vbc, boolean isActive,
+            ILSMComponentFilter filter) {
+        super(lsmIndex, filter);
         this.vbc = vbc;
         writerCount = 0;
         if (isActive) {
@@ -52,6 +62,7 @@ public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent im
         if (state == ComponentState.INACTIVE && requestedToBeActive) {
             state = ComponentState.READABLE_WRITABLE;
             requestedToBeActive = false;
+            lsmIndex.getIOOperationCallback().recycled(this, true);
         }
         switch (opType) {
             case FORCE_MODIFICATION:
@@ -144,6 +155,11 @@ public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent im
                     throw new IllegalStateException("Flush sees an illegal LSM memory compoenent state: " + state);
                 }
                 readerCount--;
+                if (failedOperation) {
+                    // if flush failed, return the component state to READABLE_UNWRITABLE
+                    state = ComponentState.READABLE_UNWRITABLE;
+                    return;
+                }
                 if (readerCount == 0) {
                     state = ComponentState.INACTIVE;
                 } else {
@@ -173,7 +189,7 @@ public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent im
     }
 
     @Override
-    public void activate() {
+    public void requestActivation() {
         requestedToBeActive = true;
     }
 
@@ -193,9 +209,20 @@ public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent im
     }
 
     @Override
-    public void reset() throws HyracksDataException {
+    public final void reset() throws HyracksDataException {
         isModified.set(false);
         metadata.reset();
+        if (filter != null) {
+            filter.reset();
+        }
+        doReset();
+    }
+
+    protected void doReset() throws HyracksDataException {
+        getIndex().deactivate();
+        getIndex().destroy();
+        getIndex().create();
+        getIndex().activate();
     }
 
     @Override
@@ -206,5 +233,79 @@ public abstract class AbstractLSMMemoryComponent extends AbstractLSMComponent im
     @Override
     public MemoryComponentMetadata getMetadata() {
         return metadata;
+    }
+
+    @Override
+    public final void allocate() throws HyracksDataException {
+        boolean allocated = false;
+        ((IVirtualBufferCache) getIndex().getBufferCache()).open();
+        try {
+            doAllocate();
+            allocated = true;
+        } finally {
+            if (!allocated) {
+                ((IVirtualBufferCache) getIndex().getBufferCache()).close();
+            }
+        }
+    }
+
+    protected void doAllocate() throws HyracksDataException {
+        boolean created = false;
+        boolean activated = false;
+        try {
+            getIndex().create();
+            created = true;
+            getIndex().activate();
+            activated = true;
+        } finally {
+            if (created && !activated) {
+                getIndex().destroy();
+            }
+        }
+    }
+
+    @Override
+    public final void deallocate() throws HyracksDataException {
+        try {
+            doDeallocate();
+        } finally {
+            getIndex().getBufferCache().close();
+        }
+    }
+
+    protected void doDeallocate() throws HyracksDataException {
+        getIndex().deactivate();
+        getIndex().destroy();
+        componentId = null;
+    }
+
+    @Override
+    public void validate() throws HyracksDataException {
+        getIndex().validate();
+    }
+
+    @Override
+    public long getSize() {
+        IBufferCache virtualBufferCache = getIndex().getBufferCache();
+        return virtualBufferCache.getPageBudget() * (long) virtualBufferCache.getPageSize();
+    }
+
+    @Override
+    public ILSMComponentId getId() {
+        return componentId;
+    }
+
+    @Override
+    public void resetId(ILSMComponentId componentId) throws HyracksDataException {
+        if (this.componentId != null && !componentId.missing() // for backward compatibility
+                && this.componentId.compareTo(componentId) != IdCompareResult.LESS_THAN) {
+            throw new IllegalStateException(
+                    this + " receives illegal id. Old id " + this.componentId + ", new id " + componentId);
+        }
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.log(Level.INFO, "Component Id was reset from " + this.componentId + " to " + componentId);
+        }
+        this.componentId = componentId;
+        LSMComponentIdUtils.persist(this.componentId, metadata);
     }
 }

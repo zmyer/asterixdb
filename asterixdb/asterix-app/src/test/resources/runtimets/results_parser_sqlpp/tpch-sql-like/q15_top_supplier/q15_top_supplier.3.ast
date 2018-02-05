@@ -11,12 +11,15 @@ FunctionDecl revenue([]) {
       (
         LiteralExpr [STRING] [total_revenue]
         :
-        FunctionCall tpch.sum@1[
+        FunctionCall asterix.sum@1[
           (
             SELECT ELEMENT [
             OperatorExpr [
               FieldAccessor [
-                Variable [ Name=$i ]
+                FieldAccessor [
+                  Variable [ Name=$i ]
+                  Field=l
+                ]
                 Field=l_extendedprice
               ]
               *
@@ -24,13 +27,16 @@ FunctionDecl revenue([]) {
                 LiteralExpr [LONG] [1]
                 -
                 FieldAccessor [
-                  Variable [ Name=$i ]
+                  FieldAccessor [
+                    Variable [ Name=$i ]
+                    Field=l
+                  ]
                   Field=l_discount
                 ]
               ]
             ]
             ]
-            FROM [              Variable [ Name=$l ]
+            FROM [              Variable [ Name=$g ]
               AS Variable [ Name=$i ]
             ]
           )
@@ -68,6 +74,7 @@ FunctionDecl revenue([]) {
         Variable [ Name=$l ]
         Field=l_suppkey
       ]
+      GROUP AS Variable [ Name=$g ]
 
   )
 }
@@ -75,7 +82,7 @@ FunctionDecl revenue([]) {
 Query:
 Let Variable [ Name=$m ]
   :=
-  FunctionCall tpch.max@1[
+  FunctionCall asterix.max@1[
     (
       SELECT ELEMENT [
       FieldAccessor [
@@ -133,8 +140,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Supplier]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.Supplier]
   ]
   AS Variable [ Name=$s ]
 ,

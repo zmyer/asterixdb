@@ -18,14 +18,11 @@
  */
 package org.apache.asterix.om.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class AInt32 implements IAObject {
 
@@ -36,11 +33,7 @@ public class AInt32 implements IAObject {
         this.value = value;
     }
 
-    public AInt32(byte[] bytes, int offset, int length) {
-        value = valueFromBytes(bytes, offset, length);
-    }
-
-    public Integer getIntegerValue() {
+    public int getIntegerValue() {
         return value;
     }
 
@@ -51,7 +44,7 @@ public class AInt32 implements IAObject {
 
     @Override
     public String toString() {
-        return "AInt32: {" + value + "}";
+        return Integer.toString(value);
     }
 
     @Override
@@ -68,21 +61,6 @@ public class AInt32 implements IAObject {
         return value;
     }
 
-    private static Integer valueFromBytes(byte[] bytes, int offset, int length) {
-        return ((bytes[offset] & 0xff) << 24) + ((bytes[offset + 1] & 0xff) << 16) + ((bytes[offset + 2] & 0xff) << 8)
-                + ((bytes[offset + 3] & 0xff) << 0);
-    }
-
-    public byte[] toBytes() {
-        return new byte[] { (byte) (value >>> 24), (byte) (value >> 16 & 0xff), (byte) (value >> 8 & 0xff),
-                (byte) (value & 0xff) };
-    }
-
-    @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitAInt32(this);
-    }
-
     @Override
     public boolean deepEqual(IAObject obj) {
         return equals(obj);
@@ -94,7 +72,7 @@ public class AInt32 implements IAObject {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

@@ -21,7 +21,6 @@ package org.apache.asterix.algebra.operators.physical;
 
 import java.util.List;
 
-import org.apache.asterix.common.transactions.JobId;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -39,22 +38,16 @@ import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenContext;
 import org.apache.hyracks.algebricks.core.jobgen.impl.JobGenHelper;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntimeFactory;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
-import org.apache.hyracks.api.io.FileSplit;
 
 public class CommitPOperator extends AbstractPhysicalOperator {
 
     private final List<LogicalVariable> primaryKeyLogicalVars;
-    private final JobId jobId;
     private final Dataset dataset;
-    private final LogicalVariable upsertVar;
     private final boolean isSink;
 
-    public CommitPOperator(JobId jobId, Dataset dataset, List<LogicalVariable> primaryKeyLogicalVars,
-            LogicalVariable upsertVar, boolean isSink) {
-        this.jobId = jobId;
+    public CommitPOperator(Dataset dataset, List<LogicalVariable> primaryKeyLogicalVars, boolean isSink) {
         this.dataset = dataset;
         this.primaryKeyLogicalVars = primaryKeyLogicalVars;
-        this.upsertVar = upsertVar;
         this.isSink = isSink;
     }
 
@@ -91,19 +84,7 @@ public class CommitPOperator extends AbstractPhysicalOperator {
         int[] primaryKeyFields = JobGenHelper.variablesToFieldIndexes(primaryKeyLogicalVars, inputSchemas[0]);
 
         //get dataset splits
-        FileSplit[] splitsForDataset = metadataProvider.splitsForDataset(metadataProvider.getMetadataTxnContext(),
-                dataset.getDataverseName(), dataset.getDatasetName(), dataset.getDatasetName(),
-                metadataProvider.isTemporaryDatasetWriteJob());
-        int[] datasetPartitions = new int[splitsForDataset.length];
-        for (int i = 0; i < splitsForDataset.length; i++) {
-            datasetPartitions[i] = i;
-        }
-        int upsertVarIdx = -1;
-        if (upsertVar != null) {
-            upsertVarIdx = inputSchemas[0].findVariable(upsertVar);
-        }
-        IPushRuntimeFactory runtime = dataset.getCommitRuntimeFactory(jobId, primaryKeyFields, metadataProvider,
-                upsertVarIdx, datasetPartitions, isSink);
+        IPushRuntimeFactory runtime = dataset.getCommitRuntimeFactory(metadataProvider, primaryKeyFields, isSink);
         builder.contributeMicroOperator(op, runtime, recDesc);
         ILogicalOperator src = op.getInputs().get(0).getValue();
         builder.contributeGraphEdge(src, 0, op, 0);

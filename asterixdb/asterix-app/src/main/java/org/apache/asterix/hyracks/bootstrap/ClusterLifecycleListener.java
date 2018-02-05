@@ -25,102 +25,76 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import org.apache.asterix.common.api.IClusterEventsSubscriber;
 import org.apache.asterix.common.api.IClusterManagementWork;
 import org.apache.asterix.common.api.IClusterManagementWorkResponse;
 import org.apache.asterix.common.api.IClusterManagementWorkResponse.Status;
-import org.apache.asterix.common.config.ClusterProperties;
-import org.apache.asterix.common.exceptions.AsterixException;
-import org.apache.asterix.event.schema.cluster.Node;
+import org.apache.asterix.common.cluster.IClusterStateManager;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.cluster.AddNodeWork;
 import org.apache.asterix.metadata.cluster.AddNodeWorkResponse;
-import org.apache.asterix.metadata.cluster.ClusterManagerProvider;
 import org.apache.asterix.metadata.cluster.RemoveNodeWork;
 import org.apache.asterix.metadata.cluster.RemoveNodeWorkResponse;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
 import org.apache.hyracks.api.application.IClusterLifecycleListener;
+import org.apache.hyracks.api.config.IOption;
 import org.apache.hyracks.api.exceptions.HyracksException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ClusterLifecycleListener implements IClusterLifecycleListener {
 
-    private static final Logger LOGGER = Logger.getLogger(ClusterLifecycleListener.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
+    private final ICcApplicationContext appCtx;
+    private final LinkedBlockingQueue<Set<IClusterManagementWork>> workRequestQueue = new LinkedBlockingQueue<>();
+    private final ClusterWorkExecutor eventHandler;
+    private final List<IClusterManagementWorkResponse> pendingWorkResponses = new ArrayList<>();
 
-    private static final LinkedBlockingQueue<Set<IClusterManagementWork>> workRequestQueue = new LinkedBlockingQueue<Set<IClusterManagementWork>>();
-
-    private static ClusterWorkExecutor eventHandler = new ClusterWorkExecutor(workRequestQueue);
-
-    private static List<IClusterManagementWorkResponse> pendingWorkResponses = new ArrayList<IClusterManagementWorkResponse>();
-
-    public static ClusterLifecycleListener INSTANCE = new ClusterLifecycleListener();
-
-    private ClusterLifecycleListener() {
+    public ClusterLifecycleListener(ICcApplicationContext appCtx) {
+        this.appCtx = appCtx;
+        eventHandler = new ClusterWorkExecutor(workRequestQueue);
         Thread t = new Thread(eventHandler);
-        if (LOGGER.isLoggable(Level.INFO)) {
-            LOGGER.info("Starting cluster event handler");
-        }
+        LOGGER.info("Starting cluster event handler");
         t.start();
     }
 
     @Override
-    public void notifyNodeJoin(String nodeId, Map<String, String> ncConfiguration) throws HyracksException {
-        if (LOGGER.isLoggable(Level.INFO)) {
-            LOGGER.info("NC: " + nodeId + " joined");
-        }
-        ClusterStateManager.INSTANCE.addNCConfiguration(nodeId, ncConfiguration);
+    public void notifyNodeJoin(String nodeId, Map<IOption, Object> ncConfiguration) throws HyracksException {
+        LOGGER.info("NC: {} joined", nodeId);
+        IClusterStateManager csm = appCtx.getClusterStateManager();
+        csm.notifyNodeJoin(nodeId, ncConfiguration);
 
         //if metadata node rejoining, we need to rebind the proxy connection when it is active again.
-        if (!ClusterStateManager.INSTANCE.isMetadataNodeActive()) {
+        if (!csm.isMetadataNodeActive()) {
             MetadataManager.INSTANCE.rebindMetadataNode();
         }
 
-        Set<String> nodeAddition = new HashSet<String>();
+        Set<String> nodeAddition = new HashSet<>();
         nodeAddition.add(nodeId);
         updateProgress(ClusterEventType.NODE_JOIN, nodeAddition);
-        Set<IClusterEventsSubscriber> subscribers =
-                ClusterManagerProvider.getClusterManager().getRegisteredClusterEventSubscribers();
-        Set<IClusterManagementWork> work = new HashSet<IClusterManagementWork>();
-        for (IClusterEventsSubscriber sub : subscribers) {
-            Set<IClusterManagementWork> workRequest = sub.notifyNodeJoin(nodeId);
-            work.addAll(workRequest);
-        }
-        if (!work.isEmpty()) {
-            executeWorkSet(work);
-        }
-
     }
 
     @Override
     public void notifyNodeFailure(Collection<String> deadNodeIds) throws HyracksException {
         for (String deadNode : deadNodeIds) {
-            if (LOGGER.isLoggable(Level.INFO)) {
-                LOGGER.info("NC: " + deadNode + " left");
-            }
-            ClusterStateManager.INSTANCE.removeNCConfiguration(deadNode);
+            LOGGER.info("NC: {} left", deadNode);
+            IClusterStateManager csm = appCtx.getClusterStateManager();
+            csm.notifyNodeFailure(deadNode);
 
             //if metadata node failed, we need to rebind the proxy connection when it is active again
-            if (!ClusterStateManager.INSTANCE.isMetadataNodeActive()) {
+            if (!csm.isMetadataNodeActive()) {
                 MetadataManager.INSTANCE.rebindMetadataNode();
             }
         }
         updateProgress(ClusterEventType.NODE_FAILURE, deadNodeIds);
-        Set<IClusterEventsSubscriber> subscribers =
-                ClusterManagerProvider.getClusterManager().getRegisteredClusterEventSubscribers();
-        Set<IClusterManagementWork> work = new HashSet<IClusterManagementWork>();
-        for (IClusterEventsSubscriber sub : subscribers) {
-            Set<IClusterManagementWork> workRequest = sub.notifyNodeFailure(deadNodeIds);
-            work.addAll(workRequest);
-        }
+        Set<IClusterManagementWork> work = new HashSet<>();
         if (!work.isEmpty()) {
             executeWorkSet(work);
         }
     }
 
     private void updateProgress(ClusterEventType eventType, Collection<String> nodeIds) {
-        List<IClusterManagementWorkResponse> completedResponses = new ArrayList<IClusterManagementWorkResponse>();
+        List<IClusterManagementWorkResponse> completedResponses = new ArrayList<>();
         boolean isComplete = false;
         for (IClusterManagementWorkResponse resp : pendingWorkResponses) {
             switch (eventType) {
@@ -148,9 +122,9 @@ public class ClusterLifecycleListener implements IClusterLifecycleListener {
 
     private void executeWorkSet(Set<IClusterManagementWork> workSet) {
         int nodesToAdd = 0;
-        Set<String> nodesToRemove = new HashSet<String>();
-        Set<AddNodeWork> nodeAdditionRequests = new HashSet<AddNodeWork>();
-        Set<IClusterManagementWork> nodeRemovalRequests = new HashSet<IClusterManagementWork>();
+        Set<String> nodesToRemove = new HashSet<>();
+        Set<AddNodeWork> nodeAdditionRequests = new HashSet<>();
+        Set<IClusterManagementWork> nodeRemovalRequests = new HashSet<>();
         for (IClusterManagementWork w : workSet) {
             switch (w.getClusterManagementWorkType()) {
                 case ADD_NODE:
@@ -162,46 +136,23 @@ public class ClusterLifecycleListener implements IClusterLifecycleListener {
                 case REMOVE_NODE:
                     nodesToRemove.addAll(((RemoveNodeWork) w).getNodesToBeRemoved());
                     nodeRemovalRequests.add(w);
-                    RemoveNodeWorkResponse response = new RemoveNodeWorkResponse((RemoveNodeWork) w,
-                            Status.IN_PROGRESS);
+                    RemoveNodeWorkResponse response =
+                            new RemoveNodeWorkResponse((RemoveNodeWork) w, Status.IN_PROGRESS);
                     pendingWorkResponses.add(response);
                     break;
             }
         }
 
-        List<String> addedNodes = new ArrayList<String>();
-        String asterixInstanceName = ClusterProperties.INSTANCE.getCluster().getInstanceName();
-        for (int i = 0; i < nodesToAdd; i++) {
-            Node node = ClusterStateManager.INSTANCE.getAvailableSubstitutionNode();
-            if (node != null) {
-                try {
-                    ClusterManagerProvider.getClusterManager().addNode(node);
-                    addedNodes.add(asterixInstanceName + "_" + node.getId());
-                    if (LOGGER.isLoggable(Level.INFO)) {
-                        LOGGER.info("Added NC at:" + node.getId());
-                    }
-                } catch (AsterixException e) {
-                    if (LOGGER.isLoggable(Level.WARNING)) {
-                        LOGGER.warning("Unable to add NC at:" + node.getId());
-                    }
-                    e.printStackTrace();
-                }
-            } else {
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning("Unable to add NC: no more available nodes");
-                }
-
-            }
-        }
+        List<String> addedNodes = new ArrayList<>();
 
         for (AddNodeWork w : nodeAdditionRequests) {
             int n = w.getNumberOfNodesRequested();
-            List<String> nodesToBeAddedForWork = new ArrayList<String>();
+            List<String> nodesToBeAddedForWork = new ArrayList<>();
             for (int i = 0; i < n && i < addedNodes.size(); i++) {
                 nodesToBeAddedForWork.add(addedNodes.get(i));
             }
             if (nodesToBeAddedForWork.isEmpty()) {
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info("Unable to satisfy request by " + w);
                 }
                 AddNodeWorkResponse response = new AddNodeWorkResponse(w, nodesToBeAddedForWork);

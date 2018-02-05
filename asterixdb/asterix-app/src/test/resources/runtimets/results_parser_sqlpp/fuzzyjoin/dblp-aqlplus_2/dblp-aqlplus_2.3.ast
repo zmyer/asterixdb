@@ -15,13 +15,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.DBLP]
   ]
   AS Variable [ Name=$dblp ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.DBLP]
   ]
   AS Variable [ Name=$dblp2 ]
 ]

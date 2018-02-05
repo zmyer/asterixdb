@@ -48,21 +48,21 @@ fi
   "$JAVA_HOME/bin/java" -version
   exit 2
 }
-DIRNAME=$(dirname $0)
+DIRNAME=$(dirname "$0")
 [ $(echo $DIRNAME | wc -l) -ne 1 ] && {
   echo "Paths with spaces are not supported"
   exit 3
 }
 
-CLUSTERDIR=$(cd $DIRNAME/..; echo $PWD)
-INSTALLDIR=$(cd $CLUSTERDIR/../..; echo $PWD)
-$INSTALLDIR/bin/${HELPER_COMMAND} get_cluster_state -quiet
+CLUSTERDIR=$(cd "$DIRNAME/.."; echo $PWD)
+INSTALLDIR=$(cd "$CLUSTERDIR/../.."; echo $PWD)
+"$INSTALLDIR/bin/${HELPER_COMMAND}" get_cluster_state -quiet
 if [ $? -ne 1 ]; then
-  $INSTALLDIR/bin/${HELPER_COMMAND} shutdown_cluster_all
+  "$INSTALLDIR/bin/${HELPER_COMMAND}" shutdown_cluster_all
   first=1
   tries=0
   echo -n "INFO: Waiting up to 60s for cluster to shutdown"
-  while [ -n "$($JAVA_HOME/bin/jps | awk '/ (CCDriver|NCDriver|NCService)$/')" ]; do
+  while [ -n "$(ps -ef | grep 'java.*org\.apache\.hyracks\.control\.[cn]c\.\([CN]CDriver\|service\.NCService\)')" ]; do
     if [ $tries -ge 60 ]; then
       echo "...timed out!"
       break
@@ -76,18 +76,19 @@ else
   echo "WARNING: sample cluster does not appear to be running"
 fi
 
-if $JAVA_HOME/bin/jps | grep ' \(CCDriver\|NCDriver\|NCService\)$' > /tmp/$$_jps; then
+if ps -ef | grep 'java.*org\.apache\.hyracks\.control\.[cn]c\.\([CN]CDriver\|service\.NCService\)' > /tmp/$$_pids; then
   echo -n "WARNING: ${PRODUCT} processes remain after cluster shutdown; "
   if [ $force ]; then
     echo "-f[orce] specified, forcibly terminating ${PRODUCT} processes:"
-    cat /tmp/$$_jps | while read line; do
+    cat /tmp/$$_pids | while read line; do
       echo -n "   - $line..."
-      echo $line | awk '{ print $1 }' | xargs -n1 kill -9
+      echo $line | awk '{ print $2 }' | xargs -n1 kill -9
       echo "killed"
     done
   else
     echo "re-run with -f|-force to forcibly terminate all ${PRODUCT} processes:"
-    cat /tmp/$$_jps | sed 's/^/  - /'
+    cat /tmp/pids |  sed 's/^ *[0-9]* \([0-9]*\).*org\.apache\.hyracks\.control\.[cn]c[^ ]*\.\([^ ]*\) .*/\1 - \2/'
   fi
 fi
-rm /tmp/$$_jps
+rm /tmp/$$_pids
+

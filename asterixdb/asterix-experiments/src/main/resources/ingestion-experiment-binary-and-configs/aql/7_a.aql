@@ -1,3 +1,0 @@
-use dataverse experiments;
-
-create dataset Tweets(TweetMessageType) primary key tweetid using compaction policy constant(("num-components"="3"));

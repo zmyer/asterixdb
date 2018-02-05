@@ -72,11 +72,13 @@ public final class NodeRegistration implements Serializable {
 
     private final NodeCapacity capacity;
 
+    private final long maxJobId;
+
     public NodeRegistration(InetSocketAddress ncAddress, String nodeId, NCConfig ncConfig, NetworkAddress dataPort,
-                            NetworkAddress datasetPort, String osName, String arch, String osVersion, int nProcessors,
-                            String vmName, String vmVersion, String vmVendor, String classpath, String libraryPath,
-                            String bootClasspath, List<String> inputArguments, Map<String, String> systemProperties,
-            HeartbeatSchema hbSchema, NetworkAddress messagingPort, NodeCapacity capacity, int pid) {
+            NetworkAddress datasetPort, String osName, String arch, String osVersion, int nProcessors, String vmName,
+            String vmVersion, String vmVendor, String classpath, String libraryPath, String bootClasspath,
+            List<String> inputArguments, Map<String, String> systemProperties, HeartbeatSchema hbSchema,
+            NetworkAddress messagingPort, NodeCapacity capacity, int pid, long maxJobId) {
         this.ncAddress = ncAddress;
         this.nodeId = nodeId;
         this.ncConfig = ncConfig;
@@ -98,6 +100,7 @@ public final class NodeRegistration implements Serializable {
         this.messagingPort = messagingPort;
         this.capacity = capacity;
         this.pid = pid;
+        this.maxJobId = maxJobId;
     }
 
     public InetSocketAddress getNodeControllerAddress() {
@@ -180,5 +183,11 @@ public final class NodeRegistration implements Serializable {
         return messagingPort;
     }
 
-    public int getPid() { return pid; }
+    public int getPid() {
+        return pid;
+    }
+
+    public long getMaxJobId() {
+        return maxJobId;
+    }
 }

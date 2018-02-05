@@ -1,7 +1,7 @@
 DataverseUse tpch
 Query:
 SELECT [
-FunctionCall tpch.sql-count@1[
+FunctionCall asterix.sql-count@1[
   (
     SELECT ELEMENT [
     FieldAccessor [
@@ -16,8 +16,8 @@ FunctionCall tpch.sql-count@1[
 ]
 count
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [LineItem]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.LineItem]
   ]
   AS Variable [ Name=$l ]
 ]
@@ -69,3 +69,8 @@ Where
     ]
   ]
 Group All
+  GROUP AS Variable [ Name=#1 ]
+  (
+    l:=Variable [ Name=$l ]
+  )
+

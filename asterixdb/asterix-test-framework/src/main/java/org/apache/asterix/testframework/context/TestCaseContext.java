@@ -46,7 +46,8 @@ public class TestCaseContext {
         CSV("csv", "text/csv"),
         CSV_HEADER("csv-header", "text/csv; header=present"),
         AST("ast", "application/x-ast"),
-        PLAN("plan", "application/x-plan");
+        PLAN("plan", "application/x-plan"),
+        BINARY("", "application/octet-stream");
 
         private final String extension;
         private final String mimetype;
@@ -77,6 +78,8 @@ public class TestCaseContext {
                     return OutputFormat.CSV;
                 case CSV_HEADER:
                     return OutputFormat.CSV_HEADER;
+                case BINARY:
+                    return OutputFormat.BINARY;
                 case INSPECT:
                 case IGNORE:
                     return OutputFormat.NONE;
@@ -131,7 +134,7 @@ public class TestCaseContext {
     }
 
     public List<TestFileContext> getFilesInDir(String basePath, String dirName, boolean withType) {
-        List<TestFileContext> testFileCtxs = new ArrayList<TestFileContext>();
+        List<TestFileContext> testFileCtxs = new ArrayList<>();
 
         File path = tsRoot;
         path = new File(path, basePath);
@@ -183,9 +186,20 @@ public class TestCaseContext {
 
     public File getActualResultFile(CompilationUnit cUnit, File expectedFile, File actualResultsBase) {
         File path = actualResultsBase;
-        path = new File(path, testSuite.getResultOffsetPath());
-        path = new File(path, testCase.getFilePath());
-        return new File(path, cUnit.getOutputDir().getValue() + File.separator + expectedFile.getName());
+        String resultOffsetPath = removeUpward(testSuite.getResultOffsetPath());
+        path = new File(path, resultOffsetPath);
+        String testCaseFilePath = removeUpward(testCase.getFilePath());
+        String expectedFilePath = removeUpward(expectedFile.getName());
+        path = new File(path, testCaseFilePath);
+        return new File(path, cUnit.getOutputDir().getValue() + File.separator + expectedFilePath);
+    }
+
+    private String removeUpward(String filePath) {
+        String evil = ".." + File.separatorChar;
+        while (filePath.contains(evil)) {
+            filePath = filePath.replace(evil, ""); // NOSONAR
+        }
+        return filePath;
     }
 
     @Override
@@ -221,8 +235,8 @@ public class TestCaseContext {
             File tsFile = new File(tsRoot, tsXMLFilePath);
             TestSuiteParser tsp = new TestSuiteParser();
             TestSuite ts = tsp.parse(tsFile);
-            List<TestCaseContext> tccs = new ArrayList<TestCaseContext>();
-            List<TestGroup> tgPath = new ArrayList<TestGroup>();
+            List<TestCaseContext> tccs = new ArrayList<>();
+            List<TestGroup> tgPath = new ArrayList<>();
             addContexts(tsRoot, ts, tgPath, ts.getTestGroup(), tccs);
             return tccs;
         }

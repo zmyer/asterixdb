@@ -19,8 +19,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Event]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.Event]
   ]
   AS Variable [ Name=$event ]
 ,
@@ -45,13 +45,13 @@ Groupby
 
 Let Variable [ Name=$sig_sponsorship_count ]
   :=
-  FunctionCall test.sql-count@1[
+  FunctionCall asterix.sql-count@1[
     (
       SELECT ELEMENT [
       LiteralExpr [LONG] [1]
       ]
       FROM [        Variable [ Name=$es ]
-        AS Variable [ Name=#1 ]
+        AS Variable [ Name=#2 ]
       ]
     )
   ]
@@ -68,7 +68,7 @@ Let Variable [ Name=$by_chapter ]
       (
         LiteralExpr [STRING] [escount]
         :
-        FunctionCall test.sql-count@1[
+        FunctionCall asterix.sql-count@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -76,7 +76,7 @@ Let Variable [ Name=$by_chapter ]
               Field=e
             ]
             ]
-            FROM [              Variable [ Name=#2 ]
+            FROM [              Variable [ Name=#1 ]
               AS Variable [ Name=#3 ]
             ]
           )
@@ -97,7 +97,7 @@ Let Variable [ Name=$by_chapter ]
         ]
         Field=chapter_name
       ]
-      GROUP AS Variable [ Name=#2 ]
+      GROUP AS Variable [ Name=#1 ]
       (
         e:=Variable [ Name=$e ]
       )

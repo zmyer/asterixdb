@@ -20,8 +20,6 @@ package org.apache.hyracks.tests.util;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
@@ -31,13 +29,17 @@ import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
 import org.apache.hyracks.dataflow.std.base.AbstractSingleActivityOperatorDescriptor;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExceptionOnCreatePushRuntimeOperatorDescriptor extends AbstractSingleActivityOperatorDescriptor {
     private static final long serialVersionUID = 1L;
-    private static Logger LOGGER = Logger.getLogger(ExceptionOnCreatePushRuntimeOperatorDescriptor.class.getName());
+    private static Logger LOGGER = LogManager.getLogger();
     private static AtomicInteger createPushRuntime = new AtomicInteger();
     private static AtomicInteger initializeCounter = new AtomicInteger();
     private static AtomicInteger openCloseCounter = new AtomicInteger();
+    public static final String ERROR_MESSAGE = "I throw exceptions";
     private final int[] exceptionPartitions;
     private final boolean sleepOnInitialize;
 
@@ -56,7 +58,7 @@ public class ExceptionOnCreatePushRuntimeOperatorDescriptor extends AbstractSing
             if (exceptionPartitions != null) {
                 for (int p : exceptionPartitions) {
                     if (p == partition) {
-                        throw new HyracksDataException("I throw exceptions");
+                        throw new HyracksDataException(ERROR_MESSAGE);
                     }
                 }
             }
@@ -129,10 +131,10 @@ public class ExceptionOnCreatePushRuntimeOperatorDescriptor extends AbstractSing
     public static boolean succeed() {
         boolean success = openCloseCounter.get() == 0 && createPushRuntime.get() == 0 && initializeCounter.get() == 0;
         if (!success) {
-            LOGGER.log(Level.SEVERE, "Failure:");
-            LOGGER.log(Level.SEVERE, "CreatePushRuntime:" + createPushRuntime.get());
-            LOGGER.log(Level.SEVERE, "InitializeCounter:" + initializeCounter.get());
-            LOGGER.log(Level.SEVERE, "OpenCloseCounter:" + openCloseCounter.get());
+            LOGGER.log(Level.ERROR, "Failure:");
+            LOGGER.log(Level.ERROR, "CreatePushRuntime:" + createPushRuntime.get());
+            LOGGER.log(Level.ERROR, "InitializeCounter:" + initializeCounter.get());
+            LOGGER.log(Level.ERROR, "OpenCloseCounter:" + openCloseCounter.get());
         }
         return success;
     }

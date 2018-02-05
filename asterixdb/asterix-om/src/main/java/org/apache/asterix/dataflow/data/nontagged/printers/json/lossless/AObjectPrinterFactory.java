@@ -20,7 +20,6 @@ package org.apache.asterix.dataflow.data.nontagged.printers.json.lossless;
 
 import java.io.PrintStream;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.pointables.AListVisitablePointable;
 import org.apache.asterix.om.pointables.ARecordVisitablePointable;
 import org.apache.asterix.om.pointables.base.DefaultOpenFieldType;
@@ -41,16 +40,16 @@ public class AObjectPrinterFactory implements IPrinterFactory {
     public static boolean printFlatValue(ATypeTag typeTag, byte[] b, int s, int l, PrintStream ps)
             throws HyracksDataException {
         switch (typeTag) {
-            case INT8:
+            case TINYINT:
                 AInt8PrinterFactory.PRINTER.print(b, s, l, ps);
                 return true;
-            case INT16:
+            case SMALLINT:
                 AInt16PrinterFactory.PRINTER.print(b, s, l, ps);
                 return true;
-            case INT32:
+            case INTEGER:
                 AInt32PrinterFactory.PRINTER.print(b, s, l, ps);
                 return true;
-            case INT64:
+            case BIGINT:
                 AInt64PrinterFactory.PRINTER.print(b, s, l, ps);
                 return true;
             case MISSING:
@@ -121,12 +120,12 @@ public class AObjectPrinterFactory implements IPrinterFactory {
 
     @Override
     public IPrinter createPrinter() {
-        final ARecordVisitablePointable rPointable = new ARecordVisitablePointable(
-                DefaultOpenFieldType.NESTED_OPEN_RECORD_TYPE);
-        final AListVisitablePointable olPointable = new AListVisitablePointable(
-                DefaultOpenFieldType.NESTED_OPEN_AORDERED_LIST_TYPE);
-        final AListVisitablePointable ulPointable = new AListVisitablePointable(
-                DefaultOpenFieldType.NESTED_OPEN_AUNORDERED_LIST_TYPE);
+        final ARecordVisitablePointable rPointable =
+                new ARecordVisitablePointable(DefaultOpenFieldType.NESTED_OPEN_RECORD_TYPE);
+        final AListVisitablePointable olPointable =
+                new AListVisitablePointable(DefaultOpenFieldType.NESTED_OPEN_AORDERED_LIST_TYPE);
+        final AListVisitablePointable ulPointable =
+                new AListVisitablePointable(DefaultOpenFieldType.NESTED_OPEN_AUNORDERED_LIST_TYPE);
         final Pair<PrintStream, ATypeTag> streamTag = new Pair<>(null, null);
 
         final IPrintVisitor visitor = new APrintVisitor();
@@ -136,25 +135,21 @@ public class AObjectPrinterFactory implements IPrinterFactory {
             if (!printFlatValue(typeTag, b, s, l, ps)) {
                 streamTag.first = ps;
                 streamTag.second = typeTag;
-                try {
-                    switch (typeTag) {
-                        case RECORD:
-                            rPointable.set(b, s, l);
-                            visitor.visit(rPointable, streamTag);
-                            break;
-                        case ORDEREDLIST:
-                            olPointable.set(b, s, l);
-                            visitor.visit(olPointable, streamTag);
-                            break;
-                        case UNORDEREDLIST:
-                            ulPointable.set(b, s, l);
-                            visitor.visit(ulPointable, streamTag);
-                            break;
-                        default:
-                            throw new HyracksDataException("No printer for type " + typeTag);
-                    }
-                } catch (AsterixException e) {
-                    throw new HyracksDataException(e);
+                switch (typeTag) {
+                    case OBJECT:
+                        rPointable.set(b, s, l);
+                        visitor.visit(rPointable, streamTag);
+                        break;
+                    case ARRAY:
+                        olPointable.set(b, s, l);
+                        visitor.visit(olPointable, streamTag);
+                        break;
+                    case MULTISET:
+                        ulPointable.set(b, s, l);
+                        visitor.visit(ulPointable, streamTag);
+                        break;
+                    default:
+                        throw new HyracksDataException("No printer for type " + typeTag);
                 }
             }
         };

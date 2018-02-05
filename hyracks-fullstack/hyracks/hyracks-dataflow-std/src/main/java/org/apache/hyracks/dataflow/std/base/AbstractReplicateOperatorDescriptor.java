@@ -60,7 +60,7 @@ public abstract class AbstractReplicateOperatorDescriptor extends AbstractOperat
             int outputArity, boolean[] outputMaterializationFlags) {
         super(spec, 1, outputArity);
         for (int i = 0; i < outputArity; i++) {
-            recordDescriptors[i] = rDesc;
+            outRecDescs[i] = rDesc;
         }
         this.outputMaterializationFlags = outputMaterializationFlags;
 
@@ -84,16 +84,16 @@ public abstract class AbstractReplicateOperatorDescriptor extends AbstractOperat
 
     @Override
     public void contributeActivities(IActivityGraphBuilder builder) {
-        ReplicatorMaterializerActivityNode sma = new ReplicatorMaterializerActivityNode(
-                new ActivityId(odId, SPLITTER_MATERIALIZER_ACTIVITY_ID));
+        ReplicatorMaterializerActivityNode sma =
+                new ReplicatorMaterializerActivityNode(new ActivityId(odId, SPLITTER_MATERIALIZER_ACTIVITY_ID));
         builder.addActivity(this, sma);
         builder.addSourceEdge(0, sma, 0);
         int pipelineOutputIndex = 0;
         int activityId = MATERIALIZE_READER_ACTIVITY_ID;
         for (int i = 0; i < outputArity; i++) {
             if (outputMaterializationFlags[i]) {
-                MaterializeReaderActivityNode mra = new MaterializeReaderActivityNode(
-                        new ActivityId(odId, activityId++));
+                MaterializeReaderActivityNode mra =
+                        new MaterializeReaderActivityNode(new ActivityId(odId, activityId++));
                 builder.addActivity(this, mra);
                 builder.addBlockingEdge(sma, mra);
                 builder.addTargetEdge(i, mra, 0);
@@ -165,7 +165,7 @@ public abstract class AbstractReplicateOperatorDescriptor extends AbstractOperat
                                     writers[i].close();
                                 } catch (Throwable th) {
                                     if (hde == null) {
-                                        hde = new HyracksDataException(th);
+                                        hde = HyracksDataException.create(th);
                                     } else {
                                         hde.addSuppressed(th);
                                     }
@@ -224,7 +224,7 @@ public abstract class AbstractReplicateOperatorDescriptor extends AbstractOperat
                 public void initialize() throws HyracksDataException {
                     MaterializerTaskState state = (MaterializerTaskState) ctx.getStateObject(
                             new TaskId(new ActivityId(getOperatorId(), SPLITTER_MATERIALIZER_ACTIVITY_ID), partition));
-                    state.writeOut(writer, new VSizeFrame(ctx));
+                    state.writeOut(writer, new VSizeFrame(ctx), false);
                 }
 
             };

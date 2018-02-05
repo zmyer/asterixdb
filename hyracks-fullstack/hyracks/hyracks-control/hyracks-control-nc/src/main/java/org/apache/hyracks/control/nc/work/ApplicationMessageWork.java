@@ -18,21 +18,18 @@
  */
 package org.apache.hyracks.control.nc.work;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.apache.hyracks.api.deployment.DeploymentId;
 import org.apache.hyracks.api.messages.IMessage;
 import org.apache.hyracks.control.common.deployment.DeploymentUtils;
 import org.apache.hyracks.control.common.work.AbstractWork;
 import org.apache.hyracks.control.nc.NodeControllerService;
-import org.apache.hyracks.control.nc.application.NCApplicationContext;
+import org.apache.hyracks.control.nc.application.NCServiceContext;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-/**
- * @author rico
- */
 public class ApplicationMessageWork extends AbstractWork {
-    private static final Logger LOGGER = Logger.getLogger(ApplicationMessageWork.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private byte[] message;
     private DeploymentId deploymentId;
     private String nodeId;
@@ -47,22 +44,22 @@ public class ApplicationMessageWork extends AbstractWork {
 
     @Override
     public void run() {
-        NCApplicationContext ctx = ncs.getApplicationContext();
+        NCServiceContext ctx = ncs.getContext();
         try {
             IMessage data = (IMessage) DeploymentUtils.deserialize(message, deploymentId, ctx);;
             if (ctx.getMessageBroker() != null) {
                 ctx.getMessageBroker().receivedMessage(data, nodeId);
             } else {
-                LOGGER.log(Level.WARNING, "Message was sent, but no Message Broker set!");
+                LOGGER.log(Level.WARN, "Message was sent, but no Message Broker set!");
             }
         } catch (Exception e) {
-            Logger.getLogger(this.getClass().getName()).log(Level.WARNING, "Error in application message delivery!", e);
+            LOGGER.warn("Error in application message delivery!", e);
             throw new RuntimeException(e);
         }
     }
 
     @Override
     public String toString() {
-        return getName() + ": nodeID: " + nodeId;
+        return getName() + ": nodeId: " + nodeId;
     }
 }

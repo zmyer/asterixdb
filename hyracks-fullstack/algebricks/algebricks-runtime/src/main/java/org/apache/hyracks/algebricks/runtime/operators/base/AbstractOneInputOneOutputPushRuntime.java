@@ -28,5 +28,4 @@ public abstract class AbstractOneInputOneOutputPushRuntime extends AbstractOneIn
     public void setInputRecordDescriptor(int index, RecordDescriptor recordDescriptor) {
         this.inputRecordDesc = recordDescriptor;
     }
-
 }

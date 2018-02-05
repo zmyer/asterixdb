@@ -19,17 +19,40 @@
 package org.apache.asterix.common.utils;
 
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrame;
+import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndexFileManager;
 
 /**
  * A static class that stores storage constants
  */
 public class StorageConstants {
-    public static final String METADATA_ROOT = "root_metadata";
-    /** The storage version of AsterixDB related artifacts (e.g. log files, checkpoint files, etc..). */
-    private static final int LOCAL_STORAGE_VERSION = 1;
 
-    /** The storage version of AsterixDB stack. */
+    public static final String STORAGE_ROOT_DIR_NAME = "storage";
+    public static final String PARTITION_DIR_PREFIX = "partition_";
+    /**
+     * Any file that shares the same directory as the LSM index files must
+     * begin with ".". Otherwise {@link AbstractLSMIndexFileManager} will try to
+     * use them as index files.
+     */
+    public static final String INDEX_CHECKPOINT_FILE_PREFIX = ".idx_checkpoint_";
+    public static final String METADATA_FILE_NAME = ".metadata";
+    public static final String MASK_FILE_PREFIX = ".mask_";
+    public static final String COMPONENT_MASK_FILE_PREFIX = MASK_FILE_PREFIX + "C_";
+    public static final String LEGACY_DATASET_INDEX_NAME_SEPARATOR = "_idx_";
+
+    /**
+     * The storage version of AsterixDB related artifacts (e.g. log files, checkpoint files, etc..).
+     */
+    private static final int LOCAL_STORAGE_VERSION = 2;
+
+    /**
+     * The storage version of AsterixDB stack.
+     */
     public static final int VERSION = LOCAL_STORAGE_VERSION + ITreeIndexFrame.Constants.VERSION;
+
+    /**
+     * The storage version in which the rebalance storage structure was introduced
+     */
+    public static final int REBALANCE_STORAGE_VERSION = 8;
 
     private StorageConstants() {
     }

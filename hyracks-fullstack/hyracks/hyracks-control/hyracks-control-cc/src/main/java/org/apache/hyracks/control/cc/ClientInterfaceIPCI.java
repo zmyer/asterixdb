@@ -18,21 +18,18 @@
  */
 package org.apache.hyracks.control.cc;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.apache.hyracks.api.client.HyracksClientInterfaceFunctions;
 import org.apache.hyracks.api.comm.NetworkAddress;
 import org.apache.hyracks.api.dataset.DatasetJobRecord.Status;
-import org.apache.hyracks.api.job.JobId;
+import org.apache.hyracks.api.job.DeployedJobSpecId;
+import org.apache.hyracks.api.job.DeployedJobSpecIdFactory;
 import org.apache.hyracks.api.job.JobIdFactory;
 import org.apache.hyracks.api.job.JobInfo;
 import org.apache.hyracks.control.cc.work.CancelJobWork;
 import org.apache.hyracks.control.cc.work.CliDeployBinaryWork;
 import org.apache.hyracks.control.cc.work.CliUnDeployBinaryWork;
 import org.apache.hyracks.control.cc.work.ClusterShutdownWork;
-import org.apache.hyracks.control.cc.work.DestroyJobWork;
-import org.apache.hyracks.control.cc.work.DistributeJobWork;
+import org.apache.hyracks.control.cc.work.DeployJobSpecWork;
 import org.apache.hyracks.control.cc.work.GetDatasetDirectoryServiceInfoWork;
 import org.apache.hyracks.control.cc.work.GetJobInfoWork;
 import org.apache.hyracks.control.cc.work.GetJobStatusWork;
@@ -42,33 +39,38 @@ import org.apache.hyracks.control.cc.work.GetResultPartitionLocationsWork;
 import org.apache.hyracks.control.cc.work.GetResultStatusWork;
 import org.apache.hyracks.control.cc.work.GetThreadDumpWork;
 import org.apache.hyracks.control.cc.work.JobStartWork;
+import org.apache.hyracks.control.cc.work.UndeployJobSpecWork;
 import org.apache.hyracks.control.cc.work.WaitForJobCompletionWork;
 import org.apache.hyracks.control.common.work.IPCResponder;
 import org.apache.hyracks.ipc.api.IIPCHandle;
 import org.apache.hyracks.ipc.api.IIPCI;
 import org.apache.hyracks.ipc.exceptions.IPCException;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 class ClientInterfaceIPCI implements IIPCI {
 
-    private static final Logger LOGGER = Logger.getLogger(ClientInterfaceIPCI.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private final ClusterControllerService ccs;
     private final JobIdFactory jobIdFactory;
+    private final DeployedJobSpecIdFactory deployedJobSpecIdFactory;
 
-    ClientInterfaceIPCI(ClusterControllerService ccs) {
+    ClientInterfaceIPCI(final ClusterControllerService ccs, final JobIdFactory jobIdFactory) {
         this.ccs = ccs;
-        jobIdFactory = new JobIdFactory();
+        this.jobIdFactory = jobIdFactory;
+        this.deployedJobSpecIdFactory = ccs.getDeployedJobSpecIdFactory();
     }
 
     @Override
-    public void deliverIncomingMessage(IIPCHandle handle, long mid, long rmid, Object payload,
-            Exception exception) {
+    public void deliverIncomingMessage(IIPCHandle handle, long mid, long rmid, Object payload, Exception exception) {
         HyracksClientInterfaceFunctions.Function fn = (HyracksClientInterfaceFunctions.Function) payload;
         switch (fn.getFunctionId()) {
             case GET_CLUSTER_CONTROLLER_INFO:
                 try {
                     handle.send(mid, ccs.getClusterControllerInfo(), null);
                 } catch (IPCException e) {
-                    LOGGER.log(Level.WARNING, "Error sending response to GET_CLUSTER_CONTROLLER_INFO request", e);
+                    LOGGER.log(Level.WARN, "Error sending response to GET_CLUSTER_CONTROLLER_INFO request", e);
                 }
                 break;
             case GET_JOB_STATUS:
@@ -84,16 +86,16 @@ class ClientInterfaceIPCI implements IIPCI {
                         new IPCResponder<JobInfo>(handle, mid)));
                 break;
             case DISTRIBUTE_JOB:
-                HyracksClientInterfaceFunctions.DistributeJobFunction djf =
-                        (HyracksClientInterfaceFunctions.DistributeJobFunction) fn;
-                ccs.getWorkQueue().schedule(new DistributeJobWork(ccs, djf.getACGGFBytes(), jobIdFactory.create(),
-                        new IPCResponder<JobId>(handle, mid)));
+                HyracksClientInterfaceFunctions.DeployJobSpecFunction djf =
+                        (HyracksClientInterfaceFunctions.DeployJobSpecFunction) fn;
+                ccs.getWorkQueue().schedule(new DeployJobSpecWork(ccs, djf.getACGGFBytes(),
+                        deployedJobSpecIdFactory.create(), new IPCResponder<>(handle, mid)));
                 break;
             case DESTROY_JOB:
-                HyracksClientInterfaceFunctions.DestroyJobFunction dsjf =
-                        (HyracksClientInterfaceFunctions.DestroyJobFunction) fn;
-                ccs.getWorkQueue()
-                        .schedule(new DestroyJobWork(ccs, dsjf.getJobId(), new IPCResponder<JobId>(handle, mid)));
+                HyracksClientInterfaceFunctions.UndeployJobSpecFunction dsjf =
+                        (HyracksClientInterfaceFunctions.UndeployJobSpecFunction) fn;
+                ccs.getWorkQueue().schedule(
+                        new UndeployJobSpecWork(ccs, dsjf.getDeployedJobSpecId(), new IPCResponder<>(handle, mid)));
                 break;
             case CANCEL_JOB:
                 HyracksClientInterfaceFunctions.CancelJobFunction cjf =
@@ -104,42 +106,36 @@ class ClientInterfaceIPCI implements IIPCI {
             case START_JOB:
                 HyracksClientInterfaceFunctions.StartJobFunction sjf =
                         (HyracksClientInterfaceFunctions.StartJobFunction) fn;
-                JobId jobId = sjf.getJobId();
+                DeployedJobSpecId id = sjf.getDeployedJobSpecId();
                 byte[] acggfBytes = null;
-                boolean predistributed = false;
-                if (jobId == null) {
+                if (id == null) {
                     //The job is new
-                    jobId = jobIdFactory.create();
                     acggfBytes = sjf.getACGGFBytes();
-                } else {
-                    //The job has been predistributed. We don't need to send an ActivityClusterGraph
-                    predistributed = true;
                 }
                 ccs.getWorkQueue().schedule(new JobStartWork(ccs, sjf.getDeploymentId(), acggfBytes, sjf.getJobFlags(),
-                        jobId, new IPCResponder<JobId>(handle, mid), predistributed));
+                        jobIdFactory, sjf.getJobParameters(), new IPCResponder<>(handle, mid), id));
                 break;
             case GET_DATASET_DIRECTORY_SERIVICE_INFO:
-                ccs.getWorkQueue().schedule(new GetDatasetDirectoryServiceInfoWork(ccs,
-                        new IPCResponder<NetworkAddress>(handle, mid)));
+                ccs.getWorkQueue().schedule(
+                        new GetDatasetDirectoryServiceInfoWork(ccs, new IPCResponder<NetworkAddress>(handle, mid)));
                 break;
             case GET_DATASET_RESULT_STATUS:
                 HyracksClientInterfaceFunctions.GetDatasetResultStatusFunction gdrsf =
                         (HyracksClientInterfaceFunctions.GetDatasetResultStatusFunction) fn;
-                ccs.getWorkQueue().schedule(new GetResultStatusWork(ccs, gdrsf.getJobId(),
-                        gdrsf.getResultSetId(), new IPCResponder<Status>(handle, mid)));
+                ccs.getWorkQueue().schedule(new GetResultStatusWork(ccs, gdrsf.getJobId(), gdrsf.getResultSetId(),
+                        new IPCResponder<Status>(handle, mid)));
                 break;
             case GET_DATASET_RESULT_LOCATIONS:
                 HyracksClientInterfaceFunctions.GetDatasetResultLocationsFunction gdrlf =
                         (HyracksClientInterfaceFunctions.GetDatasetResultLocationsFunction) fn;
-                ccs.getWorkQueue().schedule(new GetResultPartitionLocationsWork(ccs,
-                        gdrlf.getJobId(), gdrlf.getResultSetId(), gdrlf.getKnownRecords(),
-                        new IPCResponder<>(handle, mid)));
+                ccs.getWorkQueue().schedule(new GetResultPartitionLocationsWork(ccs, gdrlf.getJobId(),
+                        gdrlf.getResultSetId(), gdrlf.getKnownRecords(), new IPCResponder<>(handle, mid)));
                 break;
             case WAIT_FOR_COMPLETION:
                 HyracksClientInterfaceFunctions.WaitForCompletionFunction wfcf =
                         (HyracksClientInterfaceFunctions.WaitForCompletionFunction) fn;
-                ccs.getWorkQueue().schedule(new WaitForJobCompletionWork(ccs, wfcf.getJobId(),
-                        new IPCResponder<>(handle, mid)));
+                ccs.getWorkQueue()
+                        .schedule(new WaitForJobCompletionWork(ccs, wfcf.getJobId(), new IPCResponder<>(handle, mid)));
                 break;
             case GET_NODE_CONTROLLERS_INFO:
                 ccs.getWorkQueue().schedule(
@@ -149,45 +145,45 @@ class ClientInterfaceIPCI implements IIPCI {
                 try {
                     handle.send(mid, ccs.getCCContext().getClusterTopology(), null);
                 } catch (IPCException e) {
-                    LOGGER.log(Level.WARNING, "Error sending response to GET_CLUSTER_TOPOLOGY request", e);
+                    LOGGER.log(Level.WARN, "Error sending response to GET_CLUSTER_TOPOLOGY request", e);
                 }
                 break;
             case CLI_DEPLOY_BINARY:
                 HyracksClientInterfaceFunctions.CliDeployBinaryFunction dbf =
                         (HyracksClientInterfaceFunctions.CliDeployBinaryFunction) fn;
-                ccs.getWorkQueue().schedule(new CliDeployBinaryWork(ccs, dbf.getBinaryURLs(),
-                        dbf.getDeploymentId(), new IPCResponder<>(handle, mid)));
+                ccs.getWorkQueue().schedule(new CliDeployBinaryWork(ccs, dbf.getBinaryURLs(), dbf.getDeploymentId(),
+                        new IPCResponder<>(handle, mid)));
                 break;
             case CLI_UNDEPLOY_BINARY:
                 HyracksClientInterfaceFunctions.CliUnDeployBinaryFunction udbf =
                         (HyracksClientInterfaceFunctions.CliUnDeployBinaryFunction) fn;
-                ccs.getWorkQueue().schedule(new CliUnDeployBinaryWork(ccs, udbf.getDeploymentId(),
-                        new IPCResponder<>(handle, mid)));
+                ccs.getWorkQueue().schedule(
+                        new CliUnDeployBinaryWork(ccs, udbf.getDeploymentId(), new IPCResponder<>(handle, mid)));
                 break;
             case CLUSTER_SHUTDOWN:
                 HyracksClientInterfaceFunctions.ClusterShutdownFunction csf =
                         (HyracksClientInterfaceFunctions.ClusterShutdownFunction) fn;
-                ccs.getWorkQueue().schedule(new ClusterShutdownWork(ccs,
-                        csf.isTerminateNCService(), new IPCResponder<>(handle, mid)));
+                ccs.getWorkQueue().schedule(
+                        new ClusterShutdownWork(ccs, csf.isTerminateNCService(), new IPCResponder<>(handle, mid)));
                 break;
             case GET_NODE_DETAILS_JSON:
                 HyracksClientInterfaceFunctions.GetNodeDetailsJSONFunction gndjf =
                         (HyracksClientInterfaceFunctions.GetNodeDetailsJSONFunction) fn;
                 ccs.getWorkQueue()
                         .schedule(new GetNodeDetailsJSONWork(ccs.getNodeManager(), ccs.getCCConfig(), gndjf.getNodeId(),
-                        gndjf.isIncludeStats(), gndjf.isIncludeConfig(), new IPCResponder<>(handle, mid)));
+                                gndjf.isIncludeStats(), gndjf.isIncludeConfig(), new IPCResponder<>(handle, mid)));
                 break;
             case THREAD_DUMP:
                 HyracksClientInterfaceFunctions.ThreadDumpFunction tdf =
                         (HyracksClientInterfaceFunctions.ThreadDumpFunction) fn;
-                ccs.getWorkQueue().schedule(new GetThreadDumpWork(ccs, tdf.getNode(),
-                        new IPCResponder<String>(handle, mid)));
+                ccs.getWorkQueue()
+                        .schedule(new GetThreadDumpWork(ccs, tdf.getNode(), new IPCResponder<String>(handle, mid)));
                 break;
             default:
                 try {
                     handle.send(mid, null, new IllegalArgumentException("Unknown function " + fn.getFunctionId()));
                 } catch (IPCException e) {
-                    LOGGER.log(Level.WARNING, "Error sending Unknown function response", e);
+                    LOGGER.log(Level.WARN, "Error sending Unknown function response", e);
                 }
         }
     }

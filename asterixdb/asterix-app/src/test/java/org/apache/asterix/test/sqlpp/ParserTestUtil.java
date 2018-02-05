@@ -21,10 +21,11 @@ package org.apache.asterix.test.sqlpp;
 import java.io.File;
 import java.util.Collection;
 import java.util.List;
-import java.util.logging.Logger;
 
 import org.apache.asterix.test.base.AsterixTestHelper;
 import org.apache.asterix.test.common.TestHelper;
+import org.apache.hyracks.util.file.FileUtil;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assume;
 import org.junit.internal.AssumptionViolatedException;
 
@@ -34,15 +35,15 @@ class ParserTestUtil {
             String extensionQuery, String extensionResult, String pathExpected, String pathActual) {
         if (file.isDirectory() && !file.getName().startsWith(".")) {
             for (File innerfile : file.listFiles()) {
-                String subdir = innerfile.isDirectory() ? TestHelper.joinPath(path, innerfile.getName()) : path;
+                String subdir = innerfile.isDirectory() ? FileUtil.joinPath(path, innerfile.getName()) : path;
                 suiteBuild(innerfile, testArgs, subdir, separator, extensionQuery, extensionResult, pathExpected,
                         pathActual);
             }
         }
         if (file.isFile() && file.getName().endsWith(extensionQuery)) {
             String resultFileName = AsterixTestHelper.extToResExt(file.getName(), extensionResult);
-            File expectedFile = new File(TestHelper.joinPath(pathExpected, path, resultFileName));
-            File actualFile = new File(TestHelper.joinPath(pathActual, path, resultFileName));
+            File expectedFile = new File(FileUtil.joinPath(pathExpected, path, resultFileName));
+            File actualFile = new File(FileUtil.joinPath(pathActual, path, resultFileName));
             testArgs.add(new Object[] { file, expectedFile, actualFile });
         }
     }
@@ -73,7 +74,7 @@ class ParserTestUtil {
         } catch (Exception e) {
             if (!(e instanceof AssumptionViolatedException)) {
                 final String msg = "Test \"" + queryFile.getPath() + "\" FAILED!";
-                logger.severe(msg);
+                logger.error(msg);
                 throw new Exception(msg, e);
             } else {
                 throw e;

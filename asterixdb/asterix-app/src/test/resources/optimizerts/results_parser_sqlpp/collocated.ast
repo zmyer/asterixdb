@@ -39,13 +39,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Users]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [colocated.Users]
   ]
   AS Variable [ Name=$user ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Visitors]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [colocated.Visitors]
   ]
   AS Variable [ Name=$visitor ]
 ]

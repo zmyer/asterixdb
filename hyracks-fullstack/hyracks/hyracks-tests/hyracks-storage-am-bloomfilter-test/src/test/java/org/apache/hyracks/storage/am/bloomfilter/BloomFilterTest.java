@@ -35,7 +35,7 @@ import org.apache.hyracks.storage.am.bloomfilter.impls.BloomCalculations;
 import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilter;
 import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilterSpecification;
 import org.apache.hyracks.storage.am.bloomfilter.util.AbstractBloomFilterTest;
-import org.apache.hyracks.storage.am.common.api.IIndexBulkLoader;
+import org.apache.hyracks.storage.common.IIndexBulkLoader;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,7 +53,7 @@ public class BloomFilterTest extends AbstractBloomFilterTest {
 
     @Test
     public void singleFieldTest() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("TESTING BLOOM FILTER");
         }
 
@@ -62,13 +62,12 @@ public class BloomFilterTest extends AbstractBloomFilterTest {
         int numElements = 100;
         int[] keyFields = { 0 };
 
-        BloomFilter bf = new BloomFilter(bufferCache, harness.getFileMapProvider(), harness.getFileReference(),
-                keyFields);
+        BloomFilter bf = new BloomFilter(bufferCache, harness.getFileReference(), keyFields);
 
         double acceptanleFalsePositiveRate = 0.1;
         int maxBucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
-        BloomFilterSpecification bloomFilterSpec = BloomCalculations.computeBloomSpec(maxBucketsPerElement,
-                acceptanleFalsePositiveRate);
+        BloomFilterSpecification bloomFilterSpec =
+                BloomCalculations.computeBloomSpec(maxBucketsPerElement, acceptanleFalsePositiveRate);
 
         bf.create();
         bf.activate();
@@ -98,21 +97,22 @@ public class BloomFilterTest extends AbstractBloomFilterTest {
         }
         builder.end();
 
+        bf.pinAllPages();
         // Check all the inserted tuples can be found.
 
-        long[] hashes = new long[2];
+        long[] hashes = BloomFilter.createHashArray();
         for (int i = 0; i < keys.size(); ++i) {
             TupleUtils.createIntegerTuple(tupleBuilder, tuple, keys.get(i), i);
             Assert.assertTrue(bf.contains(tuple, hashes));
         }
-
+        bf.unpinAllPages();
         bf.deactivate();
         bf.destroy();
     }
 
     @Test
     public void multiFieldTest() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("TESTING BLOOM FILTER");
         }
 
@@ -121,13 +121,12 @@ public class BloomFilterTest extends AbstractBloomFilterTest {
         int numElements = 10000;
         int[] keyFields = { 2, 4, 1 };
 
-        BloomFilter bf = new BloomFilter(bufferCache, harness.getFileMapProvider(), harness.getFileReference(),
-                keyFields);
+        BloomFilter bf = new BloomFilter(bufferCache, harness.getFileReference(), keyFields);
 
         double acceptanleFalsePositiveRate = 0.1;
         int maxBucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
-        BloomFilterSpecification bloomFilterSpec = BloomCalculations.computeBloomSpec(maxBucketsPerElement,
-                acceptanleFalsePositiveRate);
+        BloomFilterSpecification bloomFilterSpec =
+                BloomCalculations.computeBloomSpec(maxBucketsPerElement, acceptanleFalsePositiveRate);
 
         bf.create();
         bf.activate();
@@ -159,12 +158,14 @@ public class BloomFilterTest extends AbstractBloomFilterTest {
         }
         builder.end();
 
-        long[] hashes = new long[2];
+        bf.pinAllPages();
+        long[] hashes = BloomFilter.createHashArray();
         for (int i = 0; i < numElements; ++i) {
             TupleUtils.createTuple(tupleBuilder, tuple, fieldSerdes, s1.get(i), s2.get(i), i, s3.get(i), s4.get(i));
             Assert.assertTrue(bf.contains(tuple, hashes));
         }
 
+        bf.unpinAllPages();
         bf.deactivate();
         bf.destroy();
     }

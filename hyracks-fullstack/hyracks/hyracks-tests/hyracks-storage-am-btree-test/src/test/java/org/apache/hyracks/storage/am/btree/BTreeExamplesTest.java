@@ -52,8 +52,8 @@ public class BTreeExamplesTest extends OrderedIndexExamplesTest {
         ITreeIndexMetadataFrameFactory metaFrameFactory = new LIFOMetaDataFrameFactory();
         LinkedMetaDataPageManager freePageManager =
                 new LinkedMetaDataPageManager(harness.getBufferCache(), metaFrameFactory);
-        return BTreeUtils.createBTree(harness.getBufferCache(), harness.getFileMapProvider(), typeTraits, cmpFactories,
-                BTreeLeafFrameType.REGULAR_NSM, harness.getFileReference(), freePageManager);
+        return BTreeUtils.createBTree(harness.getBufferCache(), typeTraits, cmpFactories,
+                BTreeLeafFrameType.REGULAR_NSM, harness.getFileReference(), freePageManager, false);
     }
 
 }

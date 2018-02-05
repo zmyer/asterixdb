@@ -20,17 +20,14 @@ package org.apache.asterix.external.operators;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.active.ActiveManager;
 import org.apache.asterix.active.ActiveRuntimeId;
-import org.apache.asterix.common.api.IAppRuntimeContext;
+import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.external.feed.dataflow.FeedRuntimeInputHandler;
 import org.apache.asterix.external.feed.dataflow.SyncFeedRuntimeInputHandler;
 import org.apache.asterix.external.feed.management.FeedConnectionId;
 import org.apache.asterix.external.feed.policy.FeedPolicyAccessor;
-import org.apache.asterix.external.feed.policy.FeedPolicyEnforcer;
 import org.apache.asterix.external.util.FeedUtils;
 import org.apache.asterix.external.util.FeedUtils.FeedRuntimeType;
 import org.apache.hyracks.api.comm.VSizeFrame;
@@ -43,22 +40,25 @@ import org.apache.hyracks.api.util.HyracksConstants;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.utils.TaskUtil;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /*
  * This IFrameWriter doesn't follow the contract
  */
 public class FeedMetaComputeNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
 
-    private static final Logger LOGGER = Logger.getLogger(FeedMetaComputeNodePushable.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /** Runtime node pushable corresponding to the core feed operator **/
     private AbstractUnaryInputUnaryOutputOperatorNodePushable coreOperator;
 
     /**
-     * A policy enforcer that ensures dynamic decisions for a feed are taken
+     * A policy accessor that ensures dynamic decisions for a feed are taken
      * in accordance with the associated ingestion policy
      **/
-    private FeedPolicyEnforcer policyEnforcer;
+    private FeedPolicyAccessor policyAccessor;
 
     /**
      * A unique identifier for the feed instance. A feed instance represents
@@ -96,18 +96,18 @@ public class FeedMetaComputeNodePushable extends AbstractUnaryInputUnaryOutputOp
      */
     public FeedMetaComputeNodePushable(IHyracksTaskContext ctx, IRecordDescriptorProvider recordDescProvider,
             int partition, int nPartitions, IOperatorDescriptor coreOperator, FeedConnectionId feedConnectionId,
-            Map<String, String> feedPolicyProperties, String operationId,
-            FeedMetaOperatorDescriptor feedMetaOperatorDescriptor) throws HyracksDataException {
+            Map<String, String> feedPolicyProperties, FeedMetaOperatorDescriptor feedMetaOperatorDescriptor)
+            throws HyracksDataException {
         this.ctx = ctx;
         this.coreOperator = (AbstractUnaryInputUnaryOutputOperatorNodePushable) ((IActivity) coreOperator)
                 .createPushRuntime(ctx, recordDescProvider, partition, nPartitions);
-        this.policyEnforcer = new FeedPolicyEnforcer(feedConnectionId, feedPolicyProperties);
+        this.policyAccessor = new FeedPolicyAccessor(feedPolicyProperties);
         this.partition = partition;
         this.connectionId = feedConnectionId;
-        this.feedManager = (ActiveManager) ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext()
-                .getApplicationObject()).getActiveManager();
+        this.feedManager = (ActiveManager) ((INcApplicationContext) ctx.getJobletContext().getServiceContext()
+                .getApplicationContext()).getActiveManager();
         this.message = new VSizeFrame(ctx);
-        TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+        TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
         this.opDesc = feedMetaOperatorDescriptor;
         this.recordDescProvider = recordDescProvider;
     }
@@ -127,9 +127,9 @@ public class FeedMetaComputeNodePushable extends AbstractUnaryInputUnaryOutputOp
 
     private void initializeNewFeedRuntime(ActiveRuntimeId runtimeId) throws Exception {
         fta = new FrameTupleAccessor(recordDescProvider.getInputRecordDescriptor(opDesc.getActivityId(), 0));
-        FeedPolicyAccessor fpa = policyEnforcer.getFeedPolicyAccessor();
+        FeedPolicyAccessor fpa = policyAccessor;
         coreOperator.setOutputFrameWriter(0, writer, recordDesc);
-        if (fpa.bufferingEnabled()) {
+        if (fpa.flowControlEnabled()) {
             writer = new FeedRuntimeInputHandler(ctx, connectionId, runtimeId, coreOperator, fpa, fta,
                     feedManager.getFramePool());
         } else {
@@ -143,7 +143,7 @@ public class FeedMetaComputeNodePushable extends AbstractUnaryInputUnaryOutputOp
             FeedUtils.processFeedMessage(buffer, message, fta);
             writer.nextFrame(buffer);
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, e.getMessage(), e);
+            LOGGER.log(Level.WARN, e.getMessage(), e);
             throw new HyracksDataException(e);
         }
     }

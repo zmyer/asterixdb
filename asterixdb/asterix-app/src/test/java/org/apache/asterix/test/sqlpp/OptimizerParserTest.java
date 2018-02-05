@@ -21,10 +21,11 @@ package org.apache.asterix.test.sqlpp;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.logging.Logger;
 
 import org.apache.asterix.test.base.AsterixTestHelper;
-import org.apache.asterix.test.common.TestHelper;
+import org.apache.hyracks.util.file.FileUtil;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -35,19 +36,19 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class OptimizerParserTest {
 
-    private static final Logger LOGGER = Logger.getLogger(OptimizerParserTest.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String EXTENSION_QUERY = "sqlpp";
     private static final String EXTENSION_RESULT = "ast";
     private static final String FILENAME_IGNORE = "ignore.txt";
     private static final String FILENAME_ONLY = "only.txt";
-    private static final String PATH_BASE = TestHelper.joinPath("src", "test", "resources", "optimizerts");
-    private static final String PATH_QUERIES = TestHelper.joinPath(PATH_BASE, "queries_sqlpp");
-    private static final String PATH_EXPECTED = TestHelper.joinPath(PATH_BASE, "results_parser_sqlpp");
-    private static final String PATH_ACTUAL = TestHelper.joinPath("target", "opt_parserts", "results_parser_sqlpp");
+    private static final String PATH_BASE = FileUtil.joinPath("src", "test", "resources", "optimizerts");
+    private static final String PATH_QUERIES = FileUtil.joinPath(PATH_BASE, "queries_sqlpp");
+    private static final String PATH_EXPECTED = FileUtil.joinPath(PATH_BASE, "results_parser_sqlpp");
+    private static final String PATH_ACTUAL = FileUtil.joinPath("target", "opt_parserts", "results_parser_sqlpp");
 
-    private static final ArrayList<String> ignore = AsterixTestHelper.readFile(FILENAME_IGNORE, PATH_BASE);
-    private static final ArrayList<String> only = AsterixTestHelper.readFile(FILENAME_ONLY, PATH_BASE);
+    private static final ArrayList<String> ignore = AsterixTestHelper.readTestListFile(FILENAME_IGNORE, PATH_BASE);
+    private static final ArrayList<String> only = AsterixTestHelper.readTestListFile(FILENAME_ONLY, PATH_BASE);
 
     @BeforeClass
     public static void setUp() throws Exception {

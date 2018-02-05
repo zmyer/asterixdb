@@ -21,17 +21,19 @@ package org.apache.hyracks.ipc.impl;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.hyracks.ipc.api.IIPCEventListener;
 import org.apache.hyracks.ipc.api.IIPCHandle;
 import org.apache.hyracks.ipc.api.IIPCI;
 import org.apache.hyracks.ipc.api.IPCPerformanceCounters;
 import org.apache.hyracks.ipc.api.IPayloadSerializerDeserializer;
 import org.apache.hyracks.ipc.exceptions.IPCException;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class IPCSystem {
-    private static final Logger LOGGER = Logger.getLogger(IPCSystem.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final IPCConnectionManager cMgr;
 
@@ -59,7 +61,8 @@ public class IPCSystem {
     public void start() {
         cMgr.start();
     }
-    public void stop() throws IOException{
+
+    public void stop() {
         cMgr.stop();
     }
 
@@ -67,12 +70,35 @@ public class IPCSystem {
         return getHandle(remoteAddress, 0);
     }
 
-    public IIPCHandle getHandle(InetSocketAddress remoteAddress, int retries) throws IPCException {
+    public IIPCHandle getHandle(InetSocketAddress remoteAddress, int maxRetries) throws IPCException {
+        return getHandle(remoteAddress, maxRetries, 0);
+    }
+
+    public IIPCHandle getReconnectingHandle(InetSocketAddress remoteAddress) throws IPCException {
+        return getReconnectingHandle(remoteAddress, 1);
+    }
+
+    public IIPCHandle getReconnectingHandle(InetSocketAddress remoteAddress, int reconnectAttempts)
+            throws IPCException {
+        return getHandle(remoteAddress, 0, reconnectAttempts, NoOpIPCEventListener.INSTANCE);
+    }
+
+    public IIPCHandle getHandle(InetSocketAddress remoteAddress, int maxRetries, int reconnectAttempts)
+            throws IPCException {
+        return getHandle(remoteAddress, maxRetries, reconnectAttempts, NoOpIPCEventListener.INSTANCE);
+    }
+
+    public IIPCHandle getHandle(InetSocketAddress remoteAddress, int maxRetries, int reconnectAttempts,
+            IIPCEventListener eventListener) throws IPCException {
+        if (reconnectAttempts > 0) {
+            return new ReconnectingIPCHandle(this, eventListener, remoteAddress, maxRetries, reconnectAttempts);
+        }
         try {
-            return cMgr.getIPCHandle(remoteAddress, retries);
+            return cMgr.getIPCHandle(remoteAddress, maxRetries);
         } catch (IOException e) {
             throw new IPCException(e);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IPCException(e);
         }
     }
@@ -92,7 +118,7 @@ public class IPCSystem {
         Exception exception = null;
         if (message.getFlag() == Message.ERROR) {
             exception = (Exception) message.getPayload();
-            LOGGER.log(Level.INFO, "Exception in message " + message.toString());
+            LOGGER.log(Level.INFO, "Exception in message", exception);
         } else {
             payload = message.getPayload();
         }

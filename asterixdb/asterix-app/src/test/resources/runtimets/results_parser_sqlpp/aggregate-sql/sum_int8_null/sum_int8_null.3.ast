@@ -1,7 +1,7 @@
 DataverseUse test
 Query:
 SELECT ELEMENT [
-FunctionCall test.sql-sum@1[
+FunctionCall asterix.sql-sum@1[
   (
     SELECT ELEMENT [
     FieldAccessor [
@@ -9,8 +9,8 @@ FunctionCall test.sql-sum@1[
       Field=int8Field
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Numeric]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.Numeric]
       ]
       AS Variable [ Name=$x ]
     ]

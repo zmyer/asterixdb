@@ -72,8 +72,8 @@ RecordConstructor [
         )
       ]
       ]
-      FROM [        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [TweetMessages]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [test.TweetMessages]
         ]
         AS Variable [ Name=$t2 ]
       ]
@@ -120,8 +120,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [TweetMessages]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.TweetMessages]
   ]
   AS Variable [ Name=$t1 ]
 ]

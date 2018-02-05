@@ -21,15 +21,18 @@
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
   <artifactId>asterix-benchmark</artifactId>
+
+  <properties>
+    <root.dir>${basedir}/..</root.dir>
+  </properties>
 
   <build>
     <plugins>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.6</version>
         <executions>
           <execution>
             <configuration>

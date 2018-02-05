@@ -21,8 +21,6 @@ package org.apache.hyracks.dataflow.std.sort;
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrame;
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
@@ -36,16 +34,19 @@ import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
+import org.apache.hyracks.dataflow.common.utils.NormalizedKeyUtils;
 import org.apache.hyracks.dataflow.std.buffermanager.IDeletableTupleBufferManager;
 import org.apache.hyracks.dataflow.std.buffermanager.ITuplePointerAccessor;
 import org.apache.hyracks.dataflow.std.structures.IResetableComparable;
 import org.apache.hyracks.dataflow.std.structures.IResetableComparableFactory;
 import org.apache.hyracks.dataflow.std.structures.MaxHeap;
 import org.apache.hyracks.dataflow.std.structures.TuplePointer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TupleSorterHeapSort implements ITupleSorter {
 
-    private static final Logger LOGGER = Logger.getLogger(TupleSorterHeapSort.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     class HeapEntryFactory implements IResetableComparableFactory<HeapEntry> {
         @Override
@@ -55,18 +56,19 @@ public class TupleSorterHeapSort implements ITupleSorter {
     }
 
     class HeapEntry implements IResetableComparable<HeapEntry> {
-        int nmk;
+        int[] nmk;
         TuplePointer tuplePointer;
 
         public HeapEntry() {
             tuplePointer = new TuplePointer();
-            nmk = 0;
+            nmk = new int[normalizedKeyTotalLength];
         }
 
         @Override
         public int compareTo(HeapEntry o) {
-            if (nmk != o.nmk) {
-                return ((((long) nmk) & 0xffffffffL) < (((long) o.nmk) & 0xffffffffL)) ? -1 : 1;
+            int cmpNormalizedKey = NormalizedKeyUtils.compareNormalizeKeys(nmk, 0, o.nmk, 0, normalizedKeyTotalLength);
+            if (cmpNormalizedKey != 0 || normalizedKeyDecisive) {
+                return cmpNormalizedKey;
             }
             bufferAccessor1.reset(tuplePointer);
             bufferAccessor2.reset(o.tuplePointer);
@@ -93,13 +95,15 @@ public class TupleSorterHeapSort implements ITupleSorter {
             return 0;
         }
 
-        public void reset(int nmkey) {
-            nmk = nmkey;
+        public void reset(int[] nmkey) {
+            if (normalizedKeyTotalLength > 0) {
+                System.arraycopy(nmkey, 0, nmk, 0, normalizedKeyTotalLength);
+            }
         }
 
         @Override
         public void reset(HeapEntry other) {
-            nmk = other.nmk;
+            reset(other.nmk);
             tuplePointer.reset(other.tuplePointer);
         }
     }
@@ -111,19 +115,23 @@ public class TupleSorterHeapSort implements ITupleSorter {
     private final FrameTupleAppender outputAppender;
     private final IFrame outputFrame;
     private final int[] sortFields;
-    private final INormalizedKeyComputer nkc;
+    private final INormalizedKeyComputer[] nkcs;
+    private final boolean normalizedKeyDecisive;
+    private final int[] normalizedKeyLength;
+    private final int normalizedKeyTotalLength;
     private final IBinaryComparator[] comparators;
 
-    private HeapEntry maxEntry;
-    private HeapEntry newEntry;
+    private final HeapEntry maxEntry;
+    private final HeapEntry newEntry;
 
     private MaxHeap heap;
     private boolean isSorted;
 
+    private final int[] nmk;
+
     public TupleSorterHeapSort(IHyracksTaskContext ctx, IDeletableTupleBufferManager bufferManager, int topK,
-            int[] sortFields,
-            INormalizedKeyComputerFactory firstKeyNormalizerFactory, IBinaryComparatorFactory[] comparatorFactories)
-            throws HyracksDataException {
+            int[] sortFields, INormalizedKeyComputerFactory[] keyNormalizerFactories,
+            IBinaryComparatorFactory[] comparatorFactories) throws HyracksDataException {
         this.bufferManager = bufferManager;
         this.bufferAccessor1 = bufferManager.createTuplePointerAccessor();
         this.bufferAccessor2 = bufferManager.createTuplePointerAccessor();
@@ -131,7 +139,32 @@ public class TupleSorterHeapSort implements ITupleSorter {
         this.outputFrame = new VSizeFrame(ctx);
         this.outputAppender = new FrameTupleAppender();
         this.sortFields = sortFields;
-        this.nkc = firstKeyNormalizerFactory == null ? null : firstKeyNormalizerFactory.createNormalizedKeyComputer();
+
+        int runningNormalizedKeyTotalLength = 0;
+        if (keyNormalizerFactories != null) {
+            int decisivePrefixLength = NormalizedKeyUtils.getDecisivePrefixLength(keyNormalizerFactories);
+
+            // we only take a prefix of the decisive normalized keys, plus at most indecisive normalized keys
+            // ideally, the caller should prepare normalizers in this way, but we just guard here to avoid
+            // computing unncessary normalized keys
+            int normalizedKeys = decisivePrefixLength < keyNormalizerFactories.length ? decisivePrefixLength + 1
+                    : decisivePrefixLength;
+            this.nkcs = new INormalizedKeyComputer[normalizedKeys];
+            this.normalizedKeyLength = new int[normalizedKeys];
+
+            for (int i = 0; i < normalizedKeys; i++) {
+                this.nkcs[i] = keyNormalizerFactories[i].createNormalizedKeyComputer();
+                this.normalizedKeyLength[i] =
+                        keyNormalizerFactories[i].getNormalizedKeyProperties().getNormalizedKeyLength();
+                runningNormalizedKeyTotalLength += this.normalizedKeyLength[i];
+            }
+            this.normalizedKeyDecisive = decisivePrefixLength == comparatorFactories.length;
+        } else {
+            this.nkcs = null;
+            this.normalizedKeyLength = null;
+            this.normalizedKeyDecisive = false;
+        }
+        this.normalizedKeyTotalLength = runningNormalizedKeyTotalLength;
         this.comparators = new IBinaryComparator[comparatorFactories.length];
         for (int i = 0; i < comparatorFactories.length; ++i) {
             comparators[i] = comparatorFactories[i].createBinaryComparator();
@@ -141,6 +174,7 @@ public class TupleSorterHeapSort implements ITupleSorter {
         this.maxEntry = new HeapEntry();
         this.newEntry = new HeapEntry();
         this.isSorted = false;
+        this.nmk = new int[runningNormalizedKeyTotalLength];
     }
 
     @Override
@@ -154,7 +188,7 @@ public class TupleSorterHeapSort implements ITupleSorter {
             throw new HyracksDataException(
                     "The Heap haven't be reset after sorting, the order of using this class is not correct.");
         }
-        int nmkey = getPNK(frameTupleAccessor, index);
+        int[] nmkey = getPNK(frameTupleAccessor, index);
         if (heap.getNumEntries() >= topK) {
             heap.peekMax(maxEntry);
             if (compareTuple(frameTupleAccessor, index, nmkey, maxEntry) >= 0) {
@@ -175,20 +209,29 @@ public class TupleSorterHeapSort implements ITupleSorter {
         return true;
     }
 
-    private int getPNK(IFrameTupleAccessor fta, int tIx) {
-        if (nkc == null) {
-            return 0;
+    private int[] getPNK(IFrameTupleAccessor fta, int tIx) {
+        if (nkcs == null) {
+            return nmk;
         }
-        int sfIdx = sortFields[0];
-        return nkc.normalize(fta.getBuffer().array(), fta.getAbsoluteFieldStartOffset(tIx, sfIdx),
-                fta.getFieldLength(tIx, sfIdx));
+        int keyPos = 0;
+        byte[] buffer = fta.getBuffer().array();
+        for (int i = 0; i < nkcs.length; i++) {
+            int sfIdx = sortFields[i];
+            nkcs[i].normalize(buffer, fta.getAbsoluteFieldStartOffset(tIx, sfIdx), fta.getFieldLength(tIx, sfIdx), nmk,
+                    keyPos);
+            keyPos += normalizedKeyLength[i];
+        }
+        return nmk;
     }
 
-    private int compareTuple(IFrameTupleAccessor frameTupleAccessor, int tid, int nmkey, HeapEntry maxEntry)
+    private int compareTuple(IFrameTupleAccessor frameTupleAccessor, int tid, int[] nmkey, HeapEntry maxEntry)
             throws HyracksDataException {
-        if (nmkey != maxEntry.nmk) {
-            return ((((long) nmkey) & 0xffffffffL) < (((long) maxEntry.nmk) & 0xffffffffL)) ? -1 : 1;
+        int cmpNormalizedKey =
+                NormalizedKeyUtils.compareNormalizeKeys(nmkey, 0, maxEntry.nmk, 0, normalizedKeyTotalLength);
+        if (cmpNormalizedKey != 0 || normalizedKeyDecisive) {
+            return cmpNormalizedKey;
         }
+
         bufferAccessor2.reset(maxEntry.tuplePointer);
         byte[] b1 = frameTupleAccessor.getBuffer().array();
         byte[] b2 = bufferAccessor2.getBuffer().array();
@@ -254,9 +297,8 @@ public class TupleSorterHeapSort implements ITupleSorter {
         for (int i = 0; i < numEntries; i++) {
             HeapEntry minEntry = (HeapEntry) entries[i];
             bufferAccessor1.reset(minEntry.tuplePointer);
-            int flushed = FrameUtils
-                    .appendToWriter(writer, outputAppender, bufferAccessor1.getBuffer().array(),
-                            bufferAccessor1.getTupleStartOffset(), bufferAccessor1.getTupleLength());
+            int flushed = FrameUtils.appendToWriter(writer, outputAppender, bufferAccessor1.getBuffer().array(),
+                    bufferAccessor1.getTupleStartOffset(), bufferAccessor1.getTupleLength());
             if (flushed > 0) {
                 maxFrameSize = Math.max(maxFrameSize, flushed);
                 io++;
@@ -264,9 +306,8 @@ public class TupleSorterHeapSort implements ITupleSorter {
         }
         maxFrameSize = Math.max(maxFrameSize, outputFrame.getFrameSize());
         outputAppender.write(writer, true);
-        if (LOGGER.isLoggable(Level.INFO)) {
-            LOGGER.info(
-                    "Flushed records:" + numEntries + "; Flushed through " + (io + 1) + " frames");
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Flushed records:" + numEntries + "; Flushed through " + (io + 1) + " frames");
         }
         return maxFrameSize;
     }

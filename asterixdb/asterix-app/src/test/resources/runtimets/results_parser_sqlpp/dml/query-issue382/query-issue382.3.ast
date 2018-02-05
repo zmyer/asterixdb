@@ -1,13 +1,13 @@
 DataverseUse SocialNetworkData
 Query:
 SELECT ELEMENT [
-FunctionCall SocialNetworkData.count@1[
+FunctionCall asterix.count@1[
   (
     SELECT ELEMENT [
     Variable [ Name=$h ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [HandbookUsers]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [SocialNetworkData.HandbookUsers]
       ]
       AS Variable [ Name=$h ]
     ]

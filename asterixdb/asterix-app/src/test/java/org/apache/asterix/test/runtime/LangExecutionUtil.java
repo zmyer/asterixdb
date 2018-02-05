@@ -19,6 +19,8 @@
 
 package org.apache.asterix.test.runtime;
 
+import static org.apache.hyracks.util.ThreadDumpUtil.takeDumpJSONString;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -29,40 +31,43 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.apache.asterix.app.external.TestLibrarian;
+import org.apache.asterix.common.config.NodeProperties;
+import org.apache.asterix.app.external.ExternalUDFLibrarian;
 import org.apache.asterix.common.library.ILibraryManager;
+import org.apache.asterix.common.utils.StorageConstants;
 import org.apache.asterix.test.common.TestExecutor;
 import org.apache.asterix.testframework.context.TestCaseContext;
 import org.apache.commons.lang.SystemUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.junit.Assert;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.apache.hyracks.api.io.IODeviceHandle;
+import org.apache.hyracks.control.nc.NodeControllerService;
+import org.apache.hyracks.util.ThreadDumpUtil;
 
 /**
  * Utils for running SQL++ or AQL runtime tests.
  */
-@RunWith(Parameterized.class)
 public class LangExecutionUtil {
 
     private static final String PATH_ACTUAL = "target" + File.separator + "rttest" + File.separator;
-    private static final String PATH_BASE = StringUtils.join(new String[] { "src", "test", "resources", "runtimets" },
-            File.separator);
+    private static final String PATH_BASE =
+            StringUtils.join(new String[] { "src", "test", "resources", "runtimets" }, File.separator);
 
     private static final boolean cleanupOnStart = true;
     private static final boolean cleanupOnStop = true;
     private static final List<String> badTestCases = new ArrayList<>();
-    private static final TestExecutor testExecutor = new TestExecutor();
+    private static TestExecutor testExecutor;
 
-    private static TestLibrarian librarian;
+    private static ExternalUDFLibrarian librarian;
     private static final int repeat = Integer.getInteger("test.repeat", 1);
+    private static boolean checkStorageDistribution = true;
 
-    public static void setUp(String configFile) throws Exception {
+    public static void setUp(String configFile, TestExecutor executor) throws Exception {
+        testExecutor = executor;
         File outdir = new File(PATH_ACTUAL);
         outdir.mkdirs();
         List<ILibraryManager> libraryManagers = ExecutionTestUtil.setUp(cleanupOnStart, configFile);
-        TestLibrarian.removeLibraryDir();
-        librarian = new TestLibrarian(libraryManagers);
+        ExternalUDFLibrarian.removeLibraryDir();
+        librarian = new ExternalUDFLibrarian(libraryManagers);
         testExecutor.setLibrarian(librarian);
         if (repeat != 1) {
             System.out.println("FYI: each test will be run " + repeat + " times.");
@@ -70,16 +75,20 @@ public class LangExecutionUtil {
     }
 
     public static void tearDown() throws Exception {
-        // Check whether there are leaked open run file handles.
-        checkRunFileLeaks();
-
-        TestLibrarian.removeLibraryDir();
-        ExecutionTestUtil.tearDown(cleanupOnStop);
-        ExecutionTestUtil.integrationUtil.removeTestStorageFiles();
-        if (!badTestCases.isEmpty()) {
-            System.out.println("The following test cases left some data");
-            for (String testCase : badTestCases) {
-                System.out.println(testCase);
+        try {
+            // Check whether there are leaked open run file handles.
+            checkOpenRunFileLeaks();
+            // Check whether there are leaked threads.
+            checkThreadLeaks();
+        } finally {
+            ExternalUDFLibrarian.removeLibraryDir();
+            ExecutionTestUtil.tearDown(cleanupOnStop);
+            ExecutionTestUtil.integrationUtil.removeTestStorageFiles();
+            if (!badTestCases.isEmpty()) {
+                System.out.println("The following test cases left some data");
+                for (String testCase : badTestCases) {
+                    System.out.println(testCase);
+                }
             }
         }
     }
@@ -116,11 +125,13 @@ public class LangExecutionUtil {
                     librarian.cleanup();
                 }
                 testExecutor.executeTest(PATH_ACTUAL, tcCtx, null, false, ExecutionTestUtil.FailedGroup);
+
                 try {
+                    if (checkStorageDistribution) {
+                        checkStorageFiles();
+                    }
+                } finally {
                     testExecutor.cleanup(tcCtx.toString(), badTestCases);
-                } catch (Throwable th) {
-                    th.printStackTrace();
-                    throw th;
                 }
             }
         } finally {
@@ -128,7 +139,72 @@ public class LangExecutionUtil {
         }
     }
 
-    private static void checkRunFileLeaks() throws IOException {
+    // Checks whether data files are uniformly distributed among io devices.
+    private static void checkStorageFiles() throws Exception {
+        NodeControllerService[] ncs = ExecutionTestUtil.integrationUtil.ncs;
+        // Checks that dataset files are uniformly distributed across each io device.
+        for (NodeControllerService nc : ncs) {
+            checkNcStore(nc);
+        }
+    }
+
+    // For each NC, check whether data files are uniformly distributed among io devices.
+    private static void checkNcStore(NodeControllerService nc) throws Exception {
+        List<IODeviceHandle> ioDevices = nc.getIoManager().getIODevices();
+        int expectedPartitionNum = -1;
+        for (IODeviceHandle ioDevice : ioDevices) {
+            File[] dataDirs = ioDevice.getMount().listFiles();
+            for (File dataDir : dataDirs) {
+                String dirName = dataDir.getName();
+                if (!dirName.equals(StorageConstants.STORAGE_ROOT_DIR_NAME)) {
+                    // Skips non-storage directories.
+                    continue;
+                }
+                int numPartitions = getNumResidentPartitions(dataDir.listFiles());
+                if (expectedPartitionNum < 0) {
+                    // Sets the expected number of partitions to the number of partitions on the first io device.
+                    expectedPartitionNum = numPartitions;
+                } else {
+                    // Checks whether the number of partitions of the current io device is expected.
+                    if (expectedPartitionNum != numPartitions) {
+                        throw new Exception("Non-uniform data distribution on io devices: " + dataDir.getAbsolutePath()
+                                + " number of partitions: " + numPartitions + " expected number of partitions: "
+                                + expectedPartitionNum);
+                    }
+                }
+            }
+        }
+    }
+
+    // Gets the number of partitions on each io device.
+    private static int getNumResidentPartitions(File[] partitions) {
+        int num = 0;
+        for (File partition : partitions) {
+            File[] dataverses = partition.listFiles();
+            for (File dv : dataverses) {
+                String dvName = dv.getName();
+                // If a partition only contains the Metadata dataverse, it's not counted.
+                if (!dvName.equals("Metadata")) {
+                    num++;
+                    break;
+                }
+            }
+        }
+        return num;
+    }
+
+    public static void checkThreadLeaks() throws IOException {
+        String threadDump = ThreadDumpUtil.takeDumpJSONString();
+        // Currently we only do sanity check for threads used in the execution engine.
+        // Later we should check if there are leaked storage threads as well.
+        if (threadDump.contains("Operator") || threadDump.contains("SuperActivity")
+                || threadDump.contains("PipelinedPartition")) {
+            System.out.print(threadDump);
+            throw new AssertionError("There are leaked threads in the execution engine.");
+        }
+    }
+
+    public static void checkOpenRunFileLeaks() throws IOException {
         if (SystemUtils.IS_OS_WINDOWS) {
             return;
         }
@@ -138,11 +214,30 @@ public class LangExecutionUtil {
         String processId = processName.split("@")[0];
 
         // Checks whether there are leaked run files from operators.
-        Process process = Runtime.getRuntime()
-                .exec(new String[] { "bash", "-c", "lsof -p " + processId + "|grep waf|wc -l" });
+        Process process =
+                Runtime.getRuntime().exec(new String[] { "bash", "-c", "lsof -p " + processId + "|grep waf|wc -l" });
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             int runFileCount = Integer.parseInt(reader.readLine().trim());
-            Assert.assertTrue(runFileCount == 0);
+            if (runFileCount != 0) {
+                System.out.print(takeDumpJSONString());
+                outputLeakedOpenFiles(processId);
+                throw new AssertionError("There are " + runFileCount + " leaked run files.");
+            }
+        }
+    }
+
+    public static void setCheckStorageDistribution(boolean checkStorageDistribution) {
+        LangExecutionUtil.checkStorageDistribution = checkStorageDistribution;
+    }
+
+    private static void outputLeakedOpenFiles(String processId) throws IOException {
+        Process process =
+                Runtime.getRuntime().exec(new String[] { "bash", "-c", "lsof -p " + processId + "|grep waf" });
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.err.println(line);
+            }
         }
     }
 }

@@ -21,6 +21,7 @@ package org.apache.asterix.test.runtime;
 
 import java.util.Collection;
 
+import org.apache.asterix.test.common.TestExecutor;
 import org.apache.asterix.testframework.context.TestCaseContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,11 +35,11 @@ import org.junit.runners.Parameterized.Parameters;
  */
 @RunWith(Parameterized.class)
 public class AqlExecutionFullParallelismIT {
-    protected static final String TEST_CONFIG_FILE_NAME = "asterix-build-configuration2.xml";
+    protected static final String TEST_CONFIG_FILE_NAME = "src/main/resources/cc2.conf";
 
     @BeforeClass
     public static void setUp() throws Exception {
-        LangExecutionUtil.setUp(TEST_CONFIG_FILE_NAME);
+        LangExecutionUtil.setUp(TEST_CONFIG_FILE_NAME, new TestExecutor());
     }
 
     @AfterClass
@@ -48,7 +49,14 @@ public class AqlExecutionFullParallelismIT {
 
     @Parameters(name = "AqlExecutionFullParallelismIT {index}: {0}")
     public static Collection<Object[]> tests() throws Exception {
-        return LangExecutionUtil.tests("only.xml", "testsuite.xml");
+        Collection<Object[]> tests = LangExecutionUtil.buildTestsInXml("only_it.xml");
+        if (!tests.isEmpty()) {
+            tests.addAll(LangExecutionUtil.buildTestsInXml("only.xml"));
+        } else {
+            tests = LangExecutionUtil.buildTestsInXml("testsuite_it.xml");
+            tests.addAll(LangExecutionUtil.tests("only.xml", "testsuite.xml"));
+        }
+        return tests;
     }
 
     protected TestCaseContext tcCtx;

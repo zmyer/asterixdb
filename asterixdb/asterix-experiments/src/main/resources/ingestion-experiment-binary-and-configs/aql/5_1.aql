@@ -1,3 +1,0 @@
-use dataverse experiments;
-
-create dataset Tweets1(TweetMessageType) primary key tweetid;

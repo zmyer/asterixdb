@@ -18,10 +18,10 @@
  */
 package org.apache.hyracks.storage.am.btree.impls;
 
-import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
+import org.apache.hyracks.storage.common.ICursorInitialState;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.MultiComparator;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
 
 public class BTreeCursorInitialState implements ICursorInitialState {
@@ -33,8 +33,7 @@ public class BTreeCursorInitialState implements ICursorInitialState {
     private MultiComparator originalKeyCmp;
     private final IIndexAccessor accessor;
 
-    public BTreeCursorInitialState(ICachedPage page, ISearchOperationCallback searchCallback, IIndexAccessor accessor) {
-        this.page = page;
+    public BTreeCursorInitialState(ISearchOperationCallback searchCallback, IIndexAccessor accessor) {
         this.searchCallback = searchCallback;
         this.accessor = accessor;
     }

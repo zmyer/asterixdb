@@ -1,2 +1,0 @@
-use dataverse experiments;
-create index dhbtreeLocation on Tweets(sender-location) type dhbtree;

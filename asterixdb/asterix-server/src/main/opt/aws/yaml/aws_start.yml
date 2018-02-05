@@ -21,12 +21,32 @@
   hosts: localhost
   gather_facts: false
   vars:
-     temp_dir: "/tmp/asterixdb"
+     temp_dir: "{{ playbook_dir }}/../conf/instance"
+     bin_dir: "{{ playbook_dir }}/../bin"
      inventory: "{{ temp_dir }}/inventory"
      ccconf: "{{ temp_dir }}/cc.conf"
      home_dir: "/home/{{ user }}"
+     num_vols: "{{ ephemeral_volumes[instance_type]|default(0) }}"
   tasks:
     - include_vars: ../conf/aws_settings.yml
+    - include_vars: ../conf/aws_types.yml
+
+    - name: Clean the temporary directory
+      file:
+        path: "{{ temp_dir }}"
+        state: absent
+
+    - name: Create local temporary directory
+      file:
+        path: "{{ temp_dir }}"
+        state: directory
+
+    - name: Generate instance-store volumes for AWS instances
+      shell: "{{ playbook_dir }}/../bin/gen_volumes.sh {{ num_vols }} {{ temp_dir }}/volumes.yml"
+
+    - name: Load generated volumes
+      include_vars: "{{ temp_dir }}/volumes.yml"
+
     - name: Launch all instances
       ec2:
         key_name: "{{ keypair }}"
@@ -40,12 +60,8 @@
         count: "{{ count }}"
         instance_tags:
             Name: "{{ tag }}"
+        volumes: "{{ vols }}"
       register: ec2
-
-    - name: Create local temporary directory
-      file:
-        path: "{{ temp_dir }}"
-        state: directory
 
     - name: Set CC node
       set_fact:
@@ -72,7 +88,7 @@
       shell: printf "\n[all:vars]\nansible_ssh_user={{ user }}\n" >> "{{ inventory }}"
 
     - name: Populate CC to the cluster configuration file "{{ ccconf }}"
-      shell: printf "[cc]\ncluster.address={{ cc.private_ip }}\n\n" > "{{ ccconf }}"
+      shell: printf "[cc]\naddress={{ cc.private_ip }}\n\n" > "{{ ccconf }}"
 
     - name: Populate NCs to the cluster configuration file
       shell: printf "[nc/1]\naddress={{ cc.private_ip }}\n\n" >> "{{ ccconf }}"
@@ -93,10 +109,29 @@
         loop_var: node
 
     - name: Populate the NC txnlogdir to the cluster configuration file {{ ccconf }}
-      shell: printf "[nc]\ntxnlogdir={{ home_dir }}/txnlog\n" >> "{{ ccconf }}"
+      shell: printf "[nc]\ntxn.log.dir={{ home_dir }}/txnlog\n" >> "{{ ccconf }}"
 
     - name: Populate NC iodevices to the cluster configuration file {{ ccconf }}
       shell: printf "iodevices={{ home_dir }}/iodevice\n" >> "{{ ccconf }}"
+      when: vols|length == 0
+
+    - name: Generates multiple iodevice paths
+      shell: printf "devices:\n" > "{{ temp_dir }}/devices"
+      when: vols|length > 0
+
+    - name: Populate multiple iodevices
+      shell: printf "  - /data{{ vol.0 + 1 }}/iodevice\n" >> "{{ temp_dir }}/devices"
+      with_indexed_items: "{{ vols }}"
+      loop_control:
+        loop_var: vol
+      when: vols|length > 0
+
+    - include_vars: "{{ temp_dir }}/devices"
+      when: vols|length > 0
+
+    - name: Populate multiple NC iodevices to the cluster configuration file {{ ccconf }}
+      shell: printf "iodevices={{ devices| join(',') }}\n" >> "{{ ccconf }}"
+      when: vols|length > 0
 
     - name: Populate the NC command to the cluster configuration file {{ ccconf }}
       shell: printf "command=asterixnc\n" >> "{{ ccconf }}"

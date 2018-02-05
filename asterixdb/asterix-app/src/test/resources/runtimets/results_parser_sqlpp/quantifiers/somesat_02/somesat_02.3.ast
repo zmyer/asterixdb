@@ -6,8 +6,8 @@ FieldAccessor [
   Field=cid
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [CustomerSomeSat02]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.CustomerSomeSat02]
   ]
   AS Variable [ Name=$x ]
 ]
@@ -15,8 +15,8 @@ Where
   QuantifiedExpression SOME [
     [Variable [ Name=$y ]
     In
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [OrdersSomeSat02]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.OrdersSomeSat02]
       ]
     ]
     Satifies [

@@ -24,11 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.apache.hyracks.api.dataflow.ActivityId;
 import org.apache.hyracks.api.dataflow.IActivity;
 import org.apache.hyracks.api.dataflow.IConnectorDescriptor;
@@ -36,10 +33,11 @@ import org.apache.hyracks.api.job.ActivityCluster;
 import org.apache.hyracks.api.job.ActivityClusterGraph;
 import org.apache.hyracks.api.job.ActivityClusterId;
 import org.apache.hyracks.api.job.JobActivityGraph;
-import org.apache.hyracks.api.job.JobId;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ActivityClusterGraphBuilder {
-    private static final Logger LOGGER = Logger.getLogger(ActivityClusterGraphBuilder.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public ActivityClusterGraphBuilder() {
     }
@@ -70,7 +68,7 @@ public class ActivityClusterGraphBuilder {
         return null;
     }
 
-    public ActivityClusterGraph inferActivityClusters(JobId jobId, JobActivityGraph jag) {
+    public ActivityClusterGraph inferActivityClusters(JobActivityGraph jag) {
         /*
          * Build initial equivalence sets map. We create a map such that for each IOperatorTask, t -> { t }
          */
@@ -99,7 +97,7 @@ public class ActivityClusterGraphBuilder {
         Map<ActivityId, IActivity> activityNodeMap = jag.getActivityMap();
         List<ActivityCluster> acList = new ArrayList<ActivityCluster>();
         for (Set<ActivityId> stage : stages) {
-            ActivityCluster ac = new ActivityCluster(acg, new ActivityClusterId(jobId, acCounter++));
+            ActivityCluster ac = new ActivityCluster(acg, new ActivityClusterId(acCounter++));
             acList.add(ac);
             for (ActivityId aid : stage) {
                 IActivity activity = activityNodeMap.get(aid);
@@ -120,10 +118,10 @@ public class ActivityClusterGraphBuilder {
                     for (int i = 0; i < nActivityOutputs; ++i) {
                         IConnectorDescriptor conn = aOutputs.get(i);
                         ac.addConnector(conn);
-                        Pair<Pair<IActivity, Integer>, Pair<IActivity, Integer>> pcPair = jag.getConnectorActivityMap()
-                                .get(conn.getConnectorId());
-                        ac.connect(conn, activity, i, pcPair.getRight().getLeft(), pcPair.getRight().getRight(), jag
-                                .getConnectorRecordDescriptorMap().get(conn.getConnectorId()));
+                        Pair<Pair<IActivity, Integer>, Pair<IActivity, Integer>> pcPair =
+                                jag.getConnectorActivityMap().get(conn.getConnectorId());
+                        ac.connect(conn, activity, i, pcPair.getRight().getLeft(), pcPair.getRight().getRight(),
+                                jag.getConnectorRecordDescriptorMap().get(conn.getConnectorId()));
                     }
                 }
             }
@@ -148,8 +146,8 @@ public class ActivityClusterGraphBuilder {
         }
         acg.addActivityClusters(acList);
 
-        if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.fine(acg.toJSON().asText());
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(acg.toJSON().asText());
         }
         return acg;
     }

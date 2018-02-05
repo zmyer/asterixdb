@@ -28,10 +28,10 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.datagen.DataGenThread;
 import org.apache.hyracks.storage.am.common.datagen.TupleBatch;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.common.tuples.TypeAwareTupleReference;
 import org.apache.hyracks.storage.am.common.tuples.TypeAwareTupleWriter;
 import org.apache.hyracks.storage.am.common.tuples.TypeAwareTupleWriterFactory;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 public class ConcurrentSkipListRunner implements IExperimentRunner {
     public class TupleComparator implements Comparator<ITupleReference> {
@@ -117,12 +117,12 @@ public class ConcurrentSkipListRunner implements IExperimentRunner {
             this.numBatches = numBatches;
             this.skipList = skipList;
             tupleWriterFactory = new TypeAwareTupleWriterFactory(typeTraits);
-            tupleWriter = (TypeAwareTupleWriter) tupleWriterFactory.createTupleWriter();
+            tupleWriter = tupleWriterFactory.createTupleWriter();
             int numTuples = numBatches * batchSize;
             tuples = new TypeAwareTupleReference[numTuples];
             tupleBuf = ByteBuffer.allocate(numTuples * tupleSize);
             for (int i = 0; i < numTuples; i++) {
-                tuples[i] = (TypeAwareTupleReference) tupleWriter.createTupleReference();
+                tuples[i] = tupleWriter.createTupleReference();
             }
         }
 

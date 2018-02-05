@@ -21,12 +21,11 @@ package org.apache.asterix.om.base;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.AOrderedListType;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -94,11 +93,6 @@ public class AOrderedList implements IACollection {
     }
 
     @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitAOrderedList(this);
-    }
-
-    @Override
     public boolean deepEqual(IAObject obj) {
         return equals(obj);
     }
@@ -111,7 +105,7 @@ public class AOrderedList implements IACollection {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("AOrderedList: [ ");
+        sb.append("array: [ ");
         boolean first = true;
         for (IAObject v : values) {
             if (first) {
@@ -126,7 +120,7 @@ public class AOrderedList implements IACollection {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

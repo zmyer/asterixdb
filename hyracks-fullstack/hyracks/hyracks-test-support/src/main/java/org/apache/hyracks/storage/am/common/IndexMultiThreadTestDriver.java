@@ -22,9 +22,8 @@ package org.apache.hyracks.storage.am.common;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.common.TestOperationSelector.TestOperation;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
 import org.apache.hyracks.storage.am.common.datagen.DataGenThread;
+import org.apache.hyracks.storage.common.IIndex;
 
 @SuppressWarnings("rawtypes")
 public class IndexMultiThreadTestDriver {
@@ -49,8 +48,8 @@ public class IndexMultiThreadTestDriver {
         index.activate();
     }
 
-    public long[] run(int numThreads, int numRepeats, int numOps, int batchSize) throws InterruptedException,
-            TreeIndexException, HyracksDataException {
+    public long[] run(int numThreads, int numRepeats, int numOps, int batchSize)
+            throws InterruptedException, HyracksDataException {
         int numBatches = (batchSize < 1 ? numOps : numOps / batchSize);
         if (numBatches < numThreads) {
             numThreads = numBatches;

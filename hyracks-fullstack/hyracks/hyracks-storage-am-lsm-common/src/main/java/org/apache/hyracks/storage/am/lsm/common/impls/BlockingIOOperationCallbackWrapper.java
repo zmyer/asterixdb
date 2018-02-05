@@ -23,8 +23,9 @@ import java.util.List;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperation.LSMIOOperationType;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallback;
-import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMMemoryComponent;
 
 public class BlockingIOOperationCallbackWrapper implements ILSMIOOperationCallback {
 
@@ -44,18 +45,18 @@ public class BlockingIOOperationCallbackWrapper implements ILSMIOOperationCallba
     }
 
     @Override
-    public void beforeOperation(LSMOperationType opType) throws HyracksDataException {
+    public void beforeOperation(LSMIOOperationType opType) throws HyracksDataException {
         wrappedCallback.beforeOperation(opType);
     }
 
     @Override
-    public void afterOperation(LSMOperationType opType, List<ILSMComponent> oldComponents,
+    public void afterOperation(LSMIOOperationType opType, List<ILSMComponent> oldComponents,
             ILSMDiskComponent newComponent) throws HyracksDataException {
         wrappedCallback.afterOperation(opType, oldComponents, newComponent);
     }
 
     @Override
-    public synchronized void afterFinalize(LSMOperationType opType, ILSMDiskComponent newComponent)
+    public synchronized void afterFinalize(LSMIOOperationType opType, ILSMDiskComponent newComponent)
             throws HyracksDataException {
         wrappedCallback.afterFinalize(opType, newComponent);
         notifyAll();
@@ -63,7 +64,12 @@ public class BlockingIOOperationCallbackWrapper implements ILSMIOOperationCallba
     }
 
     @Override
-    public void setNumOfMutableComponents(int count) {
-        wrappedCallback.setNumOfMutableComponents(count);
+    public void recycled(ILSMMemoryComponent component, boolean componentSwitched) throws HyracksDataException {
+        wrappedCallback.recycled(component, componentSwitched);
+    }
+
+    @Override
+    public void allocated(ILSMMemoryComponent component) throws HyracksDataException {
+        wrappedCallback.allocated(component);
     }
 }

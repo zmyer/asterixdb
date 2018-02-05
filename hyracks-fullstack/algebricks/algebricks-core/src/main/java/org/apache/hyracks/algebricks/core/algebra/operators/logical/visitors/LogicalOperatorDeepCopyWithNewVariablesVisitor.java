@@ -19,9 +19,10 @@
 package org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -38,10 +39,10 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogi
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AggregateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.DelegateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.DistinctOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.EmptyTupleSourceOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.ExchangeOperator;
-import org.apache.hyracks.algebricks.core.algebra.operators.logical.DelegateOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.InnerJoinOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.IntersectOperator;
@@ -68,6 +69,7 @@ import org.apache.hyracks.algebricks.core.algebra.plan.ALogicalPlanImpl;
 import org.apache.hyracks.algebricks.core.algebra.properties.FunctionalDependency;
 import org.apache.hyracks.algebricks.core.algebra.typing.ITypingContext;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorManipulationUtil;
+import org.apache.hyracks.algebricks.core.algebra.util.OperatorPropertiesUtil;
 import org.apache.hyracks.algebricks.core.algebra.visitors.IQueryOperatorVisitor;
 
 /**
@@ -87,7 +89,13 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
 
     // Key: New variable in the new plan. Value: The old variable in the
     // original plan.
-    private final LinkedHashMap<LogicalVariable, LogicalVariable> outputVarToInputVarMapping;
+    private final LinkedHashMap<LogicalVariable, LogicalVariable> outputVarToInputVarMapping = new LinkedHashMap<>();
+
+    // Free variables: variables that shouldn't be deep copied, i.e., mapped.
+    private final Set<LogicalVariable> freeVars = new HashSet<>();
+
+    // Whether free variables in the given plan subtree should be reused.
+    private final boolean reuseFreeVars;
 
     /**
      * @param varContext
@@ -96,12 +104,20 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
      *            the type context.
      */
     public LogicalOperatorDeepCopyWithNewVariablesVisitor(IVariableContext varContext, ITypingContext typeContext) {
-        this.varContext = varContext;
-        this.typeContext = typeContext;
-        this.inputVarToOutputVarMapping = new LinkedHashMap<>();
-        this.outputVarToInputVarMapping = new LinkedHashMap<>();
-        this.exprDeepCopyVisitor = new LogicalExpressionDeepCopyWithNewVariablesVisitor(varContext,
-                outputVarToInputVarMapping, inputVarToOutputVarMapping);
+        this(varContext, typeContext, new LinkedHashMap<>(), false);
+    }
+
+    /**
+     * @param varContext
+     *            , the variable context.
+     * @param typeContext
+     *            the type context.
+     * @param reuseFreeVars
+     *            whether free variables in the given plan tree should be reused.
+     */
+    public LogicalOperatorDeepCopyWithNewVariablesVisitor(IVariableContext varContext, ITypingContext typeContext,
+            boolean reuseFreeVars) {
+        this(varContext, typeContext, new LinkedHashMap<>(), reuseFreeVars);
     }
 
     /**
@@ -113,15 +129,17 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
      *            Variable mapping keyed by variables in the original plan.
      *            Those variables are replaced by their corresponding value in
      *            the map in the copied plan.
+     * @param reuseFreeVars
+     *            whether free variables in the given plan tree should be reused.
      */
     public LogicalOperatorDeepCopyWithNewVariablesVisitor(IVariableContext varContext, ITypingContext typeContext,
-            LinkedHashMap<LogicalVariable, LogicalVariable> inVarMapping) {
+            LinkedHashMap<LogicalVariable, LogicalVariable> inVarMapping, boolean reuseFreeVars) {
         this.varContext = varContext;
         this.typeContext = typeContext;
         this.inputVarToOutputVarMapping = inVarMapping;
-        this.outputVarToInputVarMapping = new LinkedHashMap<>();
-        exprDeepCopyVisitor = new LogicalExpressionDeepCopyWithNewVariablesVisitor(varContext, inVarMapping,
-                inputVarToOutputVarMapping);
+        this.exprDeepCopyVisitor = new LogicalExpressionDeepCopyWithNewVariablesVisitor(varContext, inVarMapping,
+                inputVarToOutputVarMapping, freeVars);
+        this.reuseFreeVars = reuseFreeVars;
     }
 
     private void copyAnnotations(ILogicalOperator src, ILogicalOperator dest) {
@@ -136,6 +154,11 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     private ILogicalOperator deepCopy(ILogicalOperator op, ILogicalOperator arg) throws AlgebricksException {
         if (op == null) {
             return null;
+        }
+        if (reuseFreeVars) {
+            // If the reuseFreeVars flag is set, we collect all free variables in the
+            // given operator subtree and do not re-map them in the deep-copied plan.
+            OperatorPropertiesUtil.getFreeVariablesInSelfOrDesc((AbstractLogicalOperator) op, freeVars);
         }
         ILogicalOperator opCopy = op.accept(this, arg);
         if (typeContext != null) {
@@ -155,7 +178,7 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
 
     private Mutable<ILogicalOperator> deepCopyOperatorReference(Mutable<ILogicalOperator> opRef, ILogicalOperator arg)
             throws AlgebricksException {
-        return new MutableObject<ILogicalOperator>(deepCopy(opRef.getValue(), arg));
+        return new MutableObject<>(deepCopy(opRef.getValue(), arg));
     }
 
     private List<Mutable<ILogicalOperator>> deepCopyOperatorReferenceList(List<Mutable<ILogicalOperator>> list,
@@ -180,8 +203,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
 
     private List<Pair<IOrder, Mutable<ILogicalExpression>>> deepCopyOrderExpressionReferencePairList(
             List<Pair<IOrder, Mutable<ILogicalExpression>>> list) throws AlgebricksException {
-        ArrayList<Pair<IOrder, Mutable<ILogicalExpression>>> listCopy = new ArrayList<Pair<IOrder, Mutable<ILogicalExpression>>>(
-                list.size());
+        ArrayList<Pair<IOrder, Mutable<ILogicalExpression>>> listCopy =
+                new ArrayList<Pair<IOrder, Mutable<ILogicalExpression>>>(list.size());
         for (Pair<IOrder, Mutable<ILogicalExpression>> pair : list) {
             listCopy.add(new Pair<OrderOperator.IOrder, Mutable<ILogicalExpression>>(deepCopyOrder(pair.first),
                     exprDeepCopyVisitor.deepCopyExpressionReference(pair.second)));
@@ -207,6 +230,9 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
         if (var == null) {
             return null;
         }
+        if (freeVars.contains(var)) {
+            return var;
+        }
         LogicalVariable givenVarReplacement = outputVarToInputVarMapping.get(var);
         if (givenVarReplacement != null) {
             inputVarToOutputVarMapping.put(var, givenVarReplacement);
@@ -222,8 +248,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
 
     private List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> deepCopyVariableExpressionReferencePairList(
             List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> list) throws AlgebricksException {
-        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> listCopy = new ArrayList<Pair<LogicalVariable, Mutable<ILogicalExpression>>>(
-                list.size());
+        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> listCopy =
+                new ArrayList<Pair<LogicalVariable, Mutable<ILogicalExpression>>>(list.size());
         for (Pair<LogicalVariable, Mutable<ILogicalExpression>> pair : list) {
             listCopy.add(new Pair<LogicalVariable, Mutable<ILogicalExpression>>(deepCopyVariable(pair.first),
                     exprDeepCopyVisitor.deepCopyExpressionReference(pair.second)));
@@ -247,23 +273,24 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     }
 
     public void reset() {
+        freeVars.clear();
         inputVarToOutputVarMapping.clear();
         outputVarToInputVarMapping.clear();
     }
 
     public void updatePrimaryKeys(IOptimizationContext context) {
-        for (Map.Entry<LogicalVariable, LogicalVariable> entry : inputVarToOutputVarMapping.entrySet()) {
-            List<LogicalVariable> primaryKey = context.findPrimaryKey(entry.getKey());
+        inputVarToOutputVarMapping.forEach((key, value) -> {
+            List<LogicalVariable> primaryKey = context.findPrimaryKey(key);
             if (primaryKey != null) {
-                List<LogicalVariable> head = new ArrayList<LogicalVariable>();
+                List<LogicalVariable> head = new ArrayList<>();
                 for (LogicalVariable variable : primaryKey) {
                     head.add(inputVarToOutputVarMapping.get(variable));
                 }
-                List<LogicalVariable> tail = new ArrayList<LogicalVariable>(1);
-                tail.add(entry.getValue());
+                List<LogicalVariable> tail = new ArrayList<>(1);
+                tail.add(value);
                 context.addPrimaryKey(new FunctionalDependency(head, tail));
             }
-        }
+        });
     }
 
     public LogicalVariable varCopy(LogicalVariable var) throws AlgebricksException {
@@ -290,8 +317,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     @Override
     public ILogicalOperator visitDataScanOperator(DataSourceScanOperator op, ILogicalOperator arg)
             throws AlgebricksException {
-        DataSourceScanOperator opCopy = new DataSourceScanOperator(deepCopyVariableList(op.getVariables()),
-                op.getDataSource());
+        DataSourceScanOperator opCopy =
+                new DataSourceScanOperator(deepCopyVariableList(op.getVariables()), op.getDataSource());
         deepCopyInputsAnnotationsAndExecutionMode(op, arg, opCopy);
         return opCopy;
     }
@@ -299,8 +326,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     @Override
     public ILogicalOperator visitDistinctOperator(DistinctOperator op, ILogicalOperator arg)
             throws AlgebricksException {
-        DistinctOperator opCopy = new DistinctOperator(
-                exprDeepCopyVisitor.deepCopyExpressionReferenceList(op.getExpressions()));
+        DistinctOperator opCopy =
+                new DistinctOperator(exprDeepCopyVisitor.deepCopyExpressionReferenceList(op.getExpressions()));
         deepCopyInputsAnnotationsAndExecutionMode(op, arg, opCopy);
         return opCopy;
     }
@@ -322,10 +349,10 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
 
     @Override
     public ILogicalOperator visitGroupByOperator(GroupByOperator op, ILogicalOperator arg) throws AlgebricksException {
-        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> groupByListCopy = deepCopyVariableExpressionReferencePairList(
-                op.getGroupByList());
-        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> decorListCopy = deepCopyVariableExpressionReferencePairList(
-                op.getDecorList());
+        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> groupByListCopy =
+                deepCopyVariableExpressionReferencePairList(op.getGroupByList());
+        List<Pair<LogicalVariable, Mutable<ILogicalExpression>>> decorListCopy =
+                deepCopyVariableExpressionReferencePairList(op.getDecorList());
         List<ILogicalPlan> nestedPlansCopy = new ArrayList<ILogicalPlan>();
 
         GroupByOperator opCopy = new GroupByOperator(groupByListCopy, decorListCopy, nestedPlansCopy, op.isGroupAll());
@@ -337,10 +364,10 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     @Override
     public ILogicalOperator visitInnerJoinOperator(InnerJoinOperator op, ILogicalOperator arg)
             throws AlgebricksException {
-        InnerJoinOperator opCopy = new InnerJoinOperator(
-                exprDeepCopyVisitor.deepCopyExpressionReference(op.getCondition()),
-                deepCopyOperatorReference(op.getInputs().get(0), arg),
-                deepCopyOperatorReference(op.getInputs().get(1), arg));
+        InnerJoinOperator opCopy =
+                new InnerJoinOperator(exprDeepCopyVisitor.deepCopyExpressionReference(op.getCondition()),
+                        deepCopyOperatorReference(op.getInputs().get(0), arg),
+                        deepCopyOperatorReference(op.getInputs().get(1), arg));
         copyAnnotations(op, opCopy);
         opCopy.setExecutionMode(op.getExecutionMode());
         return opCopy;
@@ -349,10 +376,10 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     @Override
     public ILogicalOperator visitLeftOuterJoinOperator(LeftOuterJoinOperator op, ILogicalOperator arg)
             throws AlgebricksException {
-        LeftOuterJoinOperator opCopy = new LeftOuterJoinOperator(
-                exprDeepCopyVisitor.deepCopyExpressionReference(op.getCondition()),
-                deepCopyOperatorReference(op.getInputs().get(0), arg),
-                deepCopyOperatorReference(op.getInputs().get(1), arg));
+        LeftOuterJoinOperator opCopy =
+                new LeftOuterJoinOperator(exprDeepCopyVisitor.deepCopyExpressionReference(op.getCondition()),
+                        deepCopyOperatorReference(op.getInputs().get(0), arg),
+                        deepCopyOperatorReference(op.getInputs().get(1), arg));
         copyAnnotations(op, opCopy);
         opCopy.setExecutionMode(op.getExecutionMode());
         return opCopy;
@@ -369,8 +396,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
     @Override
     public ILogicalOperator visitNestedTupleSourceOperator(NestedTupleSourceOperator op, ILogicalOperator arg)
             throws AlgebricksException {
-        Mutable<ILogicalOperator> dataSourceReference = arg == null ? op.getDataSourceReference()
-                : new MutableObject<ILogicalOperator>(arg);
+        Mutable<ILogicalOperator> dataSourceReference =
+                arg == null ? op.getDataSourceReference() : new MutableObject<>(arg);
         NestedTupleSourceOperator opCopy = new NestedTupleSourceOperator(dataSourceReference);
         deepCopyInputsAnnotationsAndExecutionMode(op, arg, opCopy);
         return opCopy;
@@ -468,8 +495,8 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
         int index = 0;
         for (Triple<LogicalVariable, LogicalVariable, LogicalVariable> triple : op.getVariableMappings()) {
             LogicalVariable producedVar = deepCopyVariable(triple.third);
-            Triple<LogicalVariable, LogicalVariable, LogicalVariable> copiedTriple = new Triple<>(
-                    liveVarsInLeftInput.get(index), liveVarsInRightInput.get(index), producedVar);
+            Triple<LogicalVariable, LogicalVariable, LogicalVariable> copiedTriple =
+                    new Triple<>(liveVarsInLeftInput.get(index), liveVarsInRightInput.get(index), producedVar);
             copiedTriples.add(copiedTriple);
             ++index;
         }
@@ -561,10 +588,6 @@ public class LogicalOperatorDeepCopyWithNewVariablesVisitor
                 deepCopyVariable(op.getPositionalVariable()), op.getPositionalVariableType(), op.getPositionWriter());
         deepCopyInputsAnnotationsAndExecutionMode(op, arg, opCopy);
         return opCopy;
-    }
-
-    public LinkedHashMap<LogicalVariable, LogicalVariable> getOutputToInputVariableMapping() {
-        return outputVarToInputVarMapping;
     }
 
     public LinkedHashMap<LogicalVariable, LogicalVariable> getInputToOutputVariableMapping() {

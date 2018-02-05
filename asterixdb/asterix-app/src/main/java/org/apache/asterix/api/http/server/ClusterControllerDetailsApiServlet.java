@@ -18,31 +18,32 @@
  */
 package org.apache.asterix.api.http.server;
 
-import static org.apache.asterix.api.http.servlet.ServletConstants.HYRACKS_CONNECTION_ATTR;
+import static org.apache.asterix.api.http.server.ServletConstants.HYRACKS_CONNECTION_ATTR;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.concurrent.ConcurrentMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.hyracks.api.client.IHyracksClientConnection;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
 import org.apache.hyracks.http.server.utils.HttpUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 public class ClusterControllerDetailsApiServlet extends ClusterApiServlet {
 
-    private static final Logger LOGGER = Logger.getLogger(ClusterControllerDetailsApiServlet.class.getName());
-    private final ObjectMapper om = new ObjectMapper();
+    private static final Logger LOGGER = LogManager.getLogger();
 
-    public ClusterControllerDetailsApiServlet(ConcurrentMap<String, Object> ctx, String[] paths) {
-        super(ctx, paths);
+    public ClusterControllerDetailsApiServlet(ICcApplicationContext appCtx, ConcurrentMap<String, Object> ctx,
+            String... paths) {
+        super(appCtx, ctx, paths);
     }
 
     @Override
@@ -58,7 +59,7 @@ public class ClusterControllerDetailsApiServlet extends ClusterApiServlet {
                 json = processNode(request, hcc);
             }
             HttpUtil.setContentType(response, HttpUtil.ContentType.APPLICATION_JSON, HttpUtil.Encoding.UTF8);
-            responseWriter.write(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(json));
+            responseWriter.write(OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(json));
         } catch (IllegalArgumentException e) { // NOSONAR - exception not logged or rethrown
             response.setStatus(HttpResponseStatus.NOT_FOUND);
         } catch (Exception e) {
@@ -81,9 +82,9 @@ public class ClusterControllerDetailsApiServlet extends ClusterApiServlet {
         } else if (parts.length == 1) {
             switch (parts[0]) {
                 case "config":
-                    return om.readValue(hcc.getNodeDetailsJSON(null, false, true), ObjectNode.class);
+                    return OBJECT_MAPPER.readValue(processNodeDetails(hcc, false, true), ObjectNode.class);
                 case "stats":
-                    return om.readValue(hcc.getNodeDetailsJSON(null, true, false), ObjectNode.class);
+                    return OBJECT_MAPPER.readValue(processNodeDetails(hcc, true, false), ObjectNode.class);
                 case "threaddump":
                     return processCCThreadDump(hcc);
 
@@ -96,11 +97,20 @@ public class ClusterControllerDetailsApiServlet extends ClusterApiServlet {
         }
     }
 
+    private String processNodeDetails(IHyracksClientConnection hcc, boolean includeStats, boolean includeConfig)
+            throws Exception {
+        final String details = hcc.getNodeDetailsJSON(null, includeStats, includeConfig);
+        if (details == null) {
+            throw new IllegalStateException("unable to retrieve details for CC");
+        }
+        return details;
+    }
+
     private ObjectNode processCCThreadDump(IHyracksClientConnection hcc) throws Exception {
         String dump = hcc.getThreadDump(null);
         if (dump == null) {
-            throw new IllegalArgumentException();
+            throw new IllegalStateException("unable to retrieve thread dump for CC");
         }
-        return (ObjectNode) om.readTree(dump);
+        return (ObjectNode) OBJECT_MAPPER.readTree(dump);
     }
 }

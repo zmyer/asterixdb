@@ -18,14 +18,11 @@
  */
 package org.apache.asterix.om.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class AFloat implements IAObject {
 
@@ -59,11 +56,6 @@ public class AFloat implements IAObject {
     }
 
     @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitAFloat(this);
-    }
-
-    @Override
     public boolean deepEqual(IAObject obj) {
         return equals(obj);
     }
@@ -75,11 +67,11 @@ public class AFloat implements IAObject {
 
     @Override
     public String toString() {
-        return "AFloat: {" + value + "}";
+        return Float.toString(value);
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

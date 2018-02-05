@@ -32,6 +32,7 @@ import org.apache.asterix.om.util.container.IObjectFactory;
 import org.apache.asterix.om.utils.NonTaggedFormatUtil;
 import org.apache.asterix.om.utils.RecordUtil;
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.api.AbstractPointable;
 import org.apache.hyracks.data.std.api.IPointable;
 import org.apache.hyracks.data.std.api.IPointableFactory;
@@ -71,6 +72,7 @@ import org.apache.hyracks.util.string.UTF8StringWriter;
 public class ARecordPointable extends AbstractPointable {
 
     private final UTF8StringWriter utf8Writer = new UTF8StringWriter();
+    public static final ARecordPointableFactory FACTORY = new ARecordPointableFactory();
 
     public static final ITypeTraits TYPE_TRAITS = new ITypeTraits() {
         private static final long serialVersionUID = 1L;
@@ -86,11 +88,15 @@ public class ARecordPointable extends AbstractPointable {
         }
     };
 
-    public static final IPointableFactory FACTORY = new IPointableFactory() {
+    public static class ARecordPointableFactory implements IPointableFactory {
+
         private static final long serialVersionUID = 1L;
 
+        private ARecordPointableFactory() {
+        }
+
         @Override
-        public IPointable createPointable() {
+        public ARecordPointable createPointable() {
             return new ARecordPointable();
         }
 
@@ -98,7 +104,8 @@ public class ARecordPointable extends AbstractPointable {
         public ITypeTraits getTypeTraits() {
             return TYPE_TRAITS;
         }
-    };
+
+    }
 
     public static final IObjectFactory<IPointable, ATypeTag> ALLOCATOR = new IObjectFactory<IPointable, ATypeTag>() {
         @Override
@@ -212,8 +219,7 @@ public class ARecordPointable extends AbstractPointable {
     // Closed field accessors.
     // -----------------------
 
-    public void getClosedFieldValue(ARecordType recordType, int fieldId, DataOutput dOut)
-            throws IOException, AsterixException {
+    public void getClosedFieldValue(ARecordType recordType, int fieldId, DataOutput dOut) throws IOException {
         if (isClosedFieldNull(recordType, fieldId)) {
             dOut.writeByte(ATypeTag.SERIALIZED_NULL_TYPE_TAG);
         } else if (isClosedFieldMissing(recordType, fieldId)) {
@@ -246,7 +252,7 @@ public class ARecordPointable extends AbstractPointable {
         return aType;
     }
 
-    public int getClosedFieldSize(ARecordType recordType, int fieldId) throws AsterixException {
+    public int getClosedFieldSize(ARecordType recordType, int fieldId) throws HyracksDataException {
         if (isClosedFieldNull(recordType, fieldId)) {
             return 0;
         }
@@ -279,8 +285,7 @@ public class ARecordPointable extends AbstractPointable {
     // Open field accessors.
     // -----------------------
 
-    public void getOpenFieldValue(ARecordType recordType, int fieldId, DataOutput dOut)
-            throws IOException, AsterixException {
+    public void getOpenFieldValue(ARecordType recordType, int fieldId, DataOutput dOut) throws IOException {
         dOut.write(bytes, getOpenFieldValueOffset(recordType, fieldId), getOpenFieldValueSize(recordType, fieldId));
     }
 
@@ -288,7 +293,7 @@ public class ARecordPointable extends AbstractPointable {
         return getOpenFieldNameOffset(recordType, fieldId) + getOpenFieldNameSize(recordType, fieldId);
     }
 
-    public int getOpenFieldValueSize(ARecordType recordType, int fieldId) throws AsterixException {
+    public int getOpenFieldValueSize(ARecordType recordType, int fieldId) throws HyracksDataException {
         int offset = getOpenFieldValueOffset(recordType, fieldId);
         ATypeTag tag = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(getOpenFieldTag(recordType, fieldId));
         return NonTaggedFormatUtil.getFieldValueLength(bytes, offset, tag, true);

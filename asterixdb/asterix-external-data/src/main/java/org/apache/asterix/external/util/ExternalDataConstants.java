@@ -41,8 +41,6 @@ public class ExternalDataConstants {
     public static final String KEY_FILESYSTEM = "fs";
     // specifies the address of the HDFS name node
     public static final String KEY_HADOOP_FILESYSTEM_URI = "fs.defaultFS";
-    // specifies whether a feed sends progress markers or not
-    public static final String KEY_SEND_MARKER = "send-marker";
     // specifies the class implementation of the accessed instance of HDFS
     public static final String KEY_HADOOP_FILESYSTEM_CLASS = "fs.hdfs.impl";
     public static final String KEY_HADOOP_INPUT_DIR = "mapred.input.dir";
@@ -89,7 +87,7 @@ public class ExternalDataConstants {
     // a boolean indicating whether the feed is a change feed
     public static final String KEY_IS_CHANGE_FEED = "change-feed";
     // a boolean indicating whether the feed use upsert
-    public static final String KEY_IS_UPSERT_FEED = "upsert-feed";
+    public static final String KEY_IS_INSERT_FEED = "insert-feed";
     // an integer representing the number of keys in a change feed
     public static final String KEY_KEY_SIZE = "key-size";
     // a boolean indicating whether the feed produces records with metadata
@@ -97,6 +95,7 @@ public class ExternalDataConstants {
     // a string representing the format of the record (for adapters which produces records with additional information like pk or metadata)
     public static final String KEY_RECORD_FORMAT = "record-format";
     public static final String KEY_META_TYPE_NAME = "meta-type-name";
+    public static final String KEY_ADAPTER_NAME = "adapter-name";
     public static final String READER_STREAM = "stream";
     public static final String KEY_HTTP_PROXY_HOST = "http-proxy-host";
     public static final String KEY_HTTP_PROXY_PORT = "http-proxy-port";

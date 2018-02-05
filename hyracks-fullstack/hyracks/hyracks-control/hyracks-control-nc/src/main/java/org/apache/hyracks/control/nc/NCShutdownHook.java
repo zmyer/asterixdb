@@ -18,26 +18,62 @@
  */
 package org.apache.hyracks.control.nc;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.hyracks.util.ThreadDumpUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Shutdown hook that invokes {@link NodeControllerService#stop() stop} method.
+ * This shutdown hook must have a failsafe mechanism to halt the process in case the shutdown
+ * operation is hanging for any reason
  */
 public class NCShutdownHook extends Thread {
-    private static final Logger LOGGER = Logger.getLogger(NCShutdownHook.class.getName());
+
+    public static final int FAILED_TO_STARTUP_EXIT_CODE = 2;
+    public static final int FAILED_TO_RECOVER_EXIT_CODE = 3;
+    private static final Logger LOGGER = LogManager.getLogger();
+    private static final long SHUTDOWN_WAIT_TIME = 10 * 60 * 1000L;
+    private final Thread watchDog;
     private final NodeControllerService nodeControllerService;
+    private volatile Thread shutdownHookThread;
+
     public NCShutdownHook(NodeControllerService nodeControllerService) {
+        super("ShutdownHook-" + nodeControllerService.getId());
         this.nodeControllerService = nodeControllerService;
+        watchDog = new Thread(watch(), "ShutdownHookWatchDog-" + nodeControllerService.getId());
+    }
+
+    private Runnable watch() {
+        return () -> {
+            try {
+                shutdownHookThread.join(SHUTDOWN_WAIT_TIME); // 10 min
+                if (shutdownHookThread.isAlive()) {
+                    try {
+                        LOGGER.info("Watchdog is angry. Killing shutdown hook");
+                    } finally {
+                        Runtime.getRuntime().halt(66); // NOSONAR last resort
+                    }
+                }
+            } catch (Throwable th) { // NOSONAR must catch them all
+                Runtime.getRuntime().halt(77); // NOSONAR last resort
+            }
+        };
     }
 
     @Override
     public void run() {
-        LOGGER.info("Shutdown hook in progress");
         try {
+            try {
+                LOGGER.info("Shutdown hook called");
+            } catch (Throwable th) {//NOSONAR
+            }
+            shutdownHookThread = Thread.currentThread();
+            watchDog.start();
+            LOGGER.log(Level.INFO, () -> "Thread dump at shutdown: " + ThreadDumpUtil.takeDumpString());
             nodeControllerService.stop();
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Exception in executing shutdown hook", e);
+        } catch (Throwable th) { // NOSONAR... This is fine since this is shutdown hook
+            LOGGER.log(Level.WARN, "Exception in executing shutdown hook", th);
         }
     }
 }

@@ -20,25 +20,28 @@
 package org.apache.hyracks.storage.am.lsm.rtree.impls;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFactory;
+import org.apache.hyracks.storage.am.lsm.common.api.IComponentFilterHelper;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponentFactory;
+import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndex;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFileReferences;
 import org.apache.hyracks.storage.am.lsm.common.impls.TreeIndexFactory;
 import org.apache.hyracks.storage.am.rtree.impls.RTree;
 
 public class LSMRTreeWithAntiMatterTuplesDiskComponentFactory implements ILSMDiskComponentFactory {
     private final TreeIndexFactory<RTree> rtreeFactory;
-    private final ILSMComponentFilterFactory filterFactory;
+    private final IComponentFilterHelper filterHelper;
 
     public LSMRTreeWithAntiMatterTuplesDiskComponentFactory(TreeIndexFactory<RTree> rtreeFactory,
-            ILSMComponentFilterFactory filterFactory) {
+            IComponentFilterHelper filterHelper) {
         this.rtreeFactory = rtreeFactory;
-        this.filterFactory = filterFactory;
+        this.filterHelper = filterHelper;
     }
 
     @Override
-    public LSMRTreeDiskComponent createComponent(LSMComponentFileReferences cfr) throws HyracksDataException {
-        return new LSMRTreeDiskComponent(rtreeFactory.createIndexInstance(cfr.getInsertIndexFileReference()), null,
-                null, filterFactory == null ? null : filterFactory.createFilter());
+    public LSMRTreeWithAntimatterDiskComponent createComponent(AbstractLSMIndex lsmIndex,
+            LSMComponentFileReferences cfr) throws HyracksDataException {
+        return new LSMRTreeWithAntimatterDiskComponent(lsmIndex,
+                rtreeFactory.createIndexInstance(cfr.getInsertIndexFileReference()),
+                filterHelper == null ? null : filterHelper.createFilter());
     }
 }

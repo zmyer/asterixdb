@@ -21,6 +21,7 @@ package org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -43,12 +44,15 @@ public class LogicalExpressionDeepCopyWithNewVariablesVisitor
     private final IVariableContext varContext;
     private final Map<LogicalVariable, LogicalVariable> inVarMapping;
     private final Map<LogicalVariable, LogicalVariable> outVarMapping;
+    private final Set<LogicalVariable> freeVars;
 
     public LogicalExpressionDeepCopyWithNewVariablesVisitor(IVariableContext varContext,
-            Map<LogicalVariable, LogicalVariable> inVarMapping, Map<LogicalVariable, LogicalVariable> variableMapping) {
+            Map<LogicalVariable, LogicalVariable> inVarMapping, Map<LogicalVariable, LogicalVariable> variableMapping,
+            Set<LogicalVariable> freeVars) {
         this.varContext = varContext;
         this.inVarMapping = inVarMapping;
         this.outVarMapping = variableMapping;
+        this.freeVars = freeVars;
     }
 
     public ILogicalExpression deepCopy(ILogicalExpression expr) throws AlgebricksException {
@@ -61,10 +65,7 @@ public class LogicalExpressionDeepCopyWithNewVariablesVisitor
     private void deepCopyAnnotations(AbstractFunctionCallExpression src, AbstractFunctionCallExpression dest) {
         Map<Object, IExpressionAnnotation> srcAnnotations = src.getAnnotations();
         Map<Object, IExpressionAnnotation> destAnnotations = dest.getAnnotations();
-        for (Map.Entry<Object, IExpressionAnnotation> annotationEntry : srcAnnotations.entrySet()) {
-            IExpressionAnnotation annotation = annotationEntry.getValue().copy();
-            destAnnotations.put(annotationEntry.getKey(), annotation);
-        }
+        srcAnnotations.forEach((key, value) -> destAnnotations.put(key, value.copy()));
     }
 
     private void deepCopyOpaqueParameters(AbstractFunctionCallExpression src, AbstractFunctionCallExpression dest) {
@@ -81,7 +82,7 @@ public class LogicalExpressionDeepCopyWithNewVariablesVisitor
 
     public MutableObject<ILogicalExpression> deepCopyExpressionReference(Mutable<ILogicalExpression> exprRef)
             throws AlgebricksException {
-        return new MutableObject<ILogicalExpression>(deepCopy(exprRef.getValue()));
+        return new MutableObject<>(deepCopy(exprRef.getValue()));
     }
 
     // TODO return List<...>
@@ -146,6 +147,9 @@ public class LogicalExpressionDeepCopyWithNewVariablesVisitor
     public ILogicalExpression visitVariableReferenceExpression(VariableReferenceExpression expr, Void arg)
             throws AlgebricksException {
         LogicalVariable var = expr.getVariableReference();
+        if (freeVars.contains(var)) {
+            return expr;
+        }
         LogicalVariable givenVarReplacement = inVarMapping.get(var);
         if (givenVarReplacement != null) {
             outVarMapping.put(var, givenVarReplacement);

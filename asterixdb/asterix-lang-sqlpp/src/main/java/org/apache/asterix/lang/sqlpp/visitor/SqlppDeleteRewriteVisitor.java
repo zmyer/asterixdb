@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.asterix.common.functions.FunctionConstants;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.clause.WhereClause;
@@ -42,6 +41,7 @@ import org.apache.asterix.lang.sqlpp.clause.SelectSetOperation;
 import org.apache.asterix.lang.sqlpp.expression.SelectExpression;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationInput;
 import org.apache.asterix.lang.sqlpp.visitor.base.AbstractSqlppAstVisitor;
+import org.apache.asterix.om.functions.BuiltinFunctions;
 
 /**
  * This class rewrites delete statement to contain a query that specifying
@@ -58,8 +58,7 @@ public class SqlppDeleteRewriteVisitor extends AbstractSqlppAstVisitor<Void, Voi
                 : dataverseName.getValue() + "." + datasetName.getValue();
         LiteralExpr argumentLiteral = new LiteralExpr(new StringLiteral(arg));
         arguments.add(argumentLiteral);
-        CallExpr callExpression = new CallExpr(new FunctionSignature(FunctionConstants.ASTERIX_NS, "dataset", 1),
-                arguments);
+        CallExpr callExpression = new CallExpr(new FunctionSignature(BuiltinFunctions.DATASET), arguments);
 
         // From clause.
         VariableExpr var = deleteStmt.getVariableExpr();
@@ -84,7 +83,7 @@ public class SqlppDeleteRewriteVisitor extends AbstractSqlppAstVisitor<Void, Voi
         SelectBlock selectBlock = new SelectBlock(selectClause, fromClause, null, whereClause, null, null, null);
         SelectSetOperation selectSetOperation = new SelectSetOperation(new SetOperationInput(selectBlock, null), null);
         SelectExpression selectExpression = new SelectExpression(null, selectSetOperation, null, null, false);
-        Query query = new Query(false, false, selectExpression, 0, new ArrayList<>(), new ArrayList<>());
+        Query query = new Query(false, false, selectExpression, 0);
         query.setBody(selectExpression);
 
         // return the delete statement.

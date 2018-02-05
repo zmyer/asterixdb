@@ -29,12 +29,12 @@ import org.apache.hyracks.api.dataflow.value.ITypeTraits;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.btree.api.IPrefixSlotManager;
 import org.apache.hyracks.storage.am.btree.frames.BTreeFieldPrefixNSMLeafFrame;
+import org.apache.hyracks.storage.am.btree.impls.BTreeFieldPrefixTupleReference;
 import org.apache.hyracks.storage.am.btree.impls.FieldPrefixSlotManager;
-import org.apache.hyracks.storage.am.btree.impls.FieldPrefixTupleReference;
+import org.apache.hyracks.storage.am.btree.tuples.BTreeTypeAwareTupleWriter;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrame;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrameCompressor;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
-import org.apache.hyracks.storage.am.common.tuples.TypeAwareTupleWriter;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
 
@@ -163,8 +163,9 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
         int prefixTupleIndex = 0;
         uncompressedTupleCount = 0;
 
-        TypeAwareTupleWriter tupleWriter = new TypeAwareTupleWriter(typeTraits);
-        FieldPrefixTupleReference tupleToWrite = new FieldPrefixTupleReference(tupleWriter.createTupleReference());
+        BTreeTypeAwareTupleWriter tupleWriter = new BTreeTypeAwareTupleWriter(typeTraits, false);
+        BTreeFieldPrefixTupleReference tupleToWrite =
+                new BTreeFieldPrefixTupleReference(tupleWriter.createTupleReference());
         tupleToWrite.setFieldCount(fieldCount);
 
         while (tupleIndex < tupleCount) {
@@ -178,11 +179,12 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
                     int segmentStart = keyPartitions.get(kpIndex).firstTupleIndex;
                     int tuplesInSegment = 1;
 
-                    FieldPrefixTupleReference prevTuple = new FieldPrefixTupleReference(
-                            tupleWriter.createTupleReference());
+                    BTreeFieldPrefixTupleReference prevTuple =
+                            new BTreeFieldPrefixTupleReference(tupleWriter.createTupleReference());
                     prevTuple.setFieldCount(fieldCount);
 
-                    FieldPrefixTupleReference tuple = new FieldPrefixTupleReference(tupleWriter.createTupleReference());
+                    BTreeFieldPrefixTupleReference tuple =
+                            new BTreeFieldPrefixTupleReference(tupleWriter.createTupleReference());
                     tuple.setFieldCount(fieldCount);
 
                     for (int i = tupleIndex + 1; i <= keyPartitions.get(kpIndex).lastTupleIndex; i++) {
@@ -226,8 +228,8 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
                             } else {
                                 // segment has enough tuples: compress segment, extract prefix,
                                 // write prefix tuple to buffer, and set prefix slot
-                                newPrefixSlots[newPrefixSlots.length - 1 - prefixTupleIndex] = slotManager
-                                        .encodeSlotFields(fieldCountToCompress, prefixFreeSpace);
+                                newPrefixSlots[newPrefixSlots.length - 1 - prefixTupleIndex] =
+                                        slotManager.encodeSlotFields(fieldCountToCompress, prefixFreeSpace);
                                 prefixFreeSpace += tupleWriter.writeTupleFields(prevTuple, 0, fieldCountToCompress,
                                         byteBuffer.array(), prefixFreeSpace);
 
@@ -235,8 +237,8 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
                                 for (int j = 0; j < tuplesInSegment; j++) {
                                     int currTupleIndex = segmentStart + j;
                                     tupleToWrite.resetByTupleIndex(frame, currTupleIndex);
-                                    newTupleSlots[tupleCount - 1 - currTupleIndex] = slotManager.encodeSlotFields(
-                                            prefixTupleIndex, tupleFreeSpace);
+                                    newTupleSlots[tupleCount - 1 - currTupleIndex] =
+                                            slotManager.encodeSlotFields(prefixTupleIndex, tupleFreeSpace);
                                     tupleFreeSpace += tupleWriter.writeTupleFields(tupleToWrite, fieldCountToCompress,
                                             fieldCount - fieldCountToCompress, byteBuffer.array(), tupleFreeSpace);
                                 }
@@ -255,16 +257,16 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
                 } else {
                     // just write the tuple uncompressed
                     tupleToWrite.resetByTupleIndex(frame, tupleIndex);
-                    newTupleSlots[tupleCount - 1 - tupleIndex] = slotManager.encodeSlotFields(
-                            FieldPrefixSlotManager.TUPLE_UNCOMPRESSED, tupleFreeSpace);
+                    newTupleSlots[tupleCount - 1 - tupleIndex] =
+                            slotManager.encodeSlotFields(FieldPrefixSlotManager.TUPLE_UNCOMPRESSED, tupleFreeSpace);
                     tupleFreeSpace += tupleWriter.writeTuple(tupleToWrite, byteBuffer, tupleFreeSpace);
                     uncompressedTupleCount++;
                 }
             } else {
                 // just write the tuple uncompressed
                 tupleToWrite.resetByTupleIndex(frame, tupleIndex);
-                newTupleSlots[tupleCount - 1 - tupleIndex] = slotManager.encodeSlotFields(
-                        FieldPrefixSlotManager.TUPLE_UNCOMPRESSED, tupleFreeSpace);
+                newTupleSlots[tupleCount - 1 - tupleIndex] =
+                        slotManager.encodeSlotFields(FieldPrefixSlotManager.TUPLE_UNCOMPRESSED, tupleFreeSpace);
                 tupleFreeSpace += tupleWriter.writeTuple(tupleToWrite, byteBuffer, tupleFreeSpace);
                 uncompressedTupleCount++;
             }
@@ -280,15 +282,16 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
         // this can happen to to the greedy solution of the knapsack-like problem
         // therefore, we check if the new space exceeds the page size to avoid the only danger of
         // an increasing space
-        int totalSpace = tupleFreeSpace + newTupleSlots.length * slotManager.getSlotSize() + newPrefixSlots.length
-                * slotManager.getSlotSize();
+        int totalSpace = tupleFreeSpace + newTupleSlots.length * slotManager.getSlotSize()
+                + newPrefixSlots.length * slotManager.getSlotSize();
         if (totalSpace > buf.capacity())
             // just leave the page as is
             return false;
 
         // copy new tuple and new slots into original page
         int freeSpaceAfterInit = frame.getOrigFreeSpaceOff();
-        System.arraycopy(buffer, freeSpaceAfterInit, pageArray, freeSpaceAfterInit, tupleFreeSpace - freeSpaceAfterInit);
+        System.arraycopy(buffer, freeSpaceAfterInit, pageArray, freeSpaceAfterInit,
+                tupleFreeSpace - freeSpaceAfterInit);
 
         // copy prefix slots
         int slotOffRunner = buf.capacity() - slotManager.getSlotSize();
@@ -337,12 +340,13 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
         KeyPartition kp = new KeyPartition(maxCmps);
         keyPartitions.add(kp);
 
-        TypeAwareTupleWriter tupleWriter = new TypeAwareTupleWriter(typeTraits);
+        BTreeTypeAwareTupleWriter tupleWriter = new BTreeTypeAwareTupleWriter(typeTraits, false);
 
-        FieldPrefixTupleReference prevTuple = new FieldPrefixTupleReference(tupleWriter.createTupleReference());
+        BTreeFieldPrefixTupleReference prevTuple =
+                new BTreeFieldPrefixTupleReference(tupleWriter.createTupleReference());
         prevTuple.setFieldCount(fieldCount);
 
-        FieldPrefixTupleReference tuple = new FieldPrefixTupleReference(tupleWriter.createTupleReference());
+        BTreeFieldPrefixTupleReference tuple = new BTreeFieldPrefixTupleReference(tupleWriter.createTupleReference());
         tuple.setFieldCount(fieldCount);
 
         kp.firstTupleIndex = 0;
@@ -360,9 +364,8 @@ public class FieldPrefixCompressor implements ITreeIndexFrameCompressor {
                     kp.pmi[j].matches++;
 
                     int prefixBytes = tupleWriter.bytesRequired(tuple, 0, prefixFieldsMatch);
-                    int spaceBenefit = tupleWriter.bytesRequired(tuple)
-                            - tupleWriter.bytesRequired(tuple, prefixFieldsMatch, tuple.getFieldCount()
-                                    - prefixFieldsMatch);
+                    int spaceBenefit = tupleWriter.bytesRequired(tuple) - tupleWriter.bytesRequired(tuple,
+                            prefixFieldsMatch, tuple.getFieldCount() - prefixFieldsMatch);
 
                     if (kp.pmi[j].matches == occurrenceThreshold) {
                         // if we compress this prefix, we pay the cost of storing it once, plus

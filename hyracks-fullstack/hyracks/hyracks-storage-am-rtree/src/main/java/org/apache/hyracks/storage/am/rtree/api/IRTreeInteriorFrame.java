@@ -21,9 +21,8 @@ package org.apache.hyracks.storage.am.rtree.api;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.rtree.impls.PathList;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 public interface IRTreeInteriorFrame extends IRTreeFrame {
 
@@ -41,7 +40,7 @@ public interface IRTreeInteriorFrame extends IRTreeFrame {
     public int findTupleByPointer(ITupleReference tuple, PathList traverseList, int parentIndex, MultiComparator cmp)
             throws HyracksDataException;
 
-    public void adjustKey(ITupleReference tuple, int tupleIndex, MultiComparator cmp) throws TreeIndexException;
+    public void adjustKey(ITupleReference tuple, int tupleIndex, MultiComparator cmp) throws HyracksDataException;
 
     public void enlarge(ITupleReference tuple, MultiComparator cmp) throws HyracksDataException;
 

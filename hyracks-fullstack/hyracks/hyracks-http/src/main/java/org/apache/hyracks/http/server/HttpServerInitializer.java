@@ -27,11 +27,11 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 
 public class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
 
-    private static final int MAX_REQUEST_CHUNK_SIZE = 262144;
-    private static final int MAX_REQUEST_HEADER_SIZE = 262144;
-    private static final int MAX_REQUEST_INITIAL_LINE_LENGTH = 131072;
-    private static final int RESPONSE_CHUNK_SIZE = 4096;
-    private HttpServer server;
+    public static final int MAX_REQUEST_CHUNK_SIZE = 262144;
+    public static final int MAX_REQUEST_HEADER_SIZE = 262144;
+    public static final int MAX_REQUEST_INITIAL_LINE_LENGTH = 131072;
+    public static final int RESPONSE_CHUNK_SIZE = 4096;
+    private final HttpServer server;
 
     public HttpServerInitializer(HttpServer server) {
         this.server = server;
@@ -40,10 +40,11 @@ public class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
     @Override
     public void initChannel(SocketChannel ch) {
         ChannelPipeline p = ch.pipeline();
+        p.addLast(new HttpRequestCapacityController(server));
         p.addLast(new HttpRequestDecoder(MAX_REQUEST_INITIAL_LINE_LENGTH, MAX_REQUEST_HEADER_SIZE,
                 MAX_REQUEST_CHUNK_SIZE));
         p.addLast(new HttpResponseEncoder());
         p.addLast(new HttpObjectAggregator(Integer.MAX_VALUE));
-        p.addLast(new HttpServerHandler(server, RESPONSE_CHUNK_SIZE));
+        p.addLast(server.createHttpHandler(RESPONSE_CHUNK_SIZE));
     }
 }

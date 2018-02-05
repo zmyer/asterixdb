@@ -19,8 +19,6 @@
 package org.apache.hyracks.dataflow.std.group.external;
 
 import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.comm.VSizeFrame;
@@ -39,10 +37,12 @@ import org.apache.hyracks.dataflow.std.group.AggregateType;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.ISpillableTable;
 import org.apache.hyracks.dataflow.std.group.ISpillableTableFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputSourceOperatorNodePushable
         implements IRunFileWriterGenerator {
-    private static Logger LOGGER = Logger.getLogger("ExternalGroupbyWrite");
+    private static final Logger LOGGER = LogManager.getLogger();
     private final IHyracksTaskContext ctx;
     private final Object stateId;
     private final ISpillableTableFactory spillableTableFactory;
@@ -120,26 +120,32 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
 
         for (int i = 0; i < runs.length; i++) {
             if (runs[i] != null) {
-                ISpillableTable partitionTable = spillableTableFactory.buildSpillableTable(ctx, numOfTuples[i],
+                // Calculates the hash table size (# of unique hash values) based on the budget and a tuple size.
+                int memoryBudgetInBytes = ctx.getInitialFrameSize() * frameLimit;
+                int groupByColumnsCount = mergeGroupFields.length;
+                int hashTableCardinality = ExternalGroupOperatorDescriptor.calculateGroupByTableCardinality(
+                        memoryBudgetInBytes, groupByColumnsCount, ctx.getInitialFrameSize());
+                hashTableCardinality = (int) Math.min(hashTableCardinality, numOfTuples[i]);
+                ISpillableTable partitionTable = spillableTableFactory.buildSpillableTable(ctx, hashTableCardinality,
                         runs[i].getFileSize(), mergeGroupFields, groupByComparators, nmkComputer,
                         mergeAggregatorFactory, partialAggRecordDesc, outRecordDesc, frameLimit, level);
                 RunFileWriter[] runFileWriters = new RunFileWriter[partitionTable.getNumPartitions()];
-                int[] sizeInTuplesNextLevel = buildGroup(runs[i].createDeleteOnCloseReader(), partitionTable,
-                        runFileWriters);
+                int[] sizeInTuplesNextLevel =
+                        buildGroup(runs[i].createDeleteOnCloseReader(), partitionTable, runFileWriters);
                 for (int idFile = 0; idFile < runFileWriters.length; idFile++) {
                     if (runFileWriters[idFile] != null) {
                         generatedRuns.add(runFileWriters[idFile]);
                     }
                 }
 
-                if (LOGGER.isLoggable(Level.FINE)) {
+                if (LOGGER.isDebugEnabled()) {
                     int numOfSpilledPart = 0;
                     for (int x = 0; x < numOfTuples.length; x++) {
                         if (numOfTuples[x] > 0) {
                             numOfSpilledPart++;
                         }
                     }
-                    LOGGER.fine("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
+                    LOGGER.debug("level " + level + ":" + "build with " + numOfTuples.length + " partitions"
                             + ", spilled " + numOfSpilledPart + " partitions");
                 }
                 doPass(partitionTable, runFileWriters, sizeInTuplesNextLevel, writer, level + 1);
@@ -167,6 +173,6 @@ public class ExternalGroupWriteOperatorNodePushable extends AbstractUnaryOutputS
     public RunFileWriter getRunFileWriter() throws HyracksDataException {
         FileReference newRun = ctx.getJobletContext()
                 .createManagedWorkspaceFile(ExternalGroupOperatorDescriptor.class.getSimpleName());
-        return new RunFileWriter(newRun, ctx.getIOManager());
+        return new RunFileWriter(newRun, ctx.getIoManager());
     }
 }

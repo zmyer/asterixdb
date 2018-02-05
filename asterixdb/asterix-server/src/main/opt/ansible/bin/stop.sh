@@ -26,7 +26,7 @@ ANSB_PATH=`dirname "${SCRIPT_PATH}"`
 
 INVENTORY=$ANSB_PATH/conf/inventory
 
-# Starts the cluster
+# Stops the cluster
 export ANSIBLE_HOST_KEY_CHECKING=false
 ansible-playbook -i $INVENTORY $ANSB_PATH/yaml/instance_stop.yml
 

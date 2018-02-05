@@ -1,4 +1,0 @@
-use dataverse experiments;
-
-create dataset Tweets(TweetMessageType) primary key tweetid;
-create index InvMessageTextIdx on Tweets(message-text) type keyword;

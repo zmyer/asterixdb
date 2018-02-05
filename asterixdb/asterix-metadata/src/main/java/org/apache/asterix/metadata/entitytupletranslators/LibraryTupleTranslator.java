@@ -22,17 +22,17 @@ package org.apache.asterix.metadata.entitytupletranslators;
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.Calendar;
 
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.Library;
 import org.apache.asterix.om.base.ARecord;
 import org.apache.asterix.om.base.AString;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 
 /**
@@ -49,15 +49,15 @@ public class LibraryTupleTranslator extends AbstractTupleTranslator<Library> {
     public static final int LIBRARY_PAYLOAD_TUPLE_FIELD_INDEX = 2;
 
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<ARecord> recordSerDes = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(MetadataRecordTypes.LIBRARY_RECORDTYPE);
+    private ISerializerDeserializer<ARecord> recordSerDes =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(MetadataRecordTypes.LIBRARY_RECORDTYPE);
 
     protected LibraryTupleTranslator(boolean getTuple) {
         super(getTuple, MetadataPrimaryIndexes.LIBRARY_DATASET.getFieldCount());
     }
 
     @Override
-    public Library getMetadataEntityFromTuple(ITupleReference frameTuple) throws IOException {
+    public Library getMetadataEntityFromTuple(ITupleReference frameTuple) throws HyracksDataException {
         byte[] serRecord = frameTuple.getFieldData(LIBRARY_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordStartOffset = frameTuple.getFieldStart(LIBRARY_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordLength = frameTuple.getFieldLength(LIBRARY_PAYLOAD_TUPLE_FIELD_INDEX);
@@ -79,7 +79,8 @@ public class LibraryTupleTranslator extends AbstractTupleTranslator<Library> {
     }
 
     @Override
-    public ITupleReference getTupleFromMetadataEntity(Library library) throws IOException, MetadataException {
+    public ITupleReference getTupleFromMetadataEntity(Library library)
+            throws HyracksDataException, AlgebricksException {
         // write the key in the first 2 fields of the tuple
         tupleBuilder.reset();
         aString.setValue(library.getDataverseName());

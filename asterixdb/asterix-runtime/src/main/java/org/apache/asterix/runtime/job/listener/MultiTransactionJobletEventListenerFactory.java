@@ -18,32 +18,49 @@
  */
 package org.apache.asterix.runtime.job.listener;
 
-import java.util.List;
+import java.util.Map;
 
-import org.apache.asterix.common.api.IAppRuntimeContext;
+import org.apache.asterix.common.api.IJobEventListenerFactory;
+import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.exceptions.ACIDException;
-import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.asterix.common.transactions.ITransactionContext;
 import org.apache.asterix.common.transactions.ITransactionManager;
-import org.apache.asterix.common.transactions.JobId;
+import org.apache.asterix.common.transactions.TransactionOptions;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.hyracks.api.context.IHyracksJobletContext;
 import org.apache.hyracks.api.job.IJobletEventListener;
 import org.apache.hyracks.api.job.IJobletEventListenerFactory;
+import org.apache.hyracks.api.job.JobParameterByteStore;
 import org.apache.hyracks.api.job.JobStatus;
 
 /**
  * This Joblet enable transactions on multiple datasets to take place in the same Hyracks Job
  * It takes a list of Transaction job ids instead of a single job Id
  */
-public class MultiTransactionJobletEventListenerFactory implements IJobletEventListenerFactory {
+public class MultiTransactionJobletEventListenerFactory implements IJobEventListenerFactory {
 
     private static final long serialVersionUID = 1L;
-    private final List<JobId> jobIds;
+    private final Map<Integer, TxnId> txnIdMap;
     private final boolean transactionalWrite;
 
-    public MultiTransactionJobletEventListenerFactory(List<JobId> jobIds, boolean transactionalWrite) {
-        this.jobIds = jobIds;
+    public MultiTransactionJobletEventListenerFactory(Map<Integer, TxnId> txnIdMap, boolean transactionalWrite) {
+        this.txnIdMap = txnIdMap;
         this.transactionalWrite = transactionalWrite;
+    }
+
+    @Override
+    public TxnId getTxnId(int datasetId) {
+        return txnIdMap.get(datasetId);
+    }
+
+    @Override
+    public IJobletEventListenerFactory copyFactory() {
+        return new MultiTransactionJobletEventListenerFactory(txnIdMap, transactionalWrite);
+    }
+
+    @Override
+    public void updateListenerJobParameters(JobParameterByteStore jobParameterByteStore) {
+        //no op
     }
 
     @Override
@@ -54,13 +71,16 @@ public class MultiTransactionJobletEventListenerFactory implements IJobletEventL
             public void jobletFinish(JobStatus jobStatus) {
                 try {
                     ITransactionManager txnManager =
-                            ((IAppRuntimeContext) jobletContext.getApplicationContext().getApplicationObject())
+                            ((INcApplicationContext) jobletContext.getServiceContext().getApplicationContext())
                                     .getTransactionSubsystem().getTransactionManager();
-                    for (JobId jobId : jobIds) {
-                        ITransactionContext txnContext = txnManager.getTransactionContext(jobId, false);
+                    for (TxnId subTxnId : txnIdMap.values()) {
+                        ITransactionContext txnContext = txnManager.getTransactionContext(subTxnId);
                         txnContext.setWriteTxn(transactionalWrite);
-                        txnManager.completedTransaction(txnContext, new DatasetId(-1), -1,
-                                !(jobStatus == JobStatus.FAILURE));
+                        if (jobStatus != JobStatus.FAILURE) {
+                            txnManager.commitTransaction(subTxnId);
+                        } else {
+                            txnManager.abortTransaction(subTxnId);
+                        }
                     }
                 } catch (ACIDException e) {
                     throw new Error(e);
@@ -70,9 +90,11 @@ public class MultiTransactionJobletEventListenerFactory implements IJobletEventL
             @Override
             public void jobletStart() {
                 try {
-                    for (JobId jobId : jobIds) {
-                        ((IAppRuntimeContext) jobletContext.getApplicationContext().getApplicationObject())
-                                .getTransactionSubsystem().getTransactionManager().getTransactionContext(jobId, true);
+                    TransactionOptions options =
+                            new TransactionOptions(ITransactionManager.AtomicityLevel.ENTITY_LEVEL);
+                    for (TxnId subTxnId : txnIdMap.values()) {
+                        ((INcApplicationContext) jobletContext.getServiceContext().getApplicationContext())
+                                .getTransactionSubsystem().getTransactionManager().beginTransaction(subTxnId, options);
                     }
                 } catch (ACIDException e) {
                     throw new Error(e);

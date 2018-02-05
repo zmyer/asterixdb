@@ -24,9 +24,7 @@ import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.external.util.FeedUtils;
 import org.apache.asterix.metadata.MetadataCache;
 import org.apache.asterix.metadata.api.IMetadataEntity;
-import org.apache.asterix.metadata.feeds.BuiltinFeedPolicies;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -113,5 +111,15 @@ public class FeedConnection implements IMetadataEntity<FeedConnection> {
 
     public EntityId getFeedId() {
         return feedId;
+    }
+
+    public boolean containsFunction(String dataverseName, String functionName, int arity) {
+        for (FunctionSignature signature : this.appliedFunctions) {
+            if (signature.getNamespace().equals(dataverseName) && signature.getName().equals(functionName)
+                    && signature.getArity() == arity) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -28,10 +28,11 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleReference;
@@ -44,27 +45,26 @@ import org.apache.hyracks.storage.am.btree.util.BTreeUtils;
 import org.apache.hyracks.storage.am.common.CheckTuple;
 import org.apache.hyracks.storage.am.common.IIndexTestContext;
 import org.apache.hyracks.storage.am.common.TreeIndexTestUtils;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.exceptions.TreeIndexDuplicateKeyException;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchPredicate;
+import org.apache.hyracks.storage.common.MultiComparator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @SuppressWarnings("rawtypes")
 public class OrderedIndexTestUtils extends TreeIndexTestUtils {
-    private static final Logger LOGGER = Logger.getLogger(OrderedIndexTestUtils.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static void compareActualAndExpected(ITupleReference actual, CheckTuple expected,
             ISerializerDeserializer[] fieldSerdes) throws HyracksDataException {
         for (int i = 0; i < fieldSerdes.length; i++) {
-            ByteArrayInputStream inStream = new ByteArrayInputStream(actual.getFieldData(i), actual.getFieldStart(i),
-                    actual.getFieldLength(i));
+            ByteArrayInputStream inStream =
+                    new ByteArrayInputStream(actual.getFieldData(i), actual.getFieldStart(i), actual.getFieldLength(i));
             DataInput dataIn = new DataInputStream(inStream);
             Object actualObj = fieldSerdes[i].deserialize(dataIn);
             if (!actualObj.equals(expected.getField(i))) {
-                 fail("Actual and expected fields do not match on field " + i + ".\nExpected: " + expected.getField(i)
-                         + "\nActual  : " + actualObj);
+                fail("Actual and expected fields do not match on field " + i + ".\nExpected: " + expected.getField(i)
+                        + "\nActual  : " + actualObj);
             }
         }
     }
@@ -81,11 +81,11 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         CheckTuple high = checkTuples.floor(highKey);
         if (low == null || high == null) {
             // Must be empty.
-            return new TreeSet<CheckTuple>();
+            return new TreeSet<>();
         }
         if (high.compareTo(low) < 0) {
             // Must be empty.
-            return new TreeSet<CheckTuple>();
+            return new TreeSet<>();
         }
         return checkTuples.subSet(low, true, high, true);
     }
@@ -93,26 +93,26 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
     @SuppressWarnings("unchecked")
     public void checkRangeSearch(IIndexTestContext ctx, ITupleReference lowKey, ITupleReference highKey,
             boolean lowKeyInclusive, boolean highKeyInclusive) throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Testing Range Search.");
         }
         MultiComparator lowKeyCmp = BTreeUtils.getSearchMultiComparator(ctx.getComparatorFactories(), lowKey);
         MultiComparator highKeyCmp = BTreeUtils.getSearchMultiComparator(ctx.getComparatorFactories(), highKey);
         IIndexCursor searchCursor = ctx.getIndexAccessor().createSearchCursor(false);
-        RangePredicate rangePred = new RangePredicate(lowKey, highKey, lowKeyInclusive, highKeyInclusive, lowKeyCmp,
-                highKeyCmp);
+        RangePredicate rangePred =
+                new RangePredicate(lowKey, highKey, lowKeyInclusive, highKeyInclusive, lowKeyCmp, highKeyCmp);
         ctx.getIndexAccessor().search(searchCursor, rangePred);
         // Get the subset of elements from the expected set within given key
         // range.
         CheckTuple lowKeyCheck = createCheckTupleFromTuple(lowKey, ctx.getFieldSerdes(), lowKeyCmp.getKeyFieldCount());
-        CheckTuple highKeyCheck = createCheckTupleFromTuple(highKey, ctx.getFieldSerdes(),
-                highKeyCmp.getKeyFieldCount());
+        CheckTuple highKeyCheck =
+                createCheckTupleFromTuple(highKey, ctx.getFieldSerdes(), highKeyCmp.getKeyFieldCount());
         SortedSet<CheckTuple> expectedSubset = null;
         if (lowKeyCmp.getKeyFieldCount() < ctx.getKeyFieldCount()
                 || highKeyCmp.getKeyFieldCount() < ctx.getKeyFieldCount()) {
             // Searching on a key prefix (low key or high key or both).
-            expectedSubset = getPrefixExpectedSubset((TreeSet<CheckTuple>) ctx.getCheckTuples(), lowKeyCheck,
-                    highKeyCheck);
+            expectedSubset =
+                    getPrefixExpectedSubset((TreeSet<CheckTuple>) ctx.getCheckTuples(), lowKeyCheck, highKeyCheck);
         } else {
             // Searching on all key fields.
             expectedSubset = ((TreeSet<CheckTuple>) ctx.getCheckTuples()).subSet(lowKeyCheck, lowKeyInclusive,
@@ -136,12 +136,12 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
                         + "\nActual  : " + actualCount);
             }
         } finally {
-            searchCursor.close();
+            searchCursor.destroy();
         }
     }
 
     public void checkPointSearches(IIndexTestContext ictx) throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Testing Point Searches On All Expected Keys.");
         }
         OrderedIndexTestContext ctx = (OrderedIndexTestContext) ictx;
@@ -179,7 +179,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
                     fail("Point search returned more than one answer.");
                 }
             } finally {
-                searchCursor.close();
+                searchCursor.destroy();
             }
         }
     }
@@ -189,7 +189,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         int fieldCount = ctx.getFieldCount();
         int numKeyFields = ctx.getKeyFieldCount();
         int[] fieldValues = new int[ctx.getFieldCount()];
-        int maxValue = (int) Math.ceil(Math.pow(numTuples, 1.0 / (double) numKeyFields));
+        int maxValue = (int) Math.ceil(Math.pow(numTuples, 1.0 / numKeyFields));
         Collection<CheckTuple> tmpCheckTuples = createCheckTuplesCollection();
         for (int i = 0; i < numTuples; i++) {
             // Set keys.
@@ -214,7 +214,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         int fieldCount = ctx.getFieldCount();
         int numKeyFields = ctx.getKeyFieldCount();
         String[] fieldValues = new String[fieldCount];
-        TreeSet<CheckTuple> tmpCheckTuples = new TreeSet<CheckTuple>();
+        TreeSet<CheckTuple> tmpCheckTuples = new TreeSet<>();
         for (int i = 0; i < numTuples; i++) {
             // Set keys.
             for (int j = 0; j < numKeyFields; j++) {
@@ -238,32 +238,45 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
     }
 
     public static void insertCheckTuples(IIndexTestContext ctx, Collection<CheckTuple> checkTuples)
-            throws HyracksDataException, IndexException {
+            throws HyracksDataException {
+        insertCheckTuples(ctx, checkTuples, false);
+    }
+
+    public static void insertCheckTuples(IIndexTestContext ctx, Collection<CheckTuple> checkTuples, boolean filtered)
+            throws HyracksDataException {
         int fieldCount = ctx.getFieldCount();
         int numTuples = checkTuples.size();
-        ArrayTupleBuilder tupleBuilder = new ArrayTupleBuilder(fieldCount);
+        ArrayTupleBuilder tupleBuilder =
+                filtered ? new ArrayTupleBuilder(fieldCount + 1) : new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
 
         int c = 1;
         for (CheckTuple checkTuple : checkTuples) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 if (c % (numTuples / 10) == 0) {
                     LOGGER.info("Inserting Tuple " + c + "/" + numTuples);
                 }
             }
-            createTupleFromCheckTuple(checkTuple, tupleBuilder, tuple, ctx.getFieldSerdes());
+            createTupleFromCheckTuple(checkTuple, tupleBuilder, tuple, ctx.getFieldSerdes(), filtered);
             ctx.getIndexAccessor().insert(tuple);
             c++;
         }
     }
 
+    public Pair<ITupleReference, ITupleReference> insertStringTuples(IIndexTestContext ctx, int numTuples, Random rnd)
+            throws Exception {
+        return insertStringTuples(ctx, numTuples, false, rnd);
+    }
+
     @SuppressWarnings("unchecked")
-    public void insertStringTuples(IIndexTestContext ctx, int numTuples, Random rnd) throws Exception {
+    public Pair<ITupleReference, ITupleReference> insertStringTuples(IIndexTestContext ctx, int numTuples,
+            boolean filtered, Random rnd) throws Exception {
         int fieldCount = ctx.getFieldCount();
         int numKeyFields = ctx.getKeyFieldCount();
         String[] fieldValues = new String[fieldCount];
+        MutablePair<ITupleReference, ITupleReference> minMax = null;
         for (int i = 0; i < numTuples; i++) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 if ((i + 1) % (numTuples / Math.min(10, numTuples)) == 0) {
                     LOGGER.info("Inserting Tuple " + (i + 1) + "/" + numTuples);
                 }
@@ -277,16 +290,24 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
             for (int j = numKeyFields; j < fieldCount; j++) {
                 fieldValues[j] = getRandomString(5, rnd);
             }
-            TupleUtils.createTuple(ctx.getTupleBuilder(), ctx.getTuple(), ctx.getFieldSerdes(), (Object[]) fieldValues);
+            TupleUtils.createTuple(ctx.getTupleBuilder(), ctx.getTuple(), ctx.getFieldSerdes(), filtered,
+                    (Object[]) fieldValues);
             try {
                 ctx.getIndexAccessor().insert(ctx.getTuple());
                 // Set expected values. Do this only after insertion succeeds
                 // because we ignore duplicate keys.
                 ctx.insertCheckTuple(createStringCheckTuple(fieldValues, ctx.getKeyFieldCount()), ctx.getCheckTuples());
-            } catch (TreeIndexDuplicateKeyException e) {
+                if (filtered) {
+                    addFilterField(ctx, minMax);
+                }
+            } catch (HyracksDataException e) {
                 // Ignore duplicate key insertions.
+                if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                    throw e;
+                }
             }
         }
+        return minMax;
     }
 
     public void upsertStringTuples(IIndexTestContext ictx, int numTuples, Random rnd) throws Exception {
@@ -295,7 +316,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         int numKeyFields = ctx.getKeyFieldCount();
         String[] fieldValues = new String[fieldCount];
         for (int i = 0; i < numTuples; i++) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 if ((i + 1) % (numTuples / Math.min(10, numTuples)) == 0) {
                     LOGGER.info("Inserting Tuple " + (i + 1) + "/" + numTuples);
                 }
@@ -315,12 +336,17 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void bulkLoadStringTuples(IIndexTestContext ctx, int numTuples, Random rnd) throws Exception {
+        bulkLoadStringTuples(ctx, numTuples, false, rnd);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void bulkLoadStringTuples(IIndexTestContext ctx, int numTuples, boolean filtered, Random rnd)
+            throws Exception {
         int fieldCount = ctx.getFieldCount();
         int numKeyFields = ctx.getKeyFieldCount();
         String[] fieldValues = new String[fieldCount];
-        TreeSet<CheckTuple> tmpCheckTuples = new TreeSet<CheckTuple>();
+        TreeSet<CheckTuple> tmpCheckTuples = new TreeSet<>();
         for (int i = 0; i < numTuples; i++) {
             // Set keys.
             for (int j = 0; j < numKeyFields; j++) {
@@ -335,7 +361,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
             // for bulk loading.
             ctx.insertCheckTuple(createStringCheckTuple(fieldValues, ctx.getKeyFieldCount()), tmpCheckTuples);
         }
-        bulkLoadCheckTuples(ctx, tmpCheckTuples);
+        bulkLoadCheckTuples(ctx, tmpCheckTuples, filtered);
 
         // Add tmpCheckTuples to ctx check tuples for comparing searches.
         for (CheckTuple checkTuple : tmpCheckTuples) {
@@ -343,6 +369,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         }
     }
 
+    @Override
     public void upsertIntTuples(IIndexTestContext ictx, int numTuples, Random rnd) throws Exception {
         OrderedIndexTestContext ctx = (OrderedIndexTestContext) ictx;
         int fieldCount = ctx.getFieldCount();
@@ -351,14 +378,14 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
         // Scale range of values according to number of keys.
         // For example, for 2 keys we want the square root of numTuples, for 3
         // keys the cube root of numTuples, etc.
-        int maxValue = (int) Math.ceil(Math.pow(numTuples, 1.0 / (double) numKeyFields));
+        int maxValue = (int) Math.ceil(Math.pow(numTuples, 1.0 / numKeyFields));
         for (int i = 0; i < numTuples; i++) {
             // Set keys.
             setIntKeyFields(fieldValues, numKeyFields, maxValue, rnd);
             // Set values.
             setIntPayloadFields(fieldValues, numKeyFields, fieldCount);
             TupleUtils.createIntegerTuple(ctx.getTupleBuilder(), ctx.getTuple(), fieldValues);
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 if ((i + 1) % (numTuples / Math.min(10, numTuples)) == 0) {
                     LOGGER.info("Inserting Tuple " + (i + 1) + "/" + numTuples);
                 }
@@ -388,7 +415,7 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
             checkTuples[idx++] = checkTuple;
         }
         for (int i = 0; i < numTuples && numCheckTuples > 0; i++) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 if ((i + 1) % (numTuples / Math.min(10, numTuples)) == 0) {
                     LOGGER.info("Updating Tuple " + (i + 1) + "/" + numTuples);
                 }
@@ -413,9 +440,9 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
     }
 
     public CheckTuple createStringCheckTuple(String[] fieldValues, int numKeyFields) {
-        CheckTuple<String> checkTuple = new CheckTuple<String>(fieldValues.length, numKeyFields);
+        CheckTuple<String> checkTuple = new CheckTuple<>(fieldValues.length, numKeyFields);
         for (String s : fieldValues) {
-            checkTuple.appendField((String) s);
+            checkTuple.appendField(s);
         }
         return checkTuple;
     }
@@ -449,8 +476,8 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
     }
 
     @Override
-    public void checkExpectedResults(ITreeIndexCursor cursor, Collection checkTuples,
-            ISerializerDeserializer[] fieldSerdes, int keyFieldCount, Iterator<CheckTuple> checkIter) throws Exception {
+    public void checkExpectedResults(IIndexCursor cursor, Collection checkTuples, ISerializerDeserializer[] fieldSerdes,
+            int keyFieldCount, Iterator<CheckTuple> checkIter) throws Exception {
         int actualCount = 0;
         try {
             while (cursor.hasNext()) {
@@ -468,14 +495,14 @@ public class OrderedIndexTestUtils extends TreeIndexTestUtils {
                         + "\nActual  : " + actualCount);
             }
         } finally {
-            cursor.close();
+            cursor.destroy();
         }
 
     }
 
     @Override
     protected CheckTuple createIntCheckTuple(int[] fieldValues, int numKeyFields) {
-        CheckTuple<Integer> checkTuple = new CheckTuple<Integer>(fieldValues.length, numKeyFields);
+        CheckTuple<Integer> checkTuple = new CheckTuple<>(fieldValues.length, numKeyFields);
         for (int v : fieldValues) {
             checkTuple.appendField(v);
         }

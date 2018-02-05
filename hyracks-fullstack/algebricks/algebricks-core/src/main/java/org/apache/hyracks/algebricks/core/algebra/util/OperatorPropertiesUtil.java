@@ -45,7 +45,7 @@ import org.apache.hyracks.algebricks.core.algebra.properties.StructuralPropertie
 
 public class OperatorPropertiesUtil {
 
-    private static final String MOVABLE = "isMovable";
+    public static final String MOVABLE = "isMovable";
 
     private OperatorPropertiesUtil() {
     }
@@ -75,7 +75,7 @@ public class OperatorPropertiesUtil {
      * collection provided.
      *
      * @param op
-     * @param vars
+     * @param freeVars
      *            - The collection to which the free variables will be added.
      */
     public static void getFreeVariablesInSelfOrDesc(AbstractLogicalOperator op, Set<LogicalVariable> freeVars)
@@ -345,9 +345,8 @@ public class OperatorPropertiesUtil {
             StructuralPropertiesVector partitionedPropertiesVector) {
         ILogicalOperator leftChild = op.getInputs().get(0).getValue();
         ILogicalOperator rightChild = op.getInputs().get(1).getValue();
-        boolean unPartitioned =
-                leftChild.getExecutionMode().equals(AbstractLogicalOperator.ExecutionMode.UNPARTITIONED) && rightChild
-                        .getExecutionMode().equals(AbstractLogicalOperator.ExecutionMode.UNPARTITIONED);
+        boolean unPartitioned = leftChild.getExecutionMode().equals(AbstractLogicalOperator.ExecutionMode.UNPARTITIONED)
+                && rightChild.getExecutionMode().equals(AbstractLogicalOperator.ExecutionMode.UNPARTITIONED);
         return unPartitioned ? StructuralPropertiesVector.EMPTY_PROPERTIES_VECTOR : partitionedPropertiesVector;
     }
 }

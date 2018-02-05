@@ -92,7 +92,7 @@ public class MuxDemux {
             }
 
             @Override
-            public void connectionFailure(InetSocketAddress remoteAddress) {
+            public void connectionFailure(InetSocketAddress remoteAddress, IOException error) {
                 MultiplexedConnection mConn;
                 synchronized (MuxDemux.this) {
                     mConn = connectionMap.get(remoteAddress);
@@ -100,11 +100,18 @@ public class MuxDemux {
                     int nConnectionAttempts = mConn.getConnectionAttempts();
                     if (nConnectionAttempts > MuxDemux.this.maxConnectionAttempts) {
                         connectionMap.remove(remoteAddress);
-                        mConn.setConnectionFailure();
+                        mConn.setConnectionFailure(new IOException(remoteAddress.toString() + ": " + error, error));
                     } else {
                         mConn.setConnectionAttempts(nConnectionAttempts + 1);
                         tcpEndpoint.initiateConnection(remoteAddress);
                     }
+                }
+            }
+
+            @Override
+            public void connectionClosed(TCPConnection connection) {
+                synchronized (MuxDemux.this) {
+                    connectionMap.remove(connection.getRemoteAddress());
                 }
             }
         }, nThreads);

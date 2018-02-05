@@ -29,7 +29,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.asterix.api.http.server.ConnectorApiServlet;
-import org.apache.asterix.file.StorageComponentProvider;
+import org.apache.asterix.api.http.server.ServletConstants;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
 import org.apache.asterix.metadata.declared.MetadataProvider;
@@ -38,6 +39,7 @@ import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.utils.JSONDeserializerForTypes;
+import org.apache.asterix.test.runtime.ExecutionTestUtil;
 import org.apache.asterix.test.runtime.SqlppExecutionTest;
 import org.apache.hyracks.api.client.IHyracksClientConnection;
 import org.apache.hyracks.api.client.NodeControllerInfo;
@@ -46,7 +48,9 @@ import org.apache.hyracks.api.io.FileSplit;
 import org.apache.hyracks.api.io.ManagedFileSplit;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,13 +63,23 @@ import junit.extensions.PA;
 
 public class ConnectorApiServletTest {
 
-    @Test
-    public void testGet() throws Exception {
+    @BeforeClass
+    public static void setup() throws Exception {
         // Starts test asterixdb cluster.
         SqlppExecutionTest.setUp();
+    }
 
+    @AfterClass
+    public static void teardown() throws Exception {
+        // Tears down the asterixdb cluster.
+        SqlppExecutionTest.tearDown();
+    }
+
+    @Test
+    public void testGet() throws Exception {
         // Configures a test connector api servlet.
-        ConnectorApiServlet let = new ConnectorApiServlet(new ConcurrentHashMap<>(), new String[] { "/" });
+        ConnectorApiServlet let = new ConnectorApiServlet(new ConcurrentHashMap<>(), new String[] { "/" },
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext());
         Map<String, NodeControllerInfo> nodeMap = new HashMap<>();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PrintWriter outputWriter = new PrintWriter(outputStream);
@@ -99,9 +113,7 @@ public class ConnectorApiServletTest {
         ObjectMapper om = new ObjectMapper();
         ObjectNode actualResponse = (ObjectNode) om.readTree(outputStream.toString());
 
-        // Checks the temp-or-not, primary key, data type of the dataset.
-        boolean temp = actualResponse.get("temp").asBoolean();
-        Assert.assertFalse(temp);
+        // Checks the primary key, data type of the dataset.
         String primaryKey = actualResponse.get("keys").asText();
         Assert.assertEquals("DataverseName,DatasetName", primaryKey);
         ARecordType recordType = (ARecordType) JSONDeserializerForTypes.convertFromJSON(actualResponse.get("type"));
@@ -110,15 +122,13 @@ public class ConnectorApiServletTest {
         // Checks the correctness of results.
         ArrayNode splits = (ArrayNode) actualResponse.get("splits");
         String path = (splits.get(0)).get("path").asText();
-        Assert.assertTrue(path.endsWith("Metadata/Dataset_idx_Dataset"));
-
-        // Tears down the asterixdb cluster.
-        SqlppExecutionTest.tearDown();
+        Assert.assertTrue(path.endsWith("Metadata/Dataset/0/Dataset"));
     }
 
     @Test
     public void testFormResponseObject() throws Exception {
-        ConnectorApiServlet let = new ConnectorApiServlet(new ConcurrentHashMap<>(), new String[] { "/" });
+        ConnectorApiServlet let = new ConnectorApiServlet(new ConcurrentHashMap<>(), new String[] { "/" },
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext());
         ObjectMapper om = new ObjectMapper();
         ObjectNode actualResponse = om.createObjectNode();
         FileSplit[] splits = new FileSplit[2];
@@ -142,12 +152,11 @@ public class ConnectorApiServletTest {
         nodeMap.put("asterix_nc2", mockInfo2);
         PA.invokeMethod(let,
                 "formResponseObject(" + ObjectNode.class.getName() + ", " + FileSplit.class.getName() + "[], "
-                        + ARecordType.class.getName() + ", " + String.class.getName() + ", boolean, "
-                        + Map.class.getName() + ")",
-                actualResponse, splits, recordType, primaryKey, true, nodeMap);
+                        + ARecordType.class.getName() + ", " + String.class.getName() + ", " + Map.class.getName()
+                        + ")",
+                actualResponse, splits, recordType, primaryKey, nodeMap);
         // Constructs expected response.
         ObjectNode expectedResponse = om.createObjectNode();
-        expectedResponse.put("temp", true);
         expectedResponse.put("keys", primaryKey);
         expectedResponse.set("type", recordType.toJSON());
         ArrayNode splitsArray = om.createArrayNode();
@@ -168,13 +177,18 @@ public class ConnectorApiServletTest {
     private ARecordType getMetadataRecordType(String dataverseName, String datasetName) throws Exception {
         MetadataTransactionContext mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
         // Retrieves file splits of the dataset.
-        MetadataProvider metadataProvider = new MetadataProvider(null, new StorageComponentProvider());
-        metadataProvider.setMetadataTxnContext(mdTxnCtx);
-        Dataset dataset = metadataProvider.findDataset(dataverseName, datasetName);
-        ARecordType recordType =
-                (ARecordType) metadataProvider.findType(dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
-        // Metadata transaction commits.
-        MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
-        return recordType;
+        MetadataProvider metadataProvider = new MetadataProvider(
+                (ICcApplicationContext) ExecutionTestUtil.integrationUtil.cc.getApplicationContext(), null);
+        try {
+            metadataProvider.setMetadataTxnContext(mdTxnCtx);
+            Dataset dataset = metadataProvider.findDataset(dataverseName, datasetName);
+            ARecordType recordType = (ARecordType) metadataProvider.findType(dataset.getItemTypeDataverseName(),
+                    dataset.getItemTypeName());
+            // Metadata transaction commits.
+            MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
+            return recordType;
+        } finally {
+            metadataProvider.getLocks().unlock();
+        }
     }
 }

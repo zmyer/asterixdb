@@ -64,7 +64,6 @@ import org.apache.asterix.lang.sqlpp.clause.SelectRegular;
 import org.apache.asterix.lang.sqlpp.clause.SelectSetOperation;
 import org.apache.asterix.lang.sqlpp.clause.UnnestClause;
 import org.apache.asterix.lang.sqlpp.expression.CaseExpression;
-import org.apache.asterix.lang.sqlpp.expression.IndependentSubquery;
 import org.apache.asterix.lang.sqlpp.expression.SelectExpression;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationInput;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationRight;
@@ -132,8 +131,7 @@ public class DeepCopyVisitor extends AbstractSqlppQueryExpressionVisitor<ILangEx
     @Override
     public Projection visit(Projection projection, Void arg) throws CompilationException {
         return new Projection(projection.star() ? null : (Expression) projection.getExpression().accept(this, arg),
-                projection.getName(),
-                projection.star(), projection.exprStar());
+                projection.getName(), projection.star(), projection.exprStar());
     }
 
     @Override
@@ -234,7 +232,7 @@ public class DeepCopyVisitor extends AbstractSqlppQueryExpressionVisitor<ILangEx
     @Override
     public Query visit(Query q, Void arg) throws CompilationException {
         return new Query(q.isExplain(), q.isTopLevel(), (Expression) q.getBody().accept(this, arg), q.getVarCounter(),
-                q.getDataverses(), q.getDatasets());
+                q.getExternalVars());
     }
 
     @Override
@@ -414,11 +412,6 @@ public class DeepCopyVisitor extends AbstractSqlppQueryExpressionVisitor<ILangEx
             indexExpr = (Expression) ia.getIndexExpr().accept(this, arg);
         }
         return new IndexAccessor(expr, indexExpr);
-    }
-
-    @Override
-    public ILangExpression visit(IndependentSubquery independentSubquery, Void arg) throws CompilationException {
-        return new IndependentSubquery((Expression) independentSubquery.getExpr().accept(this, arg));
     }
 
     @Override

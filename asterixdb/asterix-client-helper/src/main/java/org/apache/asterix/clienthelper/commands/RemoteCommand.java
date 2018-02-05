@@ -67,12 +67,13 @@ public abstract class RemoteCommand extends ClientCommand {
 
     protected HttpURLConnection openConnection(String path, Method method) throws IOException {
         URL url = new URL("http://" + hostPort + "/" + path);
-        HttpURLConnection conn = (HttpURLConnection)url.openConnection();
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         final int timeoutMillis =
                 (int) TimeUnit.SECONDS.toMillis(Math.max(MAX_CONNECTION_TIMEOUT_SECS, args.getTimeoutSecs()));
         conn.setConnectTimeout(timeoutMillis);
         conn.setReadTimeout(timeoutMillis);
         conn.setRequestMethod(method.name());
+        conn.setRequestProperty("Connection", "close");
         return conn;
     }
 }

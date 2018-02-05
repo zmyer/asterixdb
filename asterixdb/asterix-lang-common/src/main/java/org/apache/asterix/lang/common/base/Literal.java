@@ -38,9 +38,9 @@ public abstract class Literal implements Serializable {
         LONG
     }
 
-    abstract public Object getValue();
+    public abstract Object getValue();
 
-    abstract public Type getLiteralType();
+    public abstract Type getLiteralType();
 
     public String getStringValue() {
         return getValue().toString();

@@ -1,3 +1,21 @@
+//
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+//
 options {
 
 
@@ -46,6 +64,7 @@ import org.apache.asterix.common.annotations.UndeclaredFieldsDataGen;
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
 import org.apache.asterix.common.config.DatasetConfig.IndexType;
 import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.functions.FunctionConstants;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.Literal;
@@ -66,6 +85,7 @@ import org.apache.asterix.lang.common.expression.FieldBinding;
 import org.apache.asterix.lang.common.expression.GbyVariableExpressionPair;
 import org.apache.asterix.lang.common.expression.IfExpr;
 import org.apache.asterix.lang.common.expression.IndexAccessor;
+import org.apache.asterix.lang.common.expression.IndexedTypeExpression;
 import org.apache.asterix.lang.common.expression.ListConstructor;
 import org.apache.asterix.lang.common.expression.LiteralExpr;
 import org.apache.asterix.lang.common.expression.OperatorExpr;
@@ -123,6 +143,7 @@ import org.apache.asterix.lang.common.statement.UpdateStatement;
 import org.apache.asterix.lang.common.statement.UpsertStatement;
 import org.apache.asterix.lang.common.statement.WriteStatement;
 import org.apache.asterix.lang.common.struct.Identifier;
+import org.apache.asterix.lang.common.struct.OperatorType;
 import org.apache.asterix.lang.common.struct.QuantifiedPair;
 import org.apache.asterix.lang.common.struct.VarIdentifier;
 import org.apache.asterix.lang.sqlpp.clause.AbstractBinaryCorrelateClause;
@@ -144,10 +165,12 @@ import org.apache.asterix.lang.sqlpp.optype.SetOpType;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationInput;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationRight;
 import org.apache.asterix.lang.sqlpp.util.ExpressionToVariableUtil;
+import org.apache.asterix.lang.sqlpp.util.FunctionMapUtil;
 import org.apache.asterix.lang.sqlpp.util.SqlppVariableUtil;
-import org.apache.asterix.metadata.utils.MetadataConstants;
+import org.apache.asterix.om.functions.BuiltinFunctions;
 import org.apache.hyracks.algebricks.common.utils.Pair;
 import org.apache.hyracks.algebricks.common.utils.Triple;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IExpressionAnnotation;
 import org.apache.hyracks.algebricks.core.algebra.expressions.IndexedNLJoinExpressionAnnotation;
 import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
@@ -272,7 +295,8 @@ class SQLPPParser extends ScopeChecker implements IParser {
         } catch (Error e) {
             // this is here as the JavaCharStream that's below the lexer somtimes throws Errors that are not handled
             // by the ANTLR-generated lexer or parser (e.g it does this for invalid backslash u + 4 hex digits escapes)
-            throw new CompilationException(new ParseException(e.getMessage()));
+            final String msg = e.getClass().getSimpleName() + (e.getMessage() != null ? ": " + e.getMessage() : "");
+            throw new CompilationException(new ParseException(msg));
         } catch (ParseException e) {
             throw new CompilationException("Syntax error: " + getMessage(e));
         }
@@ -330,10 +354,13 @@ List<Statement> Statement() throws ParseException:
   Statement stmt = null;
 }
 {
-  ( stmt = SingleStatement() (<SEMICOLON>)*
-    {
-      decls.add(stmt);
-    }
+  (
+    (stmt = SingleStatement()
+      {
+        decls.add(stmt);
+      }
+    )?
+    (<SEMICOLON>)+
   )*
   <EOF>
   {
@@ -361,7 +388,7 @@ Statement SingleStatement() throws ParseException:
     | stmt = ConnectionStatement()
     | stmt = CompactStatement()
     | stmt = ExplainStatement()
-    | stmt = Query(false) <SEMICOLON>
+    | stmt = Query(false)
     | stmt = RefreshExternalDatasetStatement()
     | stmt = RunStatement()
   )
@@ -468,17 +495,15 @@ DatasetDecl DatasetSpecification() throws ParseException:
   Pair<Identifier,Identifier> typeComponents = null;
   String adapterName = null;
   Map<String,String> properties = null;
-  Map<String,String> compactionPolicyProperties = null;
   FunctionSignature appliedFunction = null;
   Pair<List<Integer>, List<List<String>>> primaryKeyFields = null;
   String nodeGroupName = null;
   Map<String,String> hints = new HashMap<String,String>();
   DatasetDecl dsetDecl = null;
   boolean autogenerated = false;
-  String compactionPolicy = null;
-  boolean temp = false;
   Pair<Integer, List<String>> filterField = null;
   Pair<Identifier,Identifier> metaTypeComponents = new Pair<Identifier, Identifier>(null, null);
+  RecordConstructor withRecord = null;
 }
 {
   (
@@ -486,13 +511,14 @@ DatasetDecl DatasetSpecification() throws ParseException:
     <LEFTPAREN> typeComponents = TypeName() <RIGHTPAREN>
     ifNotExists = IfNotExists()
     <USING> adapterName = AdapterName() properties = Configuration()
-    (<ON> nodeGroupName = Identifier() )?
+    ( <ON> nodeGroupName = Identifier() )?
     ( <HINTS> hints = Properties() )?
-    ( <USING> <COMPACTION> <POLICY> compactionPolicy = CompactionPolicy() (LOOKAHEAD(1) compactionPolicyProperties = Configuration())? )?
+    ( <WITH> withRecord = RecordConstructor() )?
       {
         ExternalDetailsDecl edd = new ExternalDetailsDecl();
         edd.setAdapter(adapterName);
         edd.setProperties(properties);
+        try{
         dsetDecl = new DatasetDecl(nameComponents.first,
                                    nameComponents.second,
                                    typeComponents.first,
@@ -500,15 +526,17 @@ DatasetDecl DatasetSpecification() throws ParseException:
                                    metaTypeComponents.first,
                                    metaTypeComponents.second,
                                    nodeGroupName != null? new Identifier(nodeGroupName): null,
-                                   compactionPolicy,
-                                   compactionPolicyProperties,
                                    hints,
                                    DatasetType.EXTERNAL,
                                    edd,
+                                   withRecord,
                                    ifNotExists);
+        } catch (CompilationException e){
+           throw new ParseException(e.getMessage());
+        }
       }
 
-    | (<INTERNAL> | <TEMPORARY> { temp = true; })?
+    | ( <INTERNAL> )?
     Dataset() nameComponents = QualifiedName()
     <LEFTPAREN> typeComponents = TypeName() <RIGHTPAREN>
     (
@@ -527,8 +555,8 @@ DatasetDecl DatasetSpecification() throws ParseException:
     (<AUTOGENERATED> { autogenerated = true; } )?
     (<ON> nodeGroupName = Identifier() )?
     ( <HINTS> hints = Properties() )?
-    ( <USING> <COMPACTION> <POLICY> compactionPolicy = CompactionPolicy() (LOOKAHEAD(1) compactionPolicyProperties = Configuration())? )?
     ( LOOKAHEAD(2) <WITH> <FILTER> <ON>  filterField = NestedField() )?
+    ( <WITH> withRecord = RecordConstructor() )?
       {
         if(filterField!=null && filterField.first!=0){
           throw new ParseException("A filter field can only be a field in the main record of the dataset.");
@@ -536,8 +564,8 @@ DatasetDecl DatasetSpecification() throws ParseException:
         InternalDetailsDecl idd = new InternalDetailsDecl(primaryKeyFields.second,
                                                           primaryKeyFields.first,
                                                           autogenerated,
-                                                          filterField == null? null : filterField.second,
-                                                          temp);
+                                                          filterField == null? null : filterField.second);
+        try{
         dsetDecl = new DatasetDecl(nameComponents.first,
                                    nameComponents.second,
                                    typeComponents.first,
@@ -545,12 +573,14 @@ DatasetDecl DatasetSpecification() throws ParseException:
                                    metaTypeComponents.first,
                                    metaTypeComponents.second,
                                    nodeGroupName != null ? new Identifier(nodeGroupName) : null,
-                                   compactionPolicy,
-                                   compactionPolicyProperties,
                                    hints,
                                    DatasetType.INTERNAL,
                                    idd,
+                                   withRecord,
                                    ifNotExists);
+        } catch (CompilationException e){
+           throw new ParseException(e.getMessage());
+        }
       }
   )
     {
@@ -600,37 +630,50 @@ CreateIndexStatement IndexSpecification() throws ParseException:
   String indexName = null;
   boolean ifNotExists = false;
   Pair<Identifier,Identifier> nameComponents = null;
-  Pair<Integer, Pair<List<String>, TypeExpression>> fieldPair = null;
+  Pair<Integer, Pair<List<String>, IndexedTypeExpression>> fieldPair = null;
   IndexParams indexType = null;
   boolean enforced = false;
+  boolean isPrimaryIdx = false;
 }
 {
-  <INDEX> indexName = Identifier()
-  ifNotExists = IfNotExists()
-  <ON> nameComponents = QualifiedName()
-  <LEFTPAREN> ( fieldPair = OpenField()
-    {
-      cis.addFieldExprPair(fieldPair.second);
-      cis.addFieldIndexIndicator(fieldPair.first);
-    }
-  ) (<COMMA> fieldPair = OpenField()
-    {
-      cis.addFieldExprPair(fieldPair.second);
-      cis.addFieldIndexIndicator(fieldPair.first);
-    }
-  )* <RIGHTPAREN> ( <TYPE> indexType = IndexType() )? ( <ENFORCED> { enforced = true; } )?
-    {
-      cis.setIndexName(new Identifier(indexName));
-      cis.setIfNotExists(ifNotExists);
-      cis.setDataverseName(nameComponents.first);
-      cis.setDatasetName(nameComponents.second);
-      if (indexType != null) {
-        cis.setIndexType(indexType.type);
-        cis.setGramLength(indexType.gramLength);
+  (
+    (<INDEX> indexName = Identifier()
+    ifNotExists = IfNotExists()
+    <ON> nameComponents = QualifiedName()
+    <LEFTPAREN> ( fieldPair = OpenField()
+      {
+        cis.addFieldExprPair(fieldPair.second);
+        cis.addFieldIndexIndicator(fieldPair.first);
       }
-      cis.setEnforced(enforced);
-      return cis;
+    ) (<COMMA> fieldPair = OpenField()
+      {
+        cis.addFieldExprPair(fieldPair.second);
+        cis.addFieldIndexIndicator(fieldPair.first);
+      }
+    )* <RIGHTPAREN> ( <TYPE> indexType = IndexType() )? ( <ENFORCED> { enforced = true; } )?)
+    |
+    (<PRIMARY> <INDEX> {isPrimaryIdx = true;}
+      (
+        (indexName = Identifier())? ifNotExists = IfNotExists()
+      )
+      <ON> nameComponents = QualifiedName() (<TYPE> <BTREE>)?
+    )
+  )
+  {
+    if (isPrimaryIdx && indexName == null) {
+      indexName = "primary_idx_" + nameComponents.second;
     }
+    cis.setIndexName(new Identifier(indexName));
+    cis.setIfNotExists(ifNotExists);
+    cis.setDataverseName(nameComponents.first);
+    cis.setDatasetName(nameComponents.second);
+    if (indexType != null) {
+      cis.setIndexType(indexType.type);
+      cis.setGramLength(indexType.gramLength);
+    }
+    cis.setEnforced(enforced);
+    return cis;
+  }
 }
 
 String CompactionPolicy() throws ParseException :
@@ -712,11 +755,15 @@ CreateFunctionStatement FunctionSpecification() throws ParseException:
   Token beginPos;
   Token endPos;
   FunctionName fctName = null;
+  String currentDataverse = defaultDataverse;
 
   createNewScope();
 }
 {
   <FUNCTION> fctName = FunctionName()
+  {
+     defaultDataverse = fctName.dataverse;
+  }
   ifNotExists = IfNotExists()
   paramList = ParameterList()
   <LEFTBRACE>
@@ -731,7 +778,8 @@ CreateFunctionStatement FunctionSpecification() throws ParseException:
       signature = new FunctionSignature(fctName.dataverse, fctName.function, paramList.size());
       getCurrentScope().addFunctionDescriptor(signature, false);
       removeCurrentScope();
-      return new CreateFunctionStatement(signature, paramList, functionBody, ifNotExists);
+      defaultDataverse = currentDataverse;
+      return new CreateFunctionStatement(signature, paramList, functionBody, functionBodyExpr, ifNotExists);
     }
 }
 
@@ -743,13 +791,18 @@ CreateFeedStatement FeedSpecification() throws ParseException:
   Map<String,String> properties = null;
   CreateFeedStatement cfs = null;
   Pair<Identifier,Identifier> sourceNameComponents = null;
+  RecordConstructor withRecord = null;
 }
 {
   <FEED> nameComponents = QualifiedName() ifNotExists = IfNotExists()
-  <USING> adapterName = AdapterName() properties = Configuration()
+  <WITH> withRecord = RecordConstructor()
   {
-    cfs = new CreateFeedStatement(nameComponents, adapterName, properties, ifNotExists);
-    return cfs;
+    try {
+      cfs = new CreateFeedStatement(nameComponents, withRecord, ifNotExists);
+      return cfs;
+    } catch (AlgebricksException e) {
+      throw new ParseException(e.getMessage());
+    }
   }
 }
 
@@ -821,17 +874,24 @@ boolean IfNotExists() throws ParseException:
     }
 }
 
-FunctionSignature ApplyFunction() throws ParseException:
+void ApplyFunction(List<FunctionSignature> funcSigs) throws ParseException:
 {
   FunctionName functioName = null;
-  FunctionSignature funcSig = null;
+  String fqFunctionName = null;
 }
 {
   <APPLY> <FUNCTION> functioName = FunctionName()
     {
-       String fqFunctionName = functioName.library == null ? functioName.function : functioName.library + "#" + functioName.function;
-       return new FunctionSignature(functioName.dataverse, fqFunctionName, 1);
+       fqFunctionName = functioName.library == null ? functioName.function : functioName.library + "#" + functioName.function;
+       funcSigs.add(new FunctionSignature(functioName.dataverse, fqFunctionName, 1));
     }
+  (
+      <COMMA> functioName = FunctionName()
+      {
+        fqFunctionName = functioName.library == null ? functioName.function : functioName.library + "#" + functioName.function;
+        funcSigs.add(new FunctionSignature(functioName.dataverse, fqFunctionName, 1));
+      }
+  )*
 }
 
 String GetPolicy() throws ParseException:
@@ -999,10 +1059,6 @@ DeleteStatement DeleteStatement() throws ParseException:
   VariableExpr varExpr = null;
   Expression condition = null;
   Pair<Identifier, Identifier> nameComponents;
-  // This is related to the new metadata lock management
-  setDataverses(new ArrayList<String>());
-  setDatasets(new ArrayList<String>());
-
 }
 {
   <DELETE>
@@ -1010,20 +1066,13 @@ DeleteStatement DeleteStatement() throws ParseException:
          ((<AS>)? varExpr = Variable())?
   (<WHERE> condition = Expression())?
   {
-      // First we get the dataverses and datasets that we want to lock
-      List<String> dataverses = getDataverses();
-      List<String> datasets = getDatasets();
-      // we remove the pointer to the dataverses and datasets
-      setDataverses(null);
-      setDatasets(null);
-
       if(varExpr == null){
         varExpr = new VariableExpr();
         VarIdentifier var = SqlppVariableUtil.toInternalVariableIdentifier(nameComponents.second.getValue());
         varExpr.setVar(var);
       }
       return new DeleteStatement(varExpr, nameComponents.first, nameComponents.second,
-          condition, getVarCounter(), dataverses, datasets);
+          condition, getVarCounter());
   }
 }
 
@@ -1235,16 +1284,16 @@ Statement ConnectStatement() throws ParseException:
   Pair<Identifier,Identifier> datasetNameComponents = null;
 
   Map<String,String> configuration = null;
-  FunctionSignature appliedFunction = null;
+  List<FunctionSignature> appliedFunctions = new ArrayList<FunctionSignature>();
   Statement stmt = null;
   String policy = null;
 }
 {
   (
     <FEED> feedNameComponents = QualifiedName() <TO> Dataset() datasetNameComponents = QualifiedName()
-    (appliedFunction = ApplyFunction())?  (policy = GetPolicy())?
+    (ApplyFunction(appliedFunctions))?  (policy = GetPolicy())?
       {
-        stmt = new ConnectFeedStatement(feedNameComponents, datasetNameComponents, appliedFunction,
+        stmt = new ConnectFeedStatement(feedNameComponents, datasetNameComponents, appliedFunctions,
          policy, getVarCounter());
       }
   )
@@ -1327,9 +1376,10 @@ Pair<String, String> Property() throws ParseException:
     }
 }
 
-TypeExpression IndexedTypeExpr() throws ParseException:
+IndexedTypeExpression IndexedTypeExpr() throws ParseException:
 {
   TypeExpression typeExpr = null;
+  boolean isUnknownable = false;
 }
 {
   (
@@ -1337,8 +1387,9 @@ TypeExpression IndexedTypeExpr() throws ParseException:
     | typeExpr = OrderedListTypeDef()
     | typeExpr = UnorderedListTypeDef()
   )
+  ( <QUES> { isUnknownable = true; } )?
   {
-    return typeExpr;
+    return new IndexedTypeExpression(typeExpr, isUnknownable);
   }
 }
 
@@ -1542,17 +1593,17 @@ void Dataset() throws ParseException:
     (<DATASET>|<COLLECTION>)
 }
 
-Pair<Integer, Pair<List<String>, TypeExpression>> OpenField() throws ParseException:
+Pair<Integer, Pair<List<String>, IndexedTypeExpression>> OpenField() throws ParseException:
 {
-  TypeExpression fieldType = null;
+  IndexedTypeExpression fieldType = null;
   Pair<Integer, List<String>> fieldList = null;
 }
 {
   fieldList = NestedField()
-  ( <COLON> fieldType =  IndexedTypeExpr() <QUES>)?
+  ( <COLON> fieldType = IndexedTypeExpr() )?
   {
-    return new Pair<Integer, Pair<List<String>, TypeExpression>>
-          (fieldList.first, new Pair<List<String>, TypeExpression>(fieldList.second, fieldType));
+    return new Pair<Integer, Pair<List<String>, IndexedTypeExpression>>
+            (fieldList.first, new Pair<List<String>, IndexedTypeExpression>(fieldList.second, fieldType));
   }
 }
 
@@ -1708,9 +1759,6 @@ Query ExplainStatement() throws ParseException:
 Query Query(boolean explain) throws ParseException:
 {
   Query query = new Query(explain);
-  // we set the pointers to the dataverses and datasets lists to fill them with entities to be locked
-  setDataverses(query.getDataverses());
-  setDatasets(query.getDatasets());
   Expression expr;
 }
 {
@@ -1721,9 +1769,6 @@ Query Query(boolean explain) throws ParseException:
   )
   {
     query.setBody(expr);
-    // we remove the pointers to the locked entities before we return the query object
-    setDataverses(null);
-    setDatasets(null);
     return query;
   }
 }
@@ -1828,7 +1873,7 @@ Expression NotExpr()throws ParseException:
   (<NOT> { not = true; } )? inputExpr = RelExpr()
   {
     if(not){
-        FunctionSignature signature = new FunctionSignature(null, "not", 1);
+        FunctionSignature signature = new FunctionSignature(BuiltinFunctions.NOT);
         return new CallExpr(signature, new ArrayList<Expression>(Collections.singletonList(inputExpr)));
     } else {
         return inputExpr;
@@ -1940,6 +1985,7 @@ Expression BetweenExpr()throws ParseException:
        <AND>
        operand = IsExpr()
        {
+         op.addOperator(OperatorType.AND);
          op.addOperand(operand);
        }
     )?
@@ -1957,16 +2003,23 @@ Expression IsExpr() throws ParseException:
     Expression expr = null;
     Expression operand = null;
     boolean not = false;
+    FunctionIdentifier fn = null;
 }
 {
     operand = LikeExpr()
-    ( <IS> (<NOT> { not = true; })? (<NULL> | <MISSING> | <UNKOWN>)
+    ( <IS>
+        (<NOT> { not = true; })?
+        (
+            <NULL> { fn = BuiltinFunctions.IS_NULL; } |
+            <MISSING> { fn = BuiltinFunctions.IS_MISSING; } |
+            <UNKNOWN> { fn = BuiltinFunctions.IS_UNKNOWN; } |
+            <VALUED> { not = !not; fn = BuiltinFunctions.IS_UNKNOWN; }
+        )
       {
-        String functionName = "is-" + token.image.toLowerCase();
-        FunctionSignature signature = new FunctionSignature(null, functionName, 1);
+        FunctionSignature signature = new FunctionSignature(fn);
         expr = new CallExpr(signature, new ArrayList<Expression>(Collections.singletonList(operand)));
         if(not) {
-           FunctionSignature notSignature = new FunctionSignature(null, "not", 1);
+           FunctionSignature notSignature = new FunctionSignature(BuiltinFunctions.NOT);
            expr = new CallExpr(notSignature, new ArrayList<Expression>(Collections.singletonList(expr)));
         }
       }
@@ -2412,19 +2465,19 @@ List<Expression> ExpressionList() throws ParseException:
 }
 {
     (
-      expr = Expression() { exprList.add(expr); }
-      (LOOKAHEAD(1) <COMMA> list = ExpressionList() { exprList.addAll(list); })?
+      expr = Expression()
+      {
+        exprList.add(expr);
+      }
+      ( <COMMA> expr = Expression()
+        {
+          exprList.add(expr);
+        }
+      )*
     )?
-    (LOOKAHEAD(1) Comma())?
     {
-        return exprList;
+      return exprList;
     }
-}
-
-void Comma():
-{}
-{
-   <COMMA>
 }
 
 RecordConstructor RecordConstructor() throws ParseException:
@@ -2469,13 +2522,16 @@ Expression FunctionCallExpr() throws ParseException:
   FunctionName funcName = null;
   String hint = null;
   boolean star = false;
+  boolean distinct = false;
 }
 {
   funcName = FunctionName()
     {
       hint = funcName.hint;
     }
-  <LEFTPAREN> ( ( tmp = Expression() | <MUL> { star = true; } )
+  <LEFTPAREN> (
+    ( <DISTINCT> { distinct = true; } )?
+    ( tmp = Expression() | <MUL> { star = true; } )
     {
       if(star){
         if(!funcName.function.toLowerCase().equals("count")){
@@ -2494,14 +2550,18 @@ Expression FunctionCallExpr() throws ParseException:
     }
   )*)? <RIGHTPAREN>
     {
+      String name = funcName.function;
+      if (distinct) {
+        name += "-distinct";
+      }
       // TODO use funcName.library
-      String fqFunctionName = funcName.library == null ? funcName.function : funcName.library + "#" + funcName.function;
+      String fqFunctionName = funcName.library == null ? name : funcName.library + "#" + name;
       FunctionSignature signature
         = lookupFunctionSignature(funcName.dataverse, fqFunctionName, arity);
       if (signature == null) {
         signature = new FunctionSignature(funcName.dataverse, fqFunctionName, arity);
       }
-      callExpr = new CallExpr(signature,argList);
+      callExpr = FunctionMapUtil.normalizedListInputFunctions(new CallExpr(signature,argList));
       if (hint != null) {
         if (hint.startsWith(INDEXED_NESTED_LOOP_JOIN_HINT)) {
           callExpr.addHint(IndexedNLJoinExpressionAnnotation.INSTANCE);
@@ -3222,18 +3282,19 @@ TOKEN [IGNORE_CASE]:
   | <SOME : "some">
   | <START : "start">
   | <STOP : "stop">
-  | <TEMPORARY : "temporary">
+  | <TEMPORARY : "temporary"> // intentionally not used but reserved for future usage
   | <THEN : "then">
   | <TYPE : "type">
   | <TO : "to">
   | <UNION : "union">
-  | <UNKOWN : "unknown">
+  | <UNKNOWN : "unknown">
   | <UNNEST : "unnest">
   | <UPDATE : "update">
   | <UPSERT : "upsert">
   | <USE : "use">
   | <USING : "using">
   | <VALUE : "value">
+  | <VALUED : "valued">
   | <WHEN : "when">
   | <WHERE : "where">
   | <WITH : "with">
@@ -3323,8 +3384,9 @@ TOKEN :
 <DEFAULT,IN_DBL_BRACE>
 TOKEN:
 {
-    < DOUBLE_LITERAL: <DIGITS> ( "." <DIGITS> )
-                      | "." <DIGITS>
+    < DOUBLE_LITERAL: <DIGITS> ( "." <DIGITS> ) (("e"|"E") ("-")? <DIGITS>)?
+                      | <DIGITS> (("e"|"E") ("-")? <DIGITS>)
+                      | "." <DIGITS> (("e"|"E") ("-")? <DIGITS>)?
     >
   | < FLOAT_LITERAL:  <DIGITS> ( "f" | "F" )
                       | <DIGITS> ( "." <DIGITS> ( "f" | "F" ) )?
@@ -3337,7 +3399,8 @@ TOKEN:
 TOKEN :
 {
     <#LETTER : ["A" - "Z", "a" - "z"]>
-  | <SPECIALCHARS : ["$", "_"]>
+  | <#IDENTIFIER_SPECIALCHARS_START : ["_"]>
+  | <#IDENTIFIER_SPECIALCHARS_REST : ["$"]>
 }
 
 <DEFAULT,IN_DBL_BRACE>
@@ -3388,7 +3451,8 @@ TOKEN :
 <DEFAULT,IN_DBL_BRACE>
 TOKEN :
 {
-    <IDENTIFIER : <LETTER> (<LETTER> | <DIGIT> | <SPECIALCHARS>)*>
+    <IDENTIFIER : ( <LETTER> | <IDENTIFIER_SPECIALCHARS_START> )
+                  ( <LETTER> | <DIGIT> | <IDENTIFIER_SPECIALCHARS_START> | <IDENTIFIER_SPECIALCHARS_REST> )*>
 }
 
 <DEFAULT,IN_DBL_BRACE>
@@ -3423,19 +3487,6 @@ SKIP:
 SKIP:
 {
     <"--" (~["\n","\r"])* ("\n"|"\r"|"\r\n")?>
-}
-
-<DEFAULT,IN_DBL_BRACE>
-SKIP:
-{
-    <"#" (~["\n"])* "\n">
-}
-
-
-<DEFAULT,IN_DBL_BRACE>
-SKIP:
-{
-    <"#" (~["\n","\r"])* ("\n"|"\r"|"\r\n")?>
 }
 
 <DEFAULT,IN_DBL_BRACE>

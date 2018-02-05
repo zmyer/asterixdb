@@ -19,7 +19,6 @@
 package org.apache.hyracks.control.common.base;
 
 import java.net.URL;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +28,7 @@ import org.apache.hyracks.api.dataflow.ConnectorDescriptorId;
 import org.apache.hyracks.api.dataflow.TaskAttemptId;
 import org.apache.hyracks.api.dataflow.connectors.IConnectorPolicy;
 import org.apache.hyracks.api.deployment.DeploymentId;
+import org.apache.hyracks.api.job.DeployedJobSpecId;
 import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.JobStatus;
@@ -36,29 +36,30 @@ import org.apache.hyracks.api.partitions.PartitionId;
 import org.apache.hyracks.control.common.job.TaskAttemptDescriptor;
 
 public interface INodeController {
-    public void startTasks(DeploymentId deploymentId, JobId jobId, byte[] planBytes,
+    void startTasks(DeploymentId deploymentId, JobId jobId, byte[] planBytes,
             List<TaskAttemptDescriptor> taskDescriptors, Map<ConnectorDescriptorId, IConnectorPolicy> connectorPolicies,
-            Set<JobFlag> flags) throws Exception;
+            Set<JobFlag> flags, Map<byte[], byte[]> jobParameters, DeployedJobSpecId deployedJobSpecId)
+            throws Exception;
 
-    public void abortTasks(JobId jobId, List<TaskAttemptId> tasks) throws Exception;
+    void abortTasks(JobId jobId, List<TaskAttemptId> tasks) throws Exception;
 
-    public void cleanUpJoblet(JobId jobId, JobStatus status) throws Exception;
+    void cleanUpJoblet(JobId jobId, JobStatus status) throws Exception;
 
-    public void reportPartitionAvailability(PartitionId pid, NetworkAddress networkAddress) throws Exception;
+    void reportPartitionAvailability(PartitionId pid, NetworkAddress networkAddress) throws Exception;
 
-    public void deployBinary(DeploymentId deploymentId, List<URL> url) throws Exception;
+    void deployBinary(DeploymentId deploymentId, List<URL> url) throws Exception;
 
-    public void undeployBinary(DeploymentId deploymentId) throws Exception;
+    void undeployBinary(DeploymentId deploymentId) throws Exception;
 
-    public void distributeJob(JobId jobId, byte[] planBytes) throws Exception;
+    void deployJobSpec(DeployedJobSpecId deployedJobSpecId, byte[] planBytes) throws Exception;
 
-    public void destroyJob(JobId jobId) throws Exception;
+    void undeployJobSpec(DeployedJobSpecId deployedJobSpecId) throws Exception;
 
-    public void dumpState(String stateDumpId) throws Exception;
+    void dumpState(String stateDumpId) throws Exception;
 
-    public void shutdown(boolean terminateNCService) throws Exception;
+    void shutdown(boolean terminateNCService) throws Exception;
 
-    public void sendApplicationMessageToNC(byte[] data, DeploymentId deploymentId, String nodeId) throws Exception;
+    void sendApplicationMessageToNC(byte[] data, DeploymentId deploymentId, String nodeId) throws Exception;
 
-    public void takeThreadDump(String requestId) throws Exception;
+    void takeThreadDump(String requestId) throws Exception;
 }

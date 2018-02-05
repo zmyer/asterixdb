@@ -20,6 +20,7 @@
 package org.apache.asterix.lang.common.util;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -27,12 +28,19 @@ import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.functions.FunctionConstants;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.lang.common.base.Expression;
+import org.apache.asterix.lang.common.base.IQueryRewriter;
+import org.apache.asterix.lang.common.expression.CallExpr;
+import org.apache.asterix.lang.common.expression.LiteralExpr;
 import org.apache.asterix.lang.common.statement.FunctionDecl;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Function;
+import org.apache.asterix.metadata.utils.DatasetUtil;
 import org.apache.asterix.om.functions.BuiltinFunctions;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
+import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.algebricks.core.algebra.functions.AlgebricksBuiltinFunctions;
 import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
 import org.apache.hyracks.algebricks.core.algebra.functions.IFunctionInfo;
 
@@ -50,7 +58,7 @@ public class FunctionUtil {
 
     @FunctionalInterface
     public interface IFunctionCollector {
-        Set<FunctionSignature> getFunctionCalls(Expression expression) throws CompilationException;
+        Set<CallExpr> getFunctionCalls(Expression expression) throws CompilationException;
     }
 
     @FunctionalInterface
@@ -64,14 +72,16 @@ public class FunctionUtil {
     }
 
     /**
-     * Retrieve stored functions (from CREATE FUNCTION statements) that have been used in an expression.
+     * Retrieve stored functions (from CREATE FUNCTION statements) that have been
+     * used in an expression.
      *
      * @param metadataProvider,
      *            the metadata provider
      * @param expression,
      *            the expression for analysis
      * @param declaredFunctions,
-     *            a set of declared functions in the query, which can potentially override stored functions.
+     *            a set of declared functions in the query, which can potentially
+     *            override stored functions.
      * @param functionCollector,
      *            for collecting function calls in the <code>expression</code>
      * @param functionParser,
@@ -84,15 +94,16 @@ public class FunctionUtil {
             Expression expression, List<FunctionSignature> declaredFunctions, List<FunctionDecl> inputFunctionDecls,
             IFunctionCollector functionCollector, IFunctionParser functionParser,
             IFunctionNormalizer functionNormalizer) throws CompilationException {
-        List<FunctionDecl> functionDecls = inputFunctionDecls == null ? new ArrayList<>()
-                : new ArrayList<>(inputFunctionDecls);
+        List<FunctionDecl> functionDecls =
+                inputFunctionDecls == null ? new ArrayList<>() : new ArrayList<>(inputFunctionDecls);
         if (expression == null) {
             return functionDecls;
         }
         String value = metadataProvider.getConfig().get(FunctionUtil.IMPORT_PRIVATE_FUNCTIONS);
         boolean includePrivateFunctions = (value != null) ? Boolean.valueOf(value.toLowerCase()) : false;
-        Set<FunctionSignature> functionCalls = functionCollector.getFunctionCalls(expression);
-        for (FunctionSignature signature : functionCalls) {
+        Set<CallExpr> functionCalls = functionCollector.getFunctionCalls(expression);
+        for (CallExpr functionCall : functionCalls) {
+            FunctionSignature signature = functionCall.getFunctionSignature();
             if (declaredFunctions != null && declaredFunctions.contains(signature)) {
                 continue;
             }
@@ -101,12 +112,22 @@ public class FunctionUtil {
             }
             String namespace = signature.getNamespace();
             // Checks the existence of the referred dataverse.
-            if (metadataProvider.findDataverse(namespace) == null
-                    && !namespace.equals(FunctionConstants.ASTERIX_NS)) {
-                throw new CompilationException("In function call \"" + namespace + "." + signature.getName()
-                        + "(...)\", the dataverse \"" + namespace + "\" cannot be found!");
+            try {
+                if (!namespace.equals(FunctionConstants.ASTERIX_NS)
+                        && !namespace.equals(AlgebricksBuiltinFunctions.ALGEBRICKS_NS)
+                        && metadataProvider.findDataverse(namespace) == null) {
+                    throw new CompilationException("In function call \"" + namespace + "." + signature.getName()
+                            + "(...)\", the dataverse \"" + namespace + "\" cannot be found!");
+                }
+            } catch (AlgebricksException e) {
+                throw new CompilationException(e);
             }
-            Function function = lookupUserDefinedFunctionDecl(metadataProvider.getMetadataTxnContext(), signature);
+            Function function;
+            try {
+                function = lookupUserDefinedFunctionDecl(metadataProvider.getMetadataTxnContext(), signature);
+            } catch (AlgebricksException e) {
+                throw new CompilationException(e);
+            }
             if (function == null) {
                 FunctionSignature normalizedSignature = functionNormalizer == null ? signature
                         : functionNormalizer.normalizeBuiltinFunctionSignature(signature);
@@ -123,7 +144,8 @@ public class FunctionUtil {
                 throw new CompilationException(messageBuilder.toString());
             }
 
-            if (function.getLanguage().equalsIgnoreCase(Function.LANGUAGE_AQL)) {
+            if (function.getLanguage().equalsIgnoreCase(Function.LANGUAGE_AQL)
+                    || function.getLanguage().equalsIgnoreCase(Function.LANGUAGE_SQLPP)) {
                 FunctionDecl functionDecl = functionParser.getFunctionDecl(function);
                 if (functionDecl != null) {
                     if (functionDecls.contains(functionDecl)) {
@@ -140,8 +162,37 @@ public class FunctionUtil {
         return functionDecls;
     }
 
+    public static List<List<List<String>>> getFunctionDependencies(IQueryRewriter rewriter, Expression expression,
+            MetadataProvider metadataProvider) throws CompilationException {
+        Set<CallExpr> functionCalls = rewriter.getFunctionCalls(expression);
+        //Get the List of used functions and used datasets
+        List<List<String>> datasourceDependencies = new ArrayList<>();
+        List<List<String>> functionDependencies = new ArrayList<>();
+        for (CallExpr functionCall : functionCalls) {
+            FunctionSignature signature = functionCall.getFunctionSignature();
+            FunctionIdentifier fid =
+                    new FunctionIdentifier(signature.getNamespace(), signature.getName(), signature.getArity());
+            if (fid.equals(BuiltinFunctions.DATASET)) {
+                Pair<String, String> path = DatasetUtil.getDatasetInfo(metadataProvider,
+                        ((LiteralExpr) functionCall.getExprList().get(0)).getValue().getStringValue());
+                datasourceDependencies.add(Arrays.asList(path.first, path.second));
+            }
+
+            else if (BuiltinFunctions.isBuiltinCompilerFunction(signature, false)) {
+                continue;
+            } else {
+                functionDependencies.add(Arrays.asList(signature.getNamespace(), signature.getName(),
+                        Integer.toString(signature.getArity())));
+            }
+        }
+        List<List<List<String>>> dependencies = new ArrayList<>();
+        dependencies.add(datasourceDependencies);
+        dependencies.add(functionDependencies);
+        return dependencies;
+    }
+
     private static Function lookupUserDefinedFunctionDecl(MetadataTransactionContext mdTxnCtx,
-            FunctionSignature signature) throws CompilationException {
+            FunctionSignature signature) throws AlgebricksException {
         if (signature.getNamespace() == null) {
             return null;
         }

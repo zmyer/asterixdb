@@ -36,21 +36,21 @@ public class BinaryTokenizerFactoryProvider implements IBinaryTokenizerFactoryPr
 
     private static final IBinaryTokenizerFactory aqlStringTokenizer =
             new DelimitedUTF8StringBinaryTokenizerFactory(true, true,
-            new UTF8WordTokenFactory(ATypeTag.SERIALIZED_STRING_TYPE_TAG, ATypeTag.SERIALIZED_INT32_TYPE_TAG));
+                    new UTF8WordTokenFactory(ATypeTag.SERIALIZED_STRING_TYPE_TAG, ATypeTag.SERIALIZED_INT32_TYPE_TAG));
 
     private static final IBinaryTokenizerFactory aqlStringNoTypeTagTokenizer =
             new DelimitedUTF8StringBinaryTokenizerFactory(true, false,
-                    new UTF8WordTokenFactory(ATypeTag.STRING.serialize(), ATypeTag.INT32.serialize()));
+                    new UTF8WordTokenFactory(ATypeTag.STRING.serialize(), ATypeTag.INTEGER.serialize()));
 
     private static final IBinaryTokenizerFactory aqlHashingStringTokenizer =
             new DelimitedUTF8StringBinaryTokenizerFactory(true, true, new HashedUTF8WordTokenFactory(
                     ATypeTag.SERIALIZED_INT32_TYPE_TAG, ATypeTag.SERIALIZED_INT32_TYPE_TAG));
 
-    private static final IBinaryTokenizerFactory orderedListTokenizer = new AOrderedListBinaryTokenizerFactory(
-            new AListElementTokenFactory());
+    private static final IBinaryTokenizerFactory orderedListTokenizer =
+            new AOrderedListBinaryTokenizerFactory(new AListElementTokenFactory());
 
-    private static final IBinaryTokenizerFactory unorderedListTokenizer = new AUnorderedListBinaryTokenizerFactory(
-            new AListElementTokenFactory());
+    private static final IBinaryTokenizerFactory unorderedListTokenizer =
+            new AUnorderedListBinaryTokenizerFactory(new AListElementTokenFactory());
 
     @Override
     public IBinaryTokenizerFactory getWordTokenizerFactory(ATypeTag typeTag, boolean hashedTokens,
@@ -64,9 +64,9 @@ public class BinaryTokenizerFactoryProvider implements IBinaryTokenizerFactoryPr
                 } else {
                     return aqlStringNoTypeTagTokenizer;
                 }
-            case ORDEREDLIST:
+            case ARRAY:
                 return orderedListTokenizer;
-            case UNORDEREDLIST:
+            case MULTISET:
                 return unorderedListTokenizer;
             default:
                 return null;
@@ -85,9 +85,9 @@ public class BinaryTokenizerFactoryProvider implements IBinaryTokenizerFactoryPr
                             new UTF8NGramTokenFactory(ATypeTag.SERIALIZED_STRING_TYPE_TAG,
                                     ATypeTag.SERIALIZED_INT32_TYPE_TAG));
                 }
-            case ORDEREDLIST:
+            case ARRAY:
                 return orderedListTokenizer;
-            case UNORDEREDLIST:
+            case MULTISET:
                 return unorderedListTokenizer;
             default:
                 return null;

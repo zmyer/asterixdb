@@ -25,7 +25,6 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 public class GenericAdapter implements IDataSourceAdapter {
 
-    private static final long serialVersionUID = 1L;
     private final IDataFlowController controller;
 
     public GenericAdapter(IDataFlowController controller) {
@@ -33,7 +32,7 @@ public class GenericAdapter implements IDataSourceAdapter {
     }
 
     @Override
-    public void start(int partition, IFrameWriter writer) throws HyracksDataException {
+    public void start(int partition, IFrameWriter writer) throws HyracksDataException, InterruptedException {
         controller.start(writer);
     }
 }

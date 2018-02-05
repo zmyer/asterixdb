@@ -23,5 +23,10 @@ import java.io.Serializable;
 import org.apache.hyracks.api.context.IHyracksJobletContext;
 
 public interface IJobletEventListenerFactory extends Serializable {
-    public IJobletEventListener createListener(IHyracksJobletContext ctx);
+    IJobletEventListener createListener(IHyracksJobletContext ctx);
+
+    IJobletEventListenerFactory copyFactory();
+
+    //Allows job parameters to change listener settings
+    void updateListenerJobParameters(JobParameterByteStore jobParameterByteStore);
 }

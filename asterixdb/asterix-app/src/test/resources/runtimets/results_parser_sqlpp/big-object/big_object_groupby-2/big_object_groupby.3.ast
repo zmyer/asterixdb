@@ -21,8 +21,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Line]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.Line]
   ]
   AS Variable [ Name=$i ]
 ]

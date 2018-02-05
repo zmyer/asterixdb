@@ -19,11 +19,10 @@
 package org.apache.hyracks.storage.common.buffercache;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class VirtualPage implements ICachedPage {
-    private final ReadWriteLock latch;
+    private final ReentrantReadWriteLock latch;
     private final int pageSize;
     private ByteBuffer buffer;
     private volatile long dpid;
@@ -121,4 +120,30 @@ public class VirtualPage implements ICachedPage {
         this.buffer = buffer;
     }
 
+    @Override
+    public void setDiskPageId(long dpid) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isLargePage() {
+        return multiplier > 1;
+    }
+
+    public int getReadLatchCount() {
+        return latch.getReadLockCount();
+    }
+
+    public boolean isWriteLatched() {
+        return latch.isWriteLocked();
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder str = new StringBuilder();
+        str.append("{\"class\":\"" + getClass().getSimpleName() + "\", \"readers\":" + getReadLatchCount()
+                + ",\"writers\":" + (isWriteLatched()));
+        str.append("}");
+        return str.toString();
+    }
 }

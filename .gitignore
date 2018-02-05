@@ -4,19 +4,13 @@ target
 .classpath
 .settings
 .project
-ClusterControllerService
 asterixdb/asterix-opt
-asterixdb/asterix-app/src/test/resources/externallib
 asterixdb/asterix-app/library
-asterixdb/asterix-app/data/csv/beer.csv
-asterixdb/asterix-installer/src/test/resources/clusterts/asterix-installer-*-SNAPSHOT-binary-assembly
-*-coredump
 *.pyc
 *.iml
 .idea
 *.ipr
 *.iws
-git.properties
 exception
 dev1
 dev2
@@ -33,3 +27,4 @@ dist
 *.swp
 .m2*
 ß
+

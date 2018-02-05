@@ -19,27 +19,31 @@
 
 package org.apache.asterix.metadata.entitytupletranslators;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.asterix.builders.IARecordBuilder;
 import org.apache.asterix.builders.UnorderedListBuilder;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.FeedConnection;
-import org.apache.asterix.om.base.*;
+import org.apache.asterix.om.base.AMissing;
+import org.apache.asterix.om.base.ANull;
+import org.apache.asterix.om.base.ARecord;
+import org.apache.asterix.om.base.AString;
+import org.apache.asterix.om.base.AUnorderedList;
+import org.apache.asterix.om.base.IACursor;
 import org.apache.asterix.om.types.AUnorderedListType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-
-import java.io.ByteArrayInputStream;
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedConnection> {
 
@@ -57,7 +61,8 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
     }
 
     @Override
-    public FeedConnection getMetadataEntityFromTuple(ITupleReference frameTuple) throws MetadataException, IOException {
+    public FeedConnection getMetadataEntityFromTuple(ITupleReference frameTuple)
+            throws AlgebricksException, HyracksDataException {
         byte[] serRecord = frameTuple.getFieldData(FEED_CONN_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordStartOffset = frameTuple.getFieldStart(FEED_CONN_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordLength = frameTuple.getFieldLength(FEED_CONN_PAYLOAD_TUPLE_FIELD_INDEX);
@@ -68,12 +73,14 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
     }
 
     private FeedConnection createFeedConnFromRecord(ARecord feedConnRecord) {
-        String dataverseName = ((AString) feedConnRecord
-                .getValueByPos(MetadataRecordTypes.FEED_CONN_DATAVERSE_NAME_FIELD_INDEX)).getStringValue();
+        String dataverseName =
+                ((AString) feedConnRecord.getValueByPos(MetadataRecordTypes.FEED_CONN_DATAVERSE_NAME_FIELD_INDEX))
+                        .getStringValue();
         String feedName = ((AString) feedConnRecord.getValueByPos(MetadataRecordTypes.FEED_CONN_FEED_NAME_FIELD_INDEX))
                 .getStringValue();
-        String datasetName = ((AString) feedConnRecord
-                .getValueByPos(MetadataRecordTypes.FEED_CONN_DATASET_NAME_FIELD_INDEX)).getStringValue();
+        String datasetName =
+                ((AString) feedConnRecord.getValueByPos(MetadataRecordTypes.FEED_CONN_DATASET_NAME_FIELD_INDEX))
+                        .getStringValue();
         String outputType = ((AString) feedConnRecord.getValueByPos(MetadataRecordTypes.FEED_CONN_OUTPUT_TYPE_INDEX))
                 .getStringValue();
         String policyName = ((AString) feedConnRecord.getValueByPos(MetadataRecordTypes.FEED_CONN_POLICY_FIELD_INDEX))
@@ -88,8 +95,8 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
             cursor = ((AUnorderedList) feedConnRecord
                     .getValueByPos(MetadataRecordTypes.FEED_CONN_APPLIED_FUNCTIONS_FIELD_INDEX)).getCursor();
             while (cursor.next()) {
-                //TODO: allow different arity
-                functionSignature = new FunctionSignature(dataverseName, ((AString) cursor.get()).getStringValue(), 1);
+                String[] functionFullName = ((AString) cursor.get()).getStringValue().split("\\.");
+                functionSignature = new FunctionSignature(functionFullName[0], functionFullName[1], 1);
                 appliedFunctions.add(functionSignature);
             }
         }
@@ -98,7 +105,8 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
     }
 
     @Override
-    public ITupleReference getTupleFromMetadataEntity(FeedConnection me) throws MetadataException, IOException {
+    public ITupleReference getTupleFromMetadataEntity(FeedConnection me)
+            throws AlgebricksException, HyracksDataException {
         tupleBuilder.reset();
 
         // key: dataverse
@@ -168,7 +176,8 @@ public class FeedConnectionTupleTranslator extends AbstractTupleTranslator<FeedC
         if (fc.getAppliedFunctions() != null) {
             List<FunctionSignature> appliedFunctions = fc.getAppliedFunctions();
             for (FunctionSignature af : appliedFunctions) {
-                aString.setValue(af.getName());
+                listEleBuffer.reset();
+                aString.setValue(af.getNamespace() + "." + af.getName());
                 stringSerde.serialize(aString, listEleBuffer.getDataOutput());
                 listBuilder.addItem(listEleBuffer);
             }

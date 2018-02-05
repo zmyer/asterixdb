@@ -6,8 +6,8 @@ FieldAccessor [
   Field=nested
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.DBLP]
   ]
   AS Variable [ Name=$o ]
 ]

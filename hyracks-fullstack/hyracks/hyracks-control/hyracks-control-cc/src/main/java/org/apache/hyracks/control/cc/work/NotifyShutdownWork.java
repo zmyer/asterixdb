@@ -19,17 +19,17 @@
 
 package org.apache.hyracks.control.cc.work;
 
-import java.util.logging.Logger;
-
 import org.apache.hyracks.control.cc.ClusterControllerService;
 import org.apache.hyracks.control.common.shutdown.ShutdownRun;
 import org.apache.hyracks.control.common.work.SynchronizableWork;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class NotifyShutdownWork extends SynchronizableWork {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private final ClusterControllerService ccs;
     private final String nodeId;
-    private static Logger LOGGER = Logger.getLogger(NotifyShutdownWork.class.getName());
 
     public NotifyShutdownWork(ClusterControllerService ccs, String nodeId) {
         this.ccs = ccs;
@@ -41,8 +41,12 @@ public class NotifyShutdownWork extends SynchronizableWork {
     public void doRun() {
         // Triggered remotely by a NC to notify that the NC is shutting down.
         ShutdownRun sRun = ccs.getShutdownRun();
-        LOGGER.info("Received shutdown acknowledgement from NC ID:" + nodeId);
-        sRun.notifyShutdown(nodeId);
+        if (sRun != null) {
+            LOGGER.info("Received shutdown acknowledgement from node " + nodeId);
+            sRun.notifyShutdown(nodeId);
+        } else {
+            LOGGER.info("Received unsolicted shutdown notification from node " + nodeId);
+        }
     }
 
 }

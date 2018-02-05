@@ -19,13 +19,16 @@
 
 package org.apache.hyracks.storage.am.lsm.rtree.tuples;
 
+import static org.apache.hyracks.storage.am.lsm.common.api.ILSMTreeTupleReference.ANTIMATTER_BIT_OFFSET;
+
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.ITreeIndexTupleReference;
+import org.apache.hyracks.storage.am.common.util.BitOperationUtils;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMTreeTupleWriter;
 import org.apache.hyracks.storage.am.rtree.tuples.RTreeTypeAwareTupleWriter;
 
-public class LSMRTreeTupleWriter extends RTreeTypeAwareTupleWriter {
-    private final boolean isAntimatter;
+public class LSMRTreeTupleWriter extends RTreeTypeAwareTupleWriter implements ILSMTreeTupleWriter {
+    private boolean isAntimatter;
 
     public LSMRTreeTupleWriter(ITypeTraits[] typeTraits, boolean isAntimatter) {
         super(typeTraits);
@@ -33,7 +36,7 @@ public class LSMRTreeTupleWriter extends RTreeTypeAwareTupleWriter {
     }
 
     @Override
-    public ITreeIndexTupleReference createTupleReference() {
+    public LSMRTreeTupleReference createTupleReference() {
         return new LSMRTreeTupleReference(typeTraits);
     }
 
@@ -46,7 +49,8 @@ public class LSMRTreeTupleWriter extends RTreeTypeAwareTupleWriter {
     public int writeTuple(ITupleReference tuple, byte[] targetBuf, int targetOff) {
         int bytesWritten = super.writeTuple(tuple, targetBuf, targetOff);
         if (isAntimatter) {
-            setAntimatterBit(targetBuf, targetOff);
+            // Set antimatter bit to 1.
+            BitOperationUtils.setBit(targetBuf, targetOff, ANTIMATTER_BIT_OFFSET);
         }
         return bytesWritten;
     }
@@ -54,18 +58,18 @@ public class LSMRTreeTupleWriter extends RTreeTypeAwareTupleWriter {
     @Override
     protected int getNullFlagsBytes(int numFields) {
         // +1.0 is for matter/antimatter bit.
-        return (int) Math.ceil(((double) numFields + 1.0) / 8.0);
+        return BitOperationUtils.getFlagBytes(numFields + 1);
     }
 
     @Override
     protected int getNullFlagsBytes(ITupleReference tuple) {
         // +1.0 is for matter/antimatter bit.
-        return (int) Math.ceil(((double) tuple.getFieldCount() + 1.0) / 8.0);
+        return BitOperationUtils.getFlagBytes(tuple.getFieldCount() + 1);
     }
 
-    protected void setAntimatterBit(byte[] targetBuf, int targetOff) {
-        // Set leftmost bit to 1.
-        targetBuf[targetOff] = (byte) (targetBuf[targetOff] | (1 << 7));
+    @Override
+    public void setAntimatter(boolean isAntimatter) {
+        this.isAntimatter = isAntimatter;
     }
 
 }

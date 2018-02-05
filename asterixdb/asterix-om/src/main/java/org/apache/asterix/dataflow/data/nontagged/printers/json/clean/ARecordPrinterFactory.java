@@ -20,7 +20,6 @@ package org.apache.asterix.dataflow.data.nontagged.printers.json.clean;
 
 import java.io.PrintStream;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.pointables.PointableAllocator;
 import org.apache.asterix.om.pointables.base.DefaultOpenFieldType;
 import org.apache.asterix.om.pointables.base.IVisitablePointable;
@@ -45,8 +44,8 @@ public class ARecordPrinterFactory implements IPrinterFactory {
     @Override
     public IPrinter createPrinter() {
         final PointableAllocator allocator = new PointableAllocator();
-        final IAType inputType = recType == null ? DefaultOpenFieldType.getDefaultOpenFieldType(ATypeTag.RECORD)
-                : recType;
+        final IAType inputType =
+                recType == null ? DefaultOpenFieldType.getDefaultOpenFieldType(ATypeTag.OBJECT) : recType;
         final IVisitablePointable recAccessor = allocator.allocateRecordValue(inputType);
         final APrintVisitor printVisitor = new APrintVisitor();
         final Pair<PrintStream, ATypeTag> arg = new Pair<>(null, null);
@@ -59,13 +58,9 @@ public class ARecordPrinterFactory implements IPrinterFactory {
 
             @Override
             public void print(byte[] b, int start, int l, PrintStream ps) throws HyracksDataException {
-                try {
-                    recAccessor.set(b, start, l);
-                    arg.first = ps;
-                    recAccessor.accept(printVisitor, arg);
-                } catch (AsterixException e) {
-                    throw new HyracksDataException(e);
-                }
+                recAccessor.set(b, start, l);
+                arg.first = ps;
+                recAccessor.accept(printVisitor, arg);
             }
         };
     }

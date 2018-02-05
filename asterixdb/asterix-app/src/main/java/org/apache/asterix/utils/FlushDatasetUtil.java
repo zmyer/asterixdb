@@ -20,13 +20,13 @@
 package org.apache.asterix.utils;
 
 import org.apache.asterix.common.config.CompilerProperties;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.common.utils.JobUtils;
 import org.apache.asterix.metadata.declared.MetadataProvider;
 import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.runtime.job.listener.JobEventListenerFactory;
 import org.apache.asterix.runtime.operators.std.FlushDatasetOperatorDescriptor;
-import org.apache.asterix.runtime.utils.AppContextInfo;
-import org.apache.asterix.transaction.management.service.transaction.JobIdFactory;
+import org.apache.asterix.transaction.management.service.transaction.TxnIdFactory;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraintHelper;
 import org.apache.hyracks.algebricks.common.utils.Pair;
@@ -45,8 +45,14 @@ public class FlushDatasetUtil {
     }
 
     public static void flushDataset(IHyracksClientConnection hcc, MetadataProvider metadataProvider,
-            String dataverseName, String datasetName, String indexName) throws Exception {
-        CompilerProperties compilerProperties = AppContextInfo.INSTANCE.getCompilerProperties();
+            String dataverseName, String datasetName) throws Exception {
+        Dataset dataset = metadataProvider.findDataset(dataverseName, datasetName);
+        flushDataset(hcc, metadataProvider, dataset);
+    }
+
+    public static void flushDataset(IHyracksClientConnection hcc, MetadataProvider metadataProvider, Dataset dataset)
+            throws Exception {
+        CompilerProperties compilerProperties = metadataProvider.getApplicationContext().getCompilerProperties();
         int frameSize = compilerProperties.getFrameSize();
         JobSpecification spec = new JobSpecification(frameSize);
 
@@ -54,22 +60,20 @@ public class FlushDatasetUtil {
         AlgebricksMetaOperatorDescriptor emptySource = new AlgebricksMetaOperatorDescriptor(spec, 0, 1,
                 new IPushRuntimeFactory[] { new EmptyTupleSourceRuntimeFactory() }, rDescs);
 
-        org.apache.asterix.common.transactions.JobId jobId = JobIdFactory.generateJobId();
-        Dataset dataset = metadataProvider.findDataset(dataverseName, datasetName);
+        TxnId txnId = TxnIdFactory.create();
         FlushDatasetOperatorDescriptor flushOperator =
-                new FlushDatasetOperatorDescriptor(spec, jobId, dataset.getDatasetId());
+                new FlushDatasetOperatorDescriptor(spec, txnId, dataset.getDatasetId());
 
         spec.connect(new OneToOneConnectorDescriptor(spec), emptySource, 0, flushOperator, 0);
 
         Pair<IFileSplitProvider, AlgebricksPartitionConstraint> primarySplitsAndConstraint =
-                metadataProvider.getSplitProviderAndConstraints(dataverseName, datasetName, indexName,
-                        dataset.getDatasetDetails().isTemp());
+                metadataProvider.getSplitProviderAndConstraints(dataset, dataset.getDatasetName());
         AlgebricksPartitionConstraint primaryPartitionConstraint = primarySplitsAndConstraint.second;
 
         AlgebricksPartitionConstraintHelper.setPartitionConstraintInJobSpec(spec, emptySource,
                 primaryPartitionConstraint);
 
-        JobEventListenerFactory jobEventListenerFactory = new JobEventListenerFactory(jobId, true);
+        JobEventListenerFactory jobEventListenerFactory = new JobEventListenerFactory(txnId, true);
         spec.setJobletEventListenerFactory(jobEventListenerFactory);
         JobUtils.runJob(hcc, spec, true);
     }

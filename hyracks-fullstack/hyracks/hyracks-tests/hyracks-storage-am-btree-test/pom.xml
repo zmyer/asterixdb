@@ -25,11 +25,11 @@
   <parent>
     <groupId>org.apache.hyracks</groupId>
     <artifactId>hyracks-tests</artifactId>
-    <version>0.3.1-SNAPSHOT</version>
+    <version>0.3.3-SNAPSHOT</version>
   </parent>
 
   <properties>
-    <root.dir>${basedir}/../..</root.dir>
+    <root.dir>${basedir}/../../..</root.dir>
   </properties>
 
   <build>
@@ -84,6 +84,10 @@
       <groupId>org.apache.hyracks</groupId>
       <artifactId>hyracks-data-std</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
     </dependency>
   </dependencies>
 </project>

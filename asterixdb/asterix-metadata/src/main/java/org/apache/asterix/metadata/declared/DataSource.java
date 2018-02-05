@@ -57,14 +57,15 @@ public abstract class DataSource implements IDataSource<DataSourceId> {
         public static final byte EXTERNAL_DATASET = 0x01;
         public static final byte FEED = 0x02;
         public static final byte LOADABLE = 0x03;
+        public static final byte FUNCTION = 0x04;
 
         // Hide implicit public constructor
         private Type() {
         }
     }
 
-    public DataSource(DataSourceId id, IAType itemType, IAType metaItemType, byte datasourceType,
-            INodeDomain domain) throws AlgebricksException {
+    public DataSource(DataSourceId id, IAType itemType, IAType metaItemType, byte datasourceType, INodeDomain domain)
+            throws AlgebricksException {
         this.id = id;
         this.itemType = itemType;
         this.metaItemType = metaItemType;

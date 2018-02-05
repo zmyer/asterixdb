@@ -21,20 +21,16 @@ package org.apache.asterix.hyracks.bootstrap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.common.api.IClusterManagementWork;
-import org.apache.asterix.common.exceptions.AsterixException;
-import org.apache.asterix.event.schema.cluster.Node;
 import org.apache.asterix.metadata.cluster.AddNodeWork;
-import org.apache.asterix.metadata.cluster.ClusterManagerProvider;
 import org.apache.asterix.metadata.cluster.RemoveNodeWork;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ClusterWorkExecutor implements Runnable {
 
-    private static final Logger LOGGER = Logger.getLogger(ClusterWorkExecutor.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final LinkedBlockingQueue<Set<IClusterManagementWork>> inbox;
 
@@ -48,9 +44,9 @@ public class ClusterWorkExecutor implements Runnable {
             try {
                 Set<IClusterManagementWork> workSet = inbox.take();
                 int nodesToAdd = 0;
-                Set<String> nodesToRemove = new HashSet<String>();
-                Set<IClusterManagementWork> nodeAdditionRequests = new HashSet<IClusterManagementWork>();
-                Set<IClusterManagementWork> nodeRemovalRequests = new HashSet<IClusterManagementWork>();
+                Set<String> nodesToRemove = new HashSet<>();
+                Set<IClusterManagementWork> nodeAdditionRequests = new HashSet<>();
+                Set<IClusterManagementWork> nodeRemovalRequests = new HashSet<>();
                 for (IClusterManagementWork w : workSet) {
                     switch (w.getClusterManagementWorkType()) {
                         case ADD_NODE:
@@ -66,37 +62,14 @@ public class ClusterWorkExecutor implements Runnable {
                     }
                 }
 
-                Set<Node> addedNodes = new HashSet<Node>();
-                for (int i = 0; i < nodesToAdd; i++) {
-                    Node node = ClusterStateManager.INSTANCE.getAvailableSubstitutionNode();
-                    if (node != null) {
-                        try {
-                            ClusterManagerProvider.getClusterManager().addNode(node);
-                            addedNodes.add(node);
-                            if (LOGGER.isLoggable(Level.INFO)) {
-                                LOGGER.info("Added NC at:" + node.getId());
-                            }
-                        } catch (AsterixException e) {
-                            if (LOGGER.isLoggable(Level.WARNING)) {
-                                LOGGER.warning("Unable to add NC at:" + node.getId());
-                            }
-                            e.printStackTrace();
-                        }
-                    } else {
-                        if (LOGGER.isLoggable(Level.WARNING)) {
-                            LOGGER.warning("Unable to add NC: no more available nodes");
-                        }
-                    }
-                }
-
             } catch (InterruptedException e) {
-                if (LOGGER.isLoggable(Level.SEVERE)) {
-                    LOGGER.severe("interruped" + e.getMessage());
+                if (LOGGER.isErrorEnabled()) {
+                    LOGGER.error("interruped" + e.getMessage());
                 }
                 throw new IllegalStateException(e);
             } catch (Exception e) {
-                if (LOGGER.isLoggable(Level.SEVERE)) {
-                    LOGGER.severe("Unexpected exception in handling cluster event" + e.getMessage());
+                if (LOGGER.isErrorEnabled()) {
+                    LOGGER.error("Unexpected exception in handling cluster event" + e.getMessage());
                 }
             }
 

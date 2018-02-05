@@ -20,6 +20,7 @@ package org.apache.hyracks.control.nc.work;
 
 import java.io.ByteArrayOutputStream;
 
+import org.apache.hyracks.api.control.CcId;
 import org.apache.hyracks.control.common.work.SynchronizableWork;
 import org.apache.hyracks.control.nc.NodeControllerService;
 
@@ -27,17 +28,19 @@ public class StateDumpWork extends SynchronizableWork {
     private final NodeControllerService ncs;
 
     private final String stateDumpId;
+    private final CcId ccId;
 
-    public StateDumpWork(NodeControllerService ncs, String stateDumpId) {
+    public StateDumpWork(NodeControllerService ncs, String stateDumpId, CcId ccId) {
         this.ncs = ncs;
         this.stateDumpId = stateDumpId;
+        this.ccId = ccId;
     }
 
     @Override
     protected void doRun() throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ncs.getApplicationContext().getStateDumpHandler().dumpState(baos);
-        ncs.getClusterController().notifyStateDump(ncs.getApplicationContext().getNodeId(), stateDumpId,
+        ncs.getContext().getStateDumpHandler().dumpState(baos);
+        ncs.getClusterController(ccId).notifyStateDump(ncs.getContext().getNodeId(), stateDumpId,
                 baos.toString("UTF-8"));
     }
 }

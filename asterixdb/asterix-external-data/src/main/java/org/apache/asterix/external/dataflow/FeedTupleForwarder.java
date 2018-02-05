@@ -28,12 +28,9 @@ import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.util.HyracksConstants;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
-import org.apache.hyracks.dataflow.common.io.MessagingFrameTupleAppender;
-import org.apache.hyracks.dataflow.common.utils.TaskUtil;
 
 public class FeedTupleForwarder implements ITupleForwarder {
 
@@ -43,6 +40,7 @@ public class FeedTupleForwarder implements ITupleForwarder {
     private IFrameWriter writer;
     private boolean paused = false;
     private boolean initialized;
+    private boolean failed;
 
     public FeedTupleForwarder(FeedLogManager feedLogManager) {
         this.feedLogManager = feedLogManager;
@@ -58,11 +56,6 @@ public class FeedTupleForwarder implements ITupleForwarder {
             this.frame = new VSizeFrame(ctx);
             this.writer = writer;
             this.appender = new FrameTupleAppender(frame);
-            // Set null feed message
-            VSizeFrame message = TaskUtil.<VSizeFrame> get(HyracksConstants.KEY_MESSAGE, ctx);
-            // a null message
-            message.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
-            message.getBuffer().flip();
             initialized = true;
         }
     }
@@ -75,7 +68,8 @@ public class FeedTupleForwarder implements ITupleForwarder {
                     try {
                         wait();
                     } catch (InterruptedException e) {
-                        throw new HyracksDataException(e);
+                        Thread.currentThread().interrupt();
+                        throw HyracksDataException.create(e);
                     }
                 }
             }
@@ -96,7 +90,7 @@ public class FeedTupleForwarder implements ITupleForwarder {
     public void close() throws HyracksDataException {
         Throwable throwable = null;
         try {
-            if (appender.getTupleCount() > 0) {
+            if (!failed && appender.getTupleCount() > 0) {
                 FrameUtils.flushFrame(frame.getBuffer(), writer);
             }
         } catch (Throwable th) {
@@ -109,7 +103,7 @@ public class FeedTupleForwarder implements ITupleForwarder {
                 if (throwable != null) {
                     throwable.addSuppressed(e);
                 } else {
-                    throw new HyracksDataException(e);
+                    throw HyracksDataException.create(e);
                 }
             } catch (Throwable th) {
                 if (throwable != null) {
@@ -123,5 +117,10 @@ public class FeedTupleForwarder implements ITupleForwarder {
 
     public void flush() throws HyracksDataException {
         appender.flush(writer);
+    }
+
+    public void fail() throws HyracksDataException {
+        failed = true;
+        writer.fail();
     }
 }

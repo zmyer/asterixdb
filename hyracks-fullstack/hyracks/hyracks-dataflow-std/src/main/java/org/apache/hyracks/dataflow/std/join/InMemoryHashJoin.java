@@ -22,8 +22,6 @@ import java.io.DataOutput;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
 import org.apache.hyracks.api.comm.IFrameWriter;
@@ -43,6 +41,8 @@ import org.apache.hyracks.dataflow.std.buffermanager.TupleInFrameListAccessor;
 import org.apache.hyracks.dataflow.std.structures.ISerializableTable;
 import org.apache.hyracks.dataflow.std.structures.TuplePointer;
 import org.apache.hyracks.dataflow.std.util.FrameTuplePairComparator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class InMemoryHashJoin {
 
@@ -56,7 +56,6 @@ public class InMemoryHashJoin {
     private final boolean isLeftOuter;
     private final ArrayTupleBuilder missingTupleBuild;
     private final ISerializableTable table;
-    private final int tableSize;
     private final TuplePointer storedTuplePointer;
     private final boolean reverseOutputOrder; //Should we reverse the order of tuples, we are writing in output
     private final IPredicateEvaluator predEvaluator;
@@ -65,25 +64,22 @@ public class InMemoryHashJoin {
     ISimpleFrameBufferManager bufferManager;
     private final boolean isTableCapacityNotZero;
 
-    private static final Logger LOGGER = Logger.getLogger(InMemoryHashJoin.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
-    public InMemoryHashJoin(IHyracksTaskContext ctx, int tableSize, FrameTupleAccessor accessorProbe,
-            ITuplePartitionComputer tpcProbe, FrameTupleAccessor accessorBuild, RecordDescriptor rDBuild,
-            ITuplePartitionComputer tpcBuild, FrameTuplePairComparator comparator, boolean isLeftOuter,
-            IMissingWriter[] missingWritersBuild, ISerializableTable table, IPredicateEvaluator predEval,
-            ISimpleFrameBufferManager bufferManager)
+    public InMemoryHashJoin(IHyracksTaskContext ctx, FrameTupleAccessor accessorProbe, ITuplePartitionComputer tpcProbe,
+            FrameTupleAccessor accessorBuild, RecordDescriptor rDBuild, ITuplePartitionComputer tpcBuild,
+            FrameTuplePairComparator comparator, boolean isLeftOuter, IMissingWriter[] missingWritersBuild,
+            ISerializableTable table, IPredicateEvaluator predEval, ISimpleFrameBufferManager bufferManager)
             throws HyracksDataException {
-        this(ctx, tableSize, accessorProbe, tpcProbe, accessorBuild, rDBuild, tpcBuild, comparator, isLeftOuter,
+        this(ctx, accessorProbe, tpcProbe, accessorBuild, rDBuild, tpcBuild, comparator, isLeftOuter,
                 missingWritersBuild, table, predEval, false, bufferManager);
     }
 
-    public InMemoryHashJoin(IHyracksTaskContext ctx, int tableSize, FrameTupleAccessor accessorProbe,
-            ITuplePartitionComputer tpcProbe, FrameTupleAccessor accessorBuild,
-            RecordDescriptor rDBuild, ITuplePartitionComputer tpcBuild, FrameTuplePairComparator comparator,
-            boolean isLeftOuter, IMissingWriter[] missingWritersBuild, ISerializableTable table,
-            IPredicateEvaluator predEval, boolean reverse, ISimpleFrameBufferManager bufferManager)
-            throws HyracksDataException {
-        this.tableSize = tableSize;
+    public InMemoryHashJoin(IHyracksTaskContext ctx, FrameTupleAccessor accessorProbe, ITuplePartitionComputer tpcProbe,
+            FrameTupleAccessor accessorBuild, RecordDescriptor rDBuild, ITuplePartitionComputer tpcBuild,
+            FrameTuplePairComparator comparator, boolean isLeftOuter, IMissingWriter[] missingWritersBuild,
+            ISerializableTable table, IPredicateEvaluator predEval, boolean reverse,
+            ISimpleFrameBufferManager bufferManager) throws HyracksDataException {
         this.table = table;
         storedTuplePointer = new TuplePointer();
         buffers = new ArrayList<>();
@@ -109,12 +105,12 @@ public class InMemoryHashJoin {
         reverseOutputOrder = reverse;
         this.tupleAccessor = new TupleInFrameListAccessor(rDBuild, buffers);
         this.bufferManager = bufferManager;
-        if (tableSize != 0) {
+        if (table.getTableSize() != 0) {
             isTableCapacityNotZero = true;
         } else {
             isTableCapacityNotZero = false;
         }
-        LOGGER.fine("InMemoryHashJoin has been created for a table size of " + tableSize + " for Thread ID "
+        LOGGER.debug("InMemoryHashJoin has been created for a table size of " + table.getTableSize() + " for Thread ID "
                 + Thread.currentThread().getId() + ".");
     }
 
@@ -124,7 +120,7 @@ public class InMemoryHashJoin {
         accessorBuild.reset(buffer);
         int tCount = accessorBuild.getTupleCount();
         for (int i = 0; i < tCount; ++i) {
-            int entry = tpcBuild.partition(accessorBuild, i, tableSize);
+            int entry = tpcBuild.partition(accessorBuild, i, table.getTableSize());
             storedTuplePointer.reset(bIndex, i);
             // If an insertion fails, then tries to insert the same tuple pointer again after compacting the table.
             if (!table.insert(entry, storedTuplePointer)) {
@@ -160,7 +156,7 @@ public class InMemoryHashJoin {
     void join(int tid, IFrameWriter writer) throws HyracksDataException {
         boolean matchFound = false;
         if (isTableCapacityNotZero) {
-            int entry = tpcProbe.partition(accessorProbe, tid, tableSize);
+            int entry = tpcProbe.partition(accessorProbe, tid, table.getTableSize());
             int tupleCount = table.getTupleCount(entry);
             for (int i = 0; i < tupleCount; i++) {
                 table.getTuplePointer(entry, i, storedTuplePointer);
@@ -209,8 +205,8 @@ public class InMemoryHashJoin {
             }
         }
         buffers.clear();
-        if (LOGGER.isLoggable(Level.FINE)) {
-            LOGGER.fine("InMemoryHashJoin has finished using " + nFrames + " frames for Thread ID "
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("InMemoryHashJoin has finished using " + nFrames + " frames for Thread ID "
                     + Thread.currentThread().getId() + ".");
         }
     }

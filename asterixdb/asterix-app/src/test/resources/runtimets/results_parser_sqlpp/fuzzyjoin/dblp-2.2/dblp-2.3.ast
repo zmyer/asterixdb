@@ -20,22 +20,20 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.DBLP]
   ]
   AS Variable [ Name=$paperDBLP ]
 ,
   FunctionCall fuzzyjoin.subset-collection@3[
-    FunctionCall Metadata.resolve@-1[
-      LiteralExpr [STRING] [tokensDBLP]
-      Variable [ Name=$paperDBLP ]
+    FunctionCall asterix.dataset@1[
+      LiteralExpr [STRING] [fuzzyjoin.tokensDBLP]
     ]
     LiteralExpr [LONG] [0]
     FunctionCall fuzzyjoin.prefix-len-jaccard@2[
       FunctionCall fuzzyjoin.len@1[
-        FunctionCall Metadata.resolve@-1[
-          LiteralExpr [STRING] [tokensDBLP]
-          Variable [ Name=$paperDBLP ]
+        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [fuzzyjoin.tokensDBLP]
         ]
       ]
       LiteralExpr [FLOAT] [0.5]
@@ -74,8 +72,8 @@ Let Variable [ Name=$tokensDBLP ]
     FROM [      Variable [ Name=$tokensUnrankedDBLP ]
       AS Variable [ Name=$tokenUnranked ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [TOKENSRANKEDADM]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [fuzzyjoin.TOKENSRANKEDADM]
       ]
       AS Variable [ Name=$tokenRanked ]
     ]

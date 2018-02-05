@@ -18,33 +18,35 @@
  */
 package org.apache.hyracks.test.support;
 
-import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.application.INCServiceContext;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.ILocalResourceRepository;
+import org.apache.hyracks.storage.common.IResourceLifecycleManager;
 import org.apache.hyracks.storage.common.IStorageManager;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
-import org.apache.hyracks.storage.common.file.ILocalResourceRepository;
 import org.apache.hyracks.storage.common.file.ResourceIdFactory;
 
 public class TestStorageManager implements IStorageManager {
     private static final long serialVersionUID = 1L;
 
     @Override
-    public IBufferCache getBufferCache(IHyracksTaskContext ctx) {
+    public IBufferCache getBufferCache(INCServiceContext ctx) {
         return TestStorageManagerComponentHolder.getBufferCache(ctx);
     }
 
     @Override
-    public IFileMapProvider getFileMapProvider(IHyracksTaskContext ctx) {
-        return TestStorageManagerComponentHolder.getFileMapProvider(ctx);
+    public ILocalResourceRepository getLocalResourceRepository(INCServiceContext ctx) {
+        return TestStorageManagerComponentHolder.getLocalResourceRepository();
     }
 
     @Override
-    public ILocalResourceRepository getLocalResourceRepository(IHyracksTaskContext ctx) {
-        return TestStorageManagerComponentHolder.getLocalResourceRepository(ctx);
+    public ResourceIdFactory getResourceIdFactory(INCServiceContext ctx) {
+        return TestStorageManagerComponentHolder.getResourceIdFactory();
     }
 
     @Override
-    public ResourceIdFactory getResourceIdFactory(IHyracksTaskContext ctx) {
-        return TestStorageManagerComponentHolder.getResourceIdFactory(ctx);
+    public IResourceLifecycleManager<IIndex> getLifecycleManager(INCServiceContext ctx) {
+        return TestStorageManagerComponentHolder.getIndexLifecycleManager();
     }
+
 }

@@ -19,12 +19,13 @@
 package org.apache.hyracks.storage.am.lsm.common.api;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.data.std.api.IValueReference;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexCursor;
 
 /**
  * Client handle for performing operations
@@ -34,20 +35,53 @@ import org.apache.hyracks.storage.am.common.api.TreeIndexException;
  * concurrent operations).
  */
 public interface ILSMIndexAccessor extends IIndexAccessor {
-    void scheduleFlush(ILSMIOOperationCallback callback) throws HyracksDataException;
-
-    void scheduleMerge(ILSMIOOperationCallback callback, List<ILSMDiskComponent> components)
-            throws HyracksDataException, IndexException;
-
-    void scheduleFullMerge(ILSMIOOperationCallback callback) throws HyracksDataException, IndexException;
 
     /**
-     * Deletes the tuple from the memory component only.
+     * @return the operation context associated with the accessor
+     */
+    ILSMIndexOperationContext getOpContext();
+
+    /**
+     * Schedule a flush operation
      *
+     * @param callback
+     *            the IO operation callback
+     * @throws HyracksDataException
+     */
+    void scheduleFlush(ILSMIOOperationCallback callback) throws HyracksDataException;
+
+    /**
+     * Schedule a merge operation
+     *
+     * @param callback
+     *            the merge operation callback
+     * @param components
+     *            the components to be merged
      * @throws HyracksDataException
      * @throws IndexException
      */
-    void physicalDelete(ITupleReference tuple) throws HyracksDataException, IndexException;
+    void scheduleMerge(ILSMIOOperationCallback callback, List<ILSMDiskComponent> components)
+            throws HyracksDataException;
+
+    /**
+     * Schedule a full merge
+     *
+     * @param callback
+     *            the merge operation callback
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void scheduleFullMerge(ILSMIOOperationCallback callback) throws HyracksDataException;
+
+    /**
+     * Delete the tuple from the memory component only. Don't replace with antimatter tuple
+     *
+     * @param tuple
+     *            the tuple to be deleted
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void physicalDelete(ITupleReference tuple) throws HyracksDataException;
 
     /**
      * Attempts to insert the given tuple.
@@ -63,7 +97,7 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      *             If an index-specific constraint is violated, e.g., the key
      *             already exists.
      */
-    boolean tryInsert(ITupleReference tuple) throws HyracksDataException, IndexException;
+    boolean tryInsert(ITupleReference tuple) throws HyracksDataException;
 
     /**
      * Attempts to delete the given tuple.
@@ -78,7 +112,7 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      * @throws IndexException
      *             If there is no matching tuple in the index.
      */
-    boolean tryDelete(ITupleReference tuple) throws HyracksDataException, IndexException;
+    boolean tryDelete(ITupleReference tuple) throws HyracksDataException;
 
     /**
      * Attempts to update the given tuple.
@@ -94,7 +128,7 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      * @throws IndexException
      *             If there is no matching tuple in the index.
      */
-    boolean tryUpdate(ITupleReference tuple) throws HyracksDataException, IndexException;
+    boolean tryUpdate(ITupleReference tuple) throws HyracksDataException;
 
     /**
      * This operation is only supported by indexes with the notion of a unique key.
@@ -111,14 +145,60 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      * @throws IndexException
      *             If there is no matching tuple in the index.
      */
-    boolean tryUpsert(ITupleReference tuple) throws HyracksDataException, IndexException;
+    boolean tryUpsert(ITupleReference tuple) throws HyracksDataException;
 
-    void forcePhysicalDelete(ITupleReference tuple) throws HyracksDataException, IndexException;
+    /**
+     * Delete the tuple from the memory component only. Don't replace with antimatter tuple
+     * Perform operation even if the memory component is full
+     *
+     * @param tuple
+     *            the tuple to delete
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void forcePhysicalDelete(ITupleReference tuple) throws HyracksDataException;
 
-    void forceInsert(ITupleReference tuple) throws HyracksDataException, IndexException;
+    /**
+     * Insert a new tuple (failing if duplicate key entry is found)
+     *
+     * @param tuple
+     *            the tuple to insert
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void forceInsert(ITupleReference tuple) throws HyracksDataException;
 
-    void forceDelete(ITupleReference tuple) throws HyracksDataException, IndexException;
+    /**
+     * Force deleting an index entry even if the memory component is full
+     * replace the entry if found with an antimatter tuple, otherwise, simply insert the antimatter tuple
+     *
+     * @param tuple
+     *            tuple to delete
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void forceDelete(ITupleReference tuple) throws HyracksDataException;
 
+    /**
+     * Force upserting the tuple into the memory component even if it is full
+     *
+     * @param tuple
+     * @throws HyracksDataException
+     * @throws IndexException
+     */
+    void forceUpsert(ITupleReference tuple) throws HyracksDataException;
+
+    /**
+     * Schedule a replication for disk components
+     *
+     * @param diskComponents
+     *            the components to be replicated
+     * @param bulkload
+     *            true if the components were bulkloaded, false otherwise
+     * @param opType
+     *            the operation type
+     * @throws HyracksDataException
+     */
     void scheduleReplication(List<ILSMDiskComponent> diskComponents, boolean bulkload, LSMOperationType opType)
             throws HyracksDataException;
 
@@ -128,7 +208,7 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      * @throws HyracksDataException
      * @throws TreeIndexException
      */
-    void flush(ILSMIOOperation operation) throws HyracksDataException, IndexException;
+    void flush(ILSMIOOperation operation) throws HyracksDataException;
 
     /**
      * Merge all on-disk components.
@@ -136,5 +216,48 @@ public interface ILSMIndexAccessor extends IIndexAccessor {
      * @throws HyracksDataException
      * @throws TreeIndexException
      */
-    void merge(ILSMIOOperation operation) throws HyracksDataException, IndexException;
+    void merge(ILSMIOOperation operation) throws HyracksDataException;
+
+    /**
+     * Update the metadata of the memory component, wait for the new component if the current one is UNWRITABLE
+     *
+     * @param key
+     *            the key
+     * @param value
+     *            the value
+     * @throws HyracksDataException
+     */
+    void updateMeta(IValueReference key, IValueReference value) throws HyracksDataException;
+
+    /**
+     * Force update the metadata of the current memory component even if it is UNWRITABLE
+     *
+     * @param key
+     * @param value
+     * @throws HyracksDataException
+     */
+    void forceUpdateMeta(IValueReference key, IValueReference value) throws HyracksDataException;
+
+    /**
+     * Open the given cursor for scanning all disk components of the primary index.
+     * The returned tuple has the format of [(int) disk_component_position, (boolean) anti-matter flag,
+     * primary key, payload].
+     * The returned tuples are first ordered on primary key, and then ordered on the descending order of
+     * disk_component_position (older components get returned first)
+     *
+     * @param icursor
+     *            Cursor over the index entries satisfying searchPred.
+     * @throws HyracksDataException
+     *             If the BufferCache throws while un/pinning or un/latching.
+     */
+    void scanDiskComponents(IIndexCursor cursor) throws HyracksDataException;
+
+    /**
+     * Delete components that match the passed predicate
+     * NOTE: This call can only be made when the caller knows that data modification has been stopped
+     *
+     * @param filter
+     * @throws HyracksDataException
+     */
+    void deleteComponents(Predicate<ILSMComponent> predicate) throws HyracksDataException;
 }

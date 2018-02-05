@@ -19,25 +19,31 @@
 package org.apache.hyracks.control.nc.service;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.StringReader;
+import java.io.StringWriter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang3.SystemUtils;
-import org.apache.hyracks.control.common.controllers.IniUtils;
+import org.apache.hyracks.control.common.config.ConfigUtils;
+import org.apache.hyracks.control.common.controllers.NCConfig;
+import org.apache.hyracks.api.config.Section;
 import org.apache.hyracks.control.common.controllers.ServiceConstants;
 import org.apache.hyracks.control.common.controllers.ServiceConstants.ServiceCommand;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.ini4j.Ini;
 import org.kohsuke.args4j.CmdLineParser;
 
@@ -47,7 +53,7 @@ import org.kohsuke.args4j.CmdLineParser;
  */
 public class NCService {
 
-    private static final Logger LOGGER = Logger.getLogger(NCService.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /**
      * The .ini read from the CC (*not* the ncservice.ini file)
@@ -85,7 +91,7 @@ public class NCService {
         // Find the command to run. For now, we allow overriding the name, but
         // still assume it's located in the bin/ directory of the deployment.
         // Even this is likely more configurability than we need.
-        String command = IniUtils.getString(ini, nodeSection, "command", "hyracksnc");
+        String command = ConfigUtils.getString(ini, nodeSection, NCConfig.Option.COMMAND.ini(), "hyracksnc");
         // app.home is specified by the Maven appassembler plugin. If it isn't set,
         // fall back to user's home dir. Again this is likely more flexibility
         // than we need.
@@ -112,7 +118,7 @@ public class NCService {
     }
 
     private static void configEnvironment(Map<String, String> env) {
-        String jvmargs = IniUtils.getString(ini, nodeSection, "jvm.args", null);
+        String jvmargs = ConfigUtils.getString(ini, nodeSection, NCConfig.Option.JVM_ARGS.ini(), null);
         if (jvmargs != null) {
             LOGGER.info("Using JAVA_OPTS from conf file (jvm.args)");
         } else {
@@ -121,15 +127,20 @@ public class NCService {
                 LOGGER.info("Using JAVA_OPTS from environment");
             } else {
                 LOGGER.info("Using default JAVA_OPTS");
-                long ramSize = ((com.sun.management.OperatingSystemMXBean) osMXBean).getTotalPhysicalMemorySize();
-                int proportionalRamSize = (int) Math.ceil(0.6 * ramSize / (1024 * 1024));
-                //if under 32bit JVM, use less than 1GB heap by default. otherwise use proportional ramsize.
-                int heapSize = "32".equals(System.getProperty("sun.arch.data.model"))
-                        ? (proportionalRamSize <= 1024 ? proportionalRamSize : 1024) : proportionalRamSize;
-                jvmargs = "-Xmx" + heapSize + "m";
+                jvmargs = "";
             }
         }
-        env.put("JAVA_OPTS", jvmargs);
+
+        // Sets up memory parameter if it is not specified.
+        if (!jvmargs.contains("-Xmx")) {
+            long ramSize = ((com.sun.management.OperatingSystemMXBean) osMXBean).getTotalPhysicalMemorySize();
+            int proportionalRamSize = (int) Math.ceil(0.6 * ramSize / (1024 * 1024));
+            //if under 32bit JVM, use less than 1GB heap by default. otherwise use proportional ramsize.
+            int heapSize = "32".equals(System.getProperty("sun.arch.data.model"))
+                    ? (proportionalRamSize <= 1024 ? proportionalRamSize : 1024) : proportionalRamSize;
+            jvmargs = jvmargs + " -Xmx" + heapSize + "m";
+        }
+        env.put("JAVA_OPTS", jvmargs.trim());
         LOGGER.info("Setting JAVA_OPTS to " + jvmargs);
     }
 
@@ -149,7 +160,7 @@ public class NCService {
             // QQQ inheriting probably isn't right
             pb.inheritIO();
 
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Launching NCDriver process");
             }
 
@@ -162,10 +173,13 @@ public class NCService {
                     // If the directory IS there, all is well
                 }
                 File logfile = new File(config.logdir, "nc-" + ncId + ".log");
-                // Don't care if this succeeds or fails:
-                logfile.delete();
+                try (FileWriter writer = new FileWriter(logfile, true)) {
+                    writer.write("---------------------\n");
+                    writer.write(new Date() + "\n");
+                    writer.write("---------------------\n");
+                }
                 pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logfile));
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info("Logging to " + logfile.getCanonicalPath());
                 }
             }
@@ -187,8 +201,14 @@ public class NCService {
             }
             return retval == 0;
         } catch (Exception e) {
-            if (LOGGER.isLoggable(Level.SEVERE)) {
-                LOGGER.log(Level.SEVERE, "Configuration from CC broken", e);
+            if (LOGGER.isErrorEnabled()) {
+                StringWriter sw = new StringWriter();
+                try {
+                    ini.store(sw);
+                    LOGGER.log(Level.ERROR, "Configuration from CC broken: \n" + sw.toString(), e);
+                } catch (IOException e1) {
+                    LOGGER.log(Level.ERROR, "Configuration from CC broken, failed to serialize", e1);
+                }
             }
             return false;
         }
@@ -206,14 +226,14 @@ public class NCService {
             ObjectInputStream ois = new ObjectInputStream(is);
             String magic = ois.readUTF();
             if (!ServiceConstants.NC_SERVICE_MAGIC_COOKIE.equals(magic)) {
-                LOGGER.severe("Connection used incorrect magic cookie");
+                LOGGER.error("Connection used incorrect magic cookie");
                 return false;
             }
             switch (ServiceCommand.valueOf(ois.readUTF())) {
                 case START_NC:
                     String iniString = ois.readUTF();
                     ini = new Ini(new StringReader(iniString));
-                    ncId = IniUtils.getString(ini, "localnc", "id", "");
+                    ncId = ConfigUtils.getString(ini, Section.LOCALNC, NCConfig.Option.NODE_ID, "");
                     nodeSection = "nc/" + ncId;
                     return launchNCProcess();
                 case TERMINATE:
@@ -222,7 +242,7 @@ public class NCService {
                     break;
             }
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error decoding connection from server", e);
+            LOGGER.log(Level.ERROR, "Error decoding connection from server", e);
         }
         return false;
     }
@@ -240,6 +260,11 @@ public class NCService {
             public void run() {
                 if (proc != null) {
                     proc.destroy();
+                    try {
+                        proc.waitFor();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         });
@@ -272,7 +297,7 @@ public class NCService {
             try (ServerSocket listener = new ServerSocket(port, 5, addr)) {
                 boolean launched = false;
                 while (!launched) {
-                    LOGGER.info("Waiting for connection from CC on " + addr + ":" + port);
+                    LOGGER.info("Waiting for connection from CC on " + (addr == null ? "*" : addr) + ":" + port);
                     try (Socket socket = listener.accept()) {
                         // QQQ Because acceptConnection() doesn't return if the
                         // service is started appropriately, the socket remains

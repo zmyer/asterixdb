@@ -10,14 +10,24 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [count]
     :
-    FunctionCall test.count@1[
-      Variable [ Name=$c ]
+    FunctionCall asterix.count@1[
+      (
+        SELECT ELEMENT [
+        FunctionCall asterix.field-access-by-name@2[
+          Variable [ Name=$g ]
+          LiteralExpr [STRING] [c]
+        ]
+        ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=$g ]
+        ]
+      )
     ]
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customers]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.Customers]
   ]
   AS Variable [ Name=$c ]
 ]
@@ -28,7 +38,7 @@ Groupby
     Variable [ Name=$c ]
     Field=age
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     c:=Variable [ Name=$c ]
   )

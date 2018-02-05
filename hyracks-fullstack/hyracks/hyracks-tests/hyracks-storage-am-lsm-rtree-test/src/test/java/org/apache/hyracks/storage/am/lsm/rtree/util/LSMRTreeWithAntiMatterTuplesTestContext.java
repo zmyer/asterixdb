@@ -32,7 +32,7 @@ import org.apache.hyracks.dataflow.common.utils.SerdeUtils;
 import org.apache.hyracks.storage.am.common.api.IMetadataPageManagerFactory;
 import org.apache.hyracks.storage.am.common.api.IPrimitiveValueProviderFactory;
 import org.apache.hyracks.storage.am.common.api.ITreeIndex;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallback;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMMergePolicy;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
@@ -43,7 +43,6 @@ import org.apache.hyracks.storage.am.rtree.AbstractRTreeTestContext;
 import org.apache.hyracks.storage.am.rtree.RTreeCheckTuple;
 import org.apache.hyracks.storage.am.rtree.frames.RTreePolicyType;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
 
 @SuppressWarnings("rawtypes")
 public final class LSMRTreeWithAntiMatterTuplesTestContext extends AbstractRTreeTestContext {
@@ -75,26 +74,24 @@ public final class LSMRTreeWithAntiMatterTuplesTestContext extends AbstractRTree
     }
 
     public static LSMRTreeWithAntiMatterTuplesTestContext create(IIOManager ioManager,
-            List<IVirtualBufferCache> virtualBufferCaches,
-            FileReference file, IBufferCache diskBufferCache, IFileMapProvider diskFileMapProvider,
+            List<IVirtualBufferCache> virtualBufferCaches, FileReference file, IBufferCache diskBufferCache,
             ISerializerDeserializer[] fieldSerdes, IPrimitiveValueProviderFactory[] valueProviderFactories,
             int numKeyFields, RTreePolicyType rtreePolicyType, ILSMMergePolicy mergePolicy,
-            ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback,
-            IMetadataPageManagerFactory metadataPageManagerFactory)
+            ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler,
+            ILSMIOOperationCallbackFactory ioOpCallbackFactory, IMetadataPageManagerFactory metadataPageManagerFactory)
             throws Exception {
         ITypeTraits[] typeTraits = SerdeUtils.serdesToTypeTraits(fieldSerdes);
-        IBinaryComparatorFactory[] rtreeCmpFactories = SerdeUtils.serdesToComparatorFactories(fieldSerdes,
-                numKeyFields);
-        IBinaryComparatorFactory[] btreeCmpFactories = SerdeUtils.serdesToComparatorFactories(fieldSerdes,
-                fieldSerdes.length);
+        IBinaryComparatorFactory[] rtreeCmpFactories =
+                SerdeUtils.serdesToComparatorFactories(fieldSerdes, numKeyFields);
+        IBinaryComparatorFactory[] btreeCmpFactories =
+                SerdeUtils.serdesToComparatorFactories(fieldSerdes, fieldSerdes.length);
         LSMRTreeWithAntiMatterTuples lsmTree = LSMRTreeUtils.createLSMTreeWithAntiMatterTuples(ioManager,
-                virtualBufferCaches,
-                file, diskBufferCache, diskFileMapProvider, typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, rtreePolicyType, mergePolicy, opTracker, ioScheduler, ioOpCallback,
+                virtualBufferCaches, file, diskBufferCache, typeTraits, rtreeCmpFactories, btreeCmpFactories,
+                valueProviderFactories, rtreePolicyType, mergePolicy, opTracker, ioScheduler, ioOpCallbackFactory,
                 LSMRTreeUtils.proposeBestLinearizer(typeTraits, rtreeCmpFactories.length), null, null, null, null, true,
                 false, metadataPageManagerFactory);
-        LSMRTreeWithAntiMatterTuplesTestContext testCtx = new LSMRTreeWithAntiMatterTuplesTestContext(fieldSerdes,
-                lsmTree);
+        LSMRTreeWithAntiMatterTuplesTestContext testCtx =
+                new LSMRTreeWithAntiMatterTuplesTestContext(fieldSerdes, lsmTree);
         return testCtx;
     }
 }

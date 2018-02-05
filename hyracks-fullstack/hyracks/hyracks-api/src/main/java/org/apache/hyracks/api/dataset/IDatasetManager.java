@@ -24,9 +24,15 @@ import org.apache.hyracks.api.job.JobId;
 
 public interface IDatasetManager {
 
-    public Set<JobId> getJobIds();
+    Set<JobId> getJobIds();
 
-    public IDatasetStateRecord getState(JobId jobId);
+    IDatasetStateRecord getState(JobId jobId);
 
-    public void deinitState(JobId jobId);
+    void sweep(JobId jobId);
+
+    /**
+     * Removes all references and deletes persisted files for
+     * all expired datasets.
+     */
+    void sweepExpiredDatasets();
 }

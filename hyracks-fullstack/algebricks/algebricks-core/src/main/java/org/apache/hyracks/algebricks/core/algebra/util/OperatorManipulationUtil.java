@@ -18,12 +18,17 @@
  */
 package org.apache.hyracks.algebricks.core.algebra.util;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
@@ -38,6 +43,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.GroupByOpera
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.LimitOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.NestedTupleSourceOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SubplanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.LogicalOperatorDeepCopyWithNewVariablesVisitor;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.OperatorDeepCopyVisitor;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
 import org.apache.hyracks.algebricks.core.algebra.plan.ALogicalPlanImpl;
@@ -98,8 +104,8 @@ public class OperatorManipulationUtil {
             }
             case NESTEDTUPLESOURCE: {
                 NestedTupleSourceOperator nts = (NestedTupleSourceOperator) op;
-                AbstractLogicalOperator prevOp = (AbstractLogicalOperator) nts.getDataSourceReference().getValue()
-                        .getInputs().get(0).getValue();
+                AbstractLogicalOperator prevOp =
+                        (AbstractLogicalOperator) nts.getDataSourceReference().getValue().getInputs().get(0).getValue();
                 if (prevOp.getExecutionMode() != AbstractLogicalOperator.ExecutionMode.UNPARTITIONED) {
                     nts.setExecutionMode(AbstractLogicalOperator.ExecutionMode.LOCAL);
                 }
@@ -165,8 +171,8 @@ public class OperatorManipulationUtil {
         if (op.getOperatorTag() == LogicalOperatorTag.NESTEDTUPLESOURCE && goThroughNts) {
             NestedTupleSourceOperator nts = (NestedTupleSourceOperator) op;
             if (nts.getDataSourceReference() != null) {
-                AbstractLogicalOperator op2 = (AbstractLogicalOperator) nts.getDataSourceReference().getValue()
-                        .getInputs().get(0).getValue();
+                AbstractLogicalOperator op2 =
+                        (AbstractLogicalOperator) nts.getDataSourceReference().getValue().getInputs().get(0).getValue();
                 substituteVarRec(op2, v1, v2, goThroughNts, ctx);
             }
         }
@@ -194,6 +200,14 @@ public class OperatorManipulationUtil {
         List<Mutable<ILogicalOperator>> newRoots = clonePipeline(roots);
         cloneTypeEnvironments(ctx, roots, newRoots);
         return new ALogicalPlanImpl(newRoots);
+    }
+
+    public static Pair<ILogicalOperator, Map<LogicalVariable, LogicalVariable>> deepCopyWithNewVars(
+            ILogicalOperator root, IOptimizationContext ctx) throws AlgebricksException {
+        LogicalOperatorDeepCopyWithNewVariablesVisitor deepCopyVisitor =
+                new LogicalOperatorDeepCopyWithNewVariablesVisitor(ctx, ctx, true);
+        ILogicalOperator newRoot = deepCopyVisitor.deepCopy(root);
+        return Pair.of(newRoot, deepCopyVisitor.getInputToOutputVariableMapping());
     }
 
     private static void setDataSource(ILogicalPlan plan, ILogicalOperator dataSource) {
@@ -316,4 +330,45 @@ public class OperatorManipulationUtil {
         return false;
     }
 
+    /**
+     * Returns all descendants of an operator that are leaf operators
+     *
+     * @param opRef given operator
+     * @return list containing all leaf descendants
+     */
+    public static List<Mutable<ILogicalOperator>> findLeafDescendantsOrSelf(Mutable<ILogicalOperator> opRef) {
+        List<Mutable<ILogicalOperator>> result = Collections.emptyList();
+
+        Deque<Mutable<ILogicalOperator>> queue = new ArrayDeque<>();
+        queue.add(opRef);
+        Mutable<ILogicalOperator> currentOpRef;
+        while ((currentOpRef = queue.pollLast()) != null) {
+            List<Mutable<ILogicalOperator>> inputs = currentOpRef.getValue().getInputs();
+            if (inputs.isEmpty()) {
+                if (result.isEmpty()) {
+                    result = new ArrayList<>();
+                }
+                result.add(currentOpRef);
+            } else {
+                queue.addAll(inputs);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Find operator in a given list of operator references
+     *
+     * @param list list to search in
+     * @param op   operator to find
+     * @return operator position in the given list or {@code -1} if not found
+     */
+    public static int indexOf(List<Mutable<ILogicalOperator>> list, ILogicalOperator op) {
+        for (int i = 0, ln = list.size(); i < ln; i++) {
+            if (list.get(i).getValue() == op) {
+                return i;
+            }
+        }
+        return -1;
+    }
 }

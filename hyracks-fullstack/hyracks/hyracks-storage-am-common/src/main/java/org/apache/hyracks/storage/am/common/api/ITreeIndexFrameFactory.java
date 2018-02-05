@@ -22,5 +22,6 @@ import java.io.Serializable;
 
 public interface ITreeIndexFrameFactory extends Serializable {
     ITreeIndexFrame createFrame();
+
     ITreeIndexTupleWriterFactory getTupleWriterFactory();
 }

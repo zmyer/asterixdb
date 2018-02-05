@@ -19,18 +19,18 @@
 package org.apache.hyracks.server.process;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 abstract class HyracksServerProcess {
-    private static final Logger LOGGER = Logger.getLogger(HyracksServerProcess.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     protected Process process;
     protected File configFile = null;
@@ -40,21 +40,23 @@ abstract class HyracksServerProcess {
 
     public void start() throws IOException {
         String[] cmd = buildCommand();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Starting command: " + Arrays.toString(cmd));
         }
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
         if (logFile != null) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Logging to: " + logFile.getCanonicalPath());
             }
             logFile.getParentFile().mkdirs();
-            logFile.delete();
+            try (FileWriter writer = new FileWriter(logFile, true)) {
+                writer.write("---------------------\n");
+            }
             pb.redirectOutput(ProcessBuilder.Redirect.appendTo(logFile));
         } else {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Logfile not set, subprocess will output to stdout");
             }
         }
@@ -64,6 +66,25 @@ abstract class HyracksServerProcess {
 
     public void stop() {
         process.destroy();
+        try {
+            boolean success = process.waitFor(30, TimeUnit.SECONDS);
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("Killing unresponsive NC Process");
+            }
+            if (!success) {
+                process.destroyForcibly();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void stop(boolean forcibly) {
+        if (forcibly) {
+            process.destroyForcibly();
+        } else {
+            process.destroy();
+        }
         try {
             process.waitFor();
         } catch (InterruptedException e) {

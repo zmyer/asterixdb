@@ -14,8 +14,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customer]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.Customer]
   ]
   AS Variable [ Name=$c ]
 ,
@@ -64,8 +64,8 @@ FROM [  FunctionCall Metadata.dataset@1[
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Orders]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Orders]
       ]
       AS Variable [ Name=$o ]
 ,
@@ -114,8 +114,8 @@ FROM [  FunctionCall Metadata.dataset@1[
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItem]
           ]
           AS Variable [ Name=$l ]
 ,
@@ -148,8 +148,8 @@ FROM [  FunctionCall Metadata.dataset@1[
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Supplier]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.Supplier]
               ]
               AS Variable [ Name=$s ]
 ,
@@ -174,13 +174,13 @@ FROM [  FunctionCall Metadata.dataset@1[
                   )
                 ]
                 ]
-                FROM [                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [Nation]
+                FROM [                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [tpch.Nation]
                   ]
                   AS Variable [ Name=$n ]
 ,
-                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [Region]
+                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [tpch.Region]
                   ]
                   AS Variable [ Name=$r ]
                 ]
@@ -297,7 +297,7 @@ Groupby
     Variable [ Name=$o1 ]
     Field=n_name
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     c:=Variable [ Name=$c ]
     o1:=Variable [ Name=$o1 ]
@@ -305,7 +305,7 @@ Groupby
 
 Let Variable [ Name=$revenue ]
   :=
-  FunctionCall tpch.sum@1[
+  FunctionCall asterix.sum@1[
     (
       SELECT ELEMENT [
       OperatorExpr [
@@ -324,7 +324,17 @@ Let Variable [ Name=$revenue ]
         ]
       ]
       ]
-      FROM [        Variable [ Name=$o1 ]
+      FROM [        (
+          SELECT ELEMENT [
+          FunctionCall asterix.field-access-by-name@2[
+            Variable [ Name=$g ]
+            LiteralExpr [STRING] [o1]
+          ]
+          ]
+          FROM [            Variable [ Name=$g ]
+            AS Variable [ Name=$g ]
+          ]
+        )
         AS Variable [ Name=$i ]
       ]
     )

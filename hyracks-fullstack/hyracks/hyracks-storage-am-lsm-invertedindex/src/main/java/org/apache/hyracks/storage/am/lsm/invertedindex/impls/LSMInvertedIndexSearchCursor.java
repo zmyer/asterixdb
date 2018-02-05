@@ -22,27 +22,26 @@ import java.util.List;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.btree.api.IBTreeLeafFrame;
+import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilter;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
-import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
+import org.apache.hyracks.storage.am.common.api.ILSMIndexCursor;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent.LSMComponentType;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilter;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMHarness;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
-import org.apache.hyracks.storage.am.lsm.common.impls.BloomFilterAwareBTreePointSearchCursor;
-import org.apache.hyracks.storage.am.lsm.invertedindex.exceptions.OccurrenceThresholdPanicException;
+import org.apache.hyracks.storage.common.ICursorInitialState;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.ISearchPredicate;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 /**
  * Searches the components one-by-one, completely consuming a cursor before moving on to the next one.
  * Therefore, the are no guarantees about sort order of the results.
  */
-public class LSMInvertedIndexSearchCursor implements IIndexCursor {
+public class LSMInvertedIndexSearchCursor implements ILSMIndexCursor {
 
     private IIndexAccessor currentAccessor;
     private IIndexCursor currentCursor;
@@ -55,11 +54,16 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
 
     // Assuming the cursor for all deleted-keys indexes are of the same type.
     private IIndexCursor[] deletedKeysBTreeCursors;
+    private BloomFilter[] deletedKeysBTreeBloomFilters;
     private List<IIndexAccessor> deletedKeysBTreeAccessors;
     private RangePredicate keySearchPred;
     private ILSMIndexOperationContext opCtx;
 
     private List<ILSMComponent> operationalComponents;
+    private ITupleReference currentTuple = null;
+    private boolean resultOfSearchCallBackProceed = false;
+
+    private final long[] hashes = BloomFilter.createHashArray();
 
     @Override
     public void open(ICursorInitialState initialState, ISearchPredicate searchPred) throws HyracksDataException {
@@ -75,16 +79,15 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
         // For searching the deleted-keys BTrees.
         deletedKeysBTreeAccessors = lsmInitState.getDeletedKeysBTreeAccessors();
         deletedKeysBTreeCursors = new IIndexCursor[deletedKeysBTreeAccessors.size()];
-
+        deletedKeysBTreeBloomFilters = new BloomFilter[deletedKeysBTreeAccessors.size()];
         for (int i = 0; i < operationalComponents.size(); i++) {
             ILSMComponent component = operationalComponents.get(i);
+            deletedKeysBTreeCursors[i] = deletedKeysBTreeAccessors.get(i).createSearchCursor(false);
             if (component.getType() == LSMComponentType.MEMORY) {
                 // No need for a bloom filter for the in-memory BTree.
-                deletedKeysBTreeCursors[i] = deletedKeysBTreeAccessors.get(i).createSearchCursor(false);
+                deletedKeysBTreeBloomFilters[i] = null;
             } else {
-                deletedKeysBTreeCursors[i] = new BloomFilterAwareBTreePointSearchCursor((IBTreeLeafFrame) lsmInitState
-                        .getgetDeletedKeysBTreeLeafFrameFactory().createFrame(), false,
-                        ((LSMInvertedIndexDiskComponent) operationalComponents.get(i)).getBloomFilter());
+                deletedKeysBTreeBloomFilters[i] = ((LSMInvertedIndexDiskComponent) component).getBloomFilter();
             }
         }
 
@@ -92,39 +95,52 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
         keySearchPred = new RangePredicate(null, null, true, true, keyCmp, keyCmp);
     }
 
-    protected boolean isDeleted(ITupleReference key) throws HyracksDataException, IndexException {
+    protected boolean isDeleted(ITupleReference key) throws HyracksDataException {
         keySearchPred.setLowKey(key, true);
         keySearchPred.setHighKey(key, true);
         for (int i = 0; i < accessorIndex; i++) {
-            deletedKeysBTreeCursors[i].reset();
+            deletedKeysBTreeCursors[i].close();
+            if (deletedKeysBTreeBloomFilters[i] != null && !deletedKeysBTreeBloomFilters[i].contains(key, hashes)) {
+                continue;
+            }
             try {
                 deletedKeysBTreeAccessors.get(i).search(deletedKeysBTreeCursors[i], keySearchPred);
                 if (deletedKeysBTreeCursors[i].hasNext()) {
                     return true;
                 }
-            } catch (IndexException e) {
-                throw new HyracksDataException(e);
             } finally {
-                deletedKeysBTreeCursors[i].close();
+                deletedKeysBTreeCursors[i].destroy();
             }
         }
         return false;
     }
 
     // Move to the next tuple that has not been deleted.
-    private boolean nextValidTuple() throws HyracksDataException, IndexException {
+    private boolean nextValidTuple() throws HyracksDataException {
         while (currentCursor.hasNext()) {
             currentCursor.next();
-            if (!isDeleted(currentCursor.getTuple())) {
+            currentTuple = currentCursor.getTuple();
+            resultOfSearchCallBackProceed = searchCallback.proceed(currentTuple);
+
+            if (!resultOfSearchCallBackProceed) {
+                // We assume that the underlying cursors materialize their results such that
+                // there is no need to reposition the result cursor after reconciliation.
+                searchCallback.reconcile(currentTuple);
+            }
+
+            if (!isDeleted(currentTuple)) {
                 tupleConsumed = false;
                 return true;
+            } else if (!resultOfSearchCallBackProceed) {
+                // reconcile & tuple deleted case: needs to cancel the effect of reconcile().
+                searchCallback.cancel(currentTuple);
             }
         }
         return false;
     }
 
     @Override
-    public boolean hasNext() throws HyracksDataException, IndexException {
+    public boolean hasNext() throws HyracksDataException {
         if (!tupleConsumed) {
             return true;
         }
@@ -132,25 +148,19 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
             if (nextValidTuple()) {
                 return true;
             }
-            currentCursor.close();
+            currentCursor.destroy();
             accessorIndex++;
         }
         while (accessorIndex < indexAccessors.size()) {
             // Current cursor has been exhausted, switch to next accessor/cursor.
             currentAccessor = indexAccessors.get(accessorIndex);
             currentCursor = currentAccessor.createSearchCursor(false);
-            try {
-                currentAccessor.search(currentCursor, searchPred);
-            } catch (OccurrenceThresholdPanicException e) {
-                throw e;
-            } catch (IndexException e) {
-                throw new HyracksDataException(e);
-            }
+            currentAccessor.search(currentCursor, searchPred);
             if (nextValidTuple()) {
                 return true;
             }
             // Close as we go to release resources.
-            currentCursor.close();
+            currentCursor.destroy();
             accessorIndex++;
         }
         return false;
@@ -160,23 +170,18 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
     public void next() throws HyracksDataException {
         // Mark the tuple as consumed, so hasNext() can move on.
         tupleConsumed = true;
-        // We assume that the underlying cursors materialize their results such that
-        // there is no need to reposition the result cursor after reconciliation.
-        if (!searchCallback.proceed(currentCursor.getTuple())) {
-            searchCallback.reconcile(currentCursor.getTuple());
-        }
+    }
+
+    @Override
+    public void destroy() throws HyracksDataException {
+        close();
     }
 
     @Override
     public void close() throws HyracksDataException {
-        reset();
-    }
-
-    @Override
-    public void reset() throws HyracksDataException {
         try {
             if (currentCursor != null) {
-                currentCursor.close();
+                currentCursor.destroy();
                 currentCursor = null;
             }
             accessorIndex = 0;
@@ -190,5 +195,24 @@ public class LSMInvertedIndexSearchCursor implements IIndexCursor {
     @Override
     public ITupleReference getTuple() {
         return currentCursor.getTuple();
+    }
+
+    @Override
+    public ITupleReference getFilterMinTuple() {
+        ILSMComponentFilter filter = getComponentFilter();
+        return filter == null ? null : filter.getMinTuple();
+    }
+
+    @Override
+    public ITupleReference getFilterMaxTuple() {
+        ILSMComponentFilter filter = getComponentFilter();
+        return filter == null ? null : filter.getMaxTuple();
+    }
+
+    private ILSMComponentFilter getComponentFilter() {
+        if (accessorIndex < 0) {
+            return null;
+        }
+        return operationalComponents.get(accessorIndex).getLSMComponentFilter();
     }
 }

@@ -25,18 +25,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ConcurrentFramePool {
     private static final boolean DEBUG = false;
-    private static final String ERROR_INVALID_FRAME_SIZE = "The size should be an integral "
-            + "multiple of the default frame size";
-    private static final String ERROR_LARGER_THAN_BUDGET_REQUEST = "The requested frame size"
-            + " must not be greater than the allocated budget";
-    private static final Logger LOGGER = Logger.getLogger(ConcurrentFramePool.class.getName());
+    private static final String ERROR_INVALID_FRAME_SIZE =
+            "The size should be an integral " + "multiple of the default frame size";
+    private static final String ERROR_LARGER_THAN_BUDGET_REQUEST =
+            "The requested frame size" + " must not be greater than the allocated budget";
+    private static final Logger LOGGER = LogManager.getLogger();
     private final String nodeId;
     private final int budget;
     private final int defaultFrameSize;
@@ -233,8 +234,8 @@ public class ConcurrentFramePool {
                 try {
                     frameAction.call(freeBuffer);
                 } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE,
-                            "Error while attempting to answer a subscription. Buffer will be reclaimed", e);
+                    LOGGER.log(Level.ERROR, "Error while attempting to answer a subscription. Buffer will be reclaimed",
+                            e);
                     // TODO(amoudi): Add test cases and get rid of recursion
                     if (handedOut == handedOutBeforeCall) {
                         release(freeBuffer);

@@ -57,10 +57,10 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
 
     protected final ArrayBackedValueStorage resultStorage = new ArrayBackedValueStorage();
     protected final DataOutput out = resultStorage.getDataOutput();
-    protected final TaggedValuePointable argLeft = (TaggedValuePointable) TaggedValuePointable.FACTORY
-            .createPointable();
-    protected final TaggedValuePointable argRight = (TaggedValuePointable) TaggedValuePointable.FACTORY
-            .createPointable();
+    protected final TaggedValuePointable argLeft =
+            (TaggedValuePointable) TaggedValuePointable.FACTORY.createPointable();
+    protected final TaggedValuePointable argRight =
+            (TaggedValuePointable) TaggedValuePointable.FACTORY.createPointable();
     protected TaggedValuePointable[] argOptions;
     protected final IScalarEvaluator evalLeft;
     protected final IScalarEvaluator evalRight;
@@ -216,13 +216,13 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
     void resetQueryArrayAndRight(byte[] arg2Array, ATypeTag typeTag2, IPointable arg2) throws HyracksDataException {
         // If the right side is an (un)ordered list, we need to apply the (un)ordered list tokenizer.
         switch (typeTag2) {
-            case ORDEREDLIST:
+            case ARRAY:
                 tokenizerForRightArray = BinaryTokenizerFactoryProvider.INSTANCE
-                        .getWordTokenizerFactory(ATypeTag.ORDEREDLIST, false, true).createTokenizer();
+                        .getWordTokenizerFactory(ATypeTag.ARRAY, false, true).createTokenizer();
                 break;
-            case UNORDEREDLIST:
+            case MULTISET:
                 tokenizerForRightArray = BinaryTokenizerFactoryProvider.INSTANCE
-                        .getWordTokenizerFactory(ATypeTag.UNORDEREDLIST, false, true).createTokenizer();
+                        .getWordTokenizerFactory(ATypeTag.MULTISET, false, true).createTokenizer();
                 break;
             case STRING:
                 tokenizerForRightArray = BinaryTokenizerFactoryProvider.INSTANCE
@@ -244,7 +244,16 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
         int queryTokenCount = 0;
         int uniqueQueryTokenCount = 0;
 
+        int numBytesToStoreLength;
+
         // Reset the tokenizer for the given keywords in the given query
+        if (typeTag2 == ATypeTag.STRING) {
+            // How many bytes are required to store the length of the given token?
+            numBytesToStoreLength = UTF8StringUtil
+                    .getNumBytesToStoreLength(UTF8StringUtil.getUTFLength(queryArray, queryArrayStartOffset));
+            queryArrayStartOffset = queryArrayStartOffset + numBytesToStoreLength;
+            queryArrayLength = queryArrayLength - numBytesToStoreLength;
+        }
         tokenizerForRightArray.reset(queryArray, queryArrayStartOffset, queryArrayLength);
 
         // Create tokens from the given query predicate
@@ -256,14 +265,13 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
             // We don't store the actual value of this token since we can access it via offset and length.
             int tokenOffset = tokenizerForRightArray.getToken().getStartOffset();
             int tokenLength = tokenizerForRightArray.getToken().getTokenLength();
-            int numBytesToStoreLength;
 
             // If a token comes from a string tokenizer, each token doesn't have the length data
             // in the beginning. Instead, if a token comes from an (un)ordered list, each token has
             // the length data in the beginning. Since KeyEntry keeps the length data
             // as a parameter, we need to adjust token offset and length in this case.
             // e.g., 8database <--- we only need to store the offset of 'd' and length 8.
-            if (typeTag2 == ATypeTag.ORDEREDLIST || typeTag2 == ATypeTag.UNORDEREDLIST) {
+            if (typeTag2 == ATypeTag.ARRAY || typeTag2 == ATypeTag.MULTISET) {
                 // How many bytes are required to store the length of the given token?
                 numBytesToStoreLength = UTF8StringUtil.getNumBytesToStoreLength(
                         UTF8StringUtil.getUTFLength(tokenizerForRightArray.getToken().getData(),
@@ -307,8 +315,8 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
                             "Phrase in Full-text search is not supported. An expression should include only one word.");
                 }
                 break;
-            case ORDEREDLIST:
-            case UNORDEREDLIST:
+            case ARRAY:
+            case MULTISET:
                 for (int j = 0; j < tokenLength; j++) {
                     if (DelimitedUTF8StringBinaryTokenizer.isSeparator((char) refArray[tokenOffset + j])) {
                         throw new HyracksDataException(
@@ -327,6 +335,8 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
      * for that option. (e.g., argOptions[0] = "mode", argOptions[1] = "all")
      */
     private void setFullTextOption(IPointable[] argOptions, int uniqueQueryTokenCount) throws HyracksDataException {
+        // By default, we conduct a conjunctive search.
+        occurrenceThreshold = uniqueQueryTokenCount;
         for (int i = 0; i < optionArgsLength; i = i + 2) {
             // mode option
             if (compareStrInByteArrayAndPointable(FullTextContainsDescriptor.getSearchModeOptionArray(), argOptions[i],
@@ -352,7 +362,14 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
 
         // The left side: field (document)
         // Resets the tokenizer for the given keywords in a document.
-        tokenizerForLeftArray.reset(arg1.getByteArray(), arg1.getStartOffset(), arg1.getLength());
+
+        // How many bytes are required to store the length of the given string?
+        int numBytesToStoreLength = UTF8StringUtil
+                .getNumBytesToStoreLength(UTF8StringUtil.getUTFLength(arg1.getByteArray(), arg1.getStartOffset()));
+        int startOffset = arg1.getStartOffset() + numBytesToStoreLength;
+        int length = arg1.getLength() - numBytesToStoreLength;
+
+        tokenizerForLeftArray.reset(arg1.getByteArray(), startOffset, length);
 
         // Creates tokens from a field in the left side (document)
         while (tokenizerForLeftArray.hasNext()) {
@@ -390,7 +407,7 @@ public class FullTextContainsEvaluator implements IScalarEvaluator {
      * The argument2 should be a string or an (un)ordered list.
      */
     protected boolean checkArgTypes(ATypeTag typeTag1, ATypeTag typeTag2) throws HyracksDataException {
-        if ((typeTag1 != ATypeTag.STRING) || (typeTag2 != ATypeTag.ORDEREDLIST && typeTag2 != ATypeTag.UNORDEREDLIST
+        if ((typeTag1 != ATypeTag.STRING) || (typeTag2 != ATypeTag.ARRAY && typeTag2 != ATypeTag.MULTISET
                 && !ATypeHierarchy.isCompatible(typeTag1, typeTag2))) {
             return false;
         }

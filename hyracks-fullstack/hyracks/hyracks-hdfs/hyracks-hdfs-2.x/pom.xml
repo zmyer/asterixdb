@@ -24,7 +24,7 @@
   <parent>
     <artifactId>hyracks-hdfs</artifactId>
     <groupId>org.apache.hyracks</groupId>
-    <version>0.3.1-SNAPSHOT</version>
+    <version>0.3.3-SNAPSHOT</version>
   </parent>
   <properties>
     <root.dir>${basedir}/../../..</root.dir>
@@ -35,7 +35,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>2.4</version>
         <executions>
           <execution>
             <goals>
@@ -230,10 +229,4 @@
     </dependency>
   </dependencies>
 
-  <repositories>
-    <repository>
-      <id>cloudera</id>
-      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
-    </repository>
-  </repositories>
 </project>

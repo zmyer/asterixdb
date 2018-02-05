@@ -25,9 +25,10 @@ import org.apache.asterix.common.context.IndexInfo;
 import org.apache.asterix.common.context.PrimaryIndexOperationTracker;
 import org.apache.asterix.common.replication.IReplicationStrategy;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IResourceLifecycleManager;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentIdGenerator;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IResourceLifecycleManager;
 
 public interface IDatasetLifecycleManager extends IResourceLifecycleManager<IIndex> {
     /**
@@ -73,19 +74,29 @@ public interface IDatasetLifecycleManager extends IResourceLifecycleManager<IInd
     /**
      * creates (if necessary) and returns the primary index operation tracker of a dataset.
      *
-     * @param datasetID
+     * @param datasetId
+     * @param partition
      * @return
      */
-    PrimaryIndexOperationTracker getOperationTracker(int datasetID);
+    PrimaryIndexOperationTracker getOperationTracker(int datasetId, int partition);
+
+    /**
+     * creates (if necessary) and returns the component Id generator of a dataset.
+     *
+     * @param datasetId
+     * @param partition
+     * @return
+     */
+    ILSMComponentIdGenerator getComponentIdGenerator(int datasetId, int partition);
 
     /**
      * creates (if necessary) and returns the dataset virtual buffer caches.
      *
-     * @param datasetID
+     * @param datasetId
      * @param ioDeviceNum
      * @return
      */
-    List<IVirtualBufferCache> getVirtualBufferCaches(int datasetID, int ioDeviceNum);
+    List<IVirtualBufferCache> getVirtualBufferCaches(int datasetId, int ioDeviceNum);
 
     /**
      * Flushes then closes all open datasets

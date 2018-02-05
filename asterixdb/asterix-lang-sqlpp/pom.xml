@@ -21,7 +21,7 @@
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
   <licenses>
     <license>
@@ -32,6 +32,9 @@
     </license>
   </licenses>
   <artifactId>asterix-lang-sqlpp</artifactId>
+  <properties>
+    <root.dir>${basedir}/..</root.dir>
+  </properties>
   <build>
     <plugins>
       <plugin>
@@ -49,19 +52,11 @@
               <javaUnicodeEscape>true</javaUnicodeEscape>
             </configuration>
           </execution>
-          <execution>
-            <id>javacc-jjdoc</id>
-            <goals>
-              <goal>jjdoc</goal>
-            </goals>
-            <phase>process-sources</phase>
-          </execution>
         </executions>
       </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.9</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -93,7 +88,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>javacc-maven-plugin</artifactId>
-                    <versionRange>[2.6,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>jjdoc</goal>
                       <goal>javacc</goal>
@@ -110,6 +105,36 @@
       </plugins>
     </pluginManagement>
   </build>
+
+  <profiles>
+    <profile>
+      <id>jjdoc</id>
+      <activation>
+        <property>
+          <name>jjdoc.skip</name>
+          <value>!true</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>javacc-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>javacc-jjdoc</id>
+                <goals>
+                  <goal>jjdoc</goal>
+                </goals>
+                <phase>generate-test-sources</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.asterix</groupId>
@@ -124,10 +149,6 @@
       <groupId>org.apache.asterix</groupId>
       <artifactId>asterix-om</artifactId>
       <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.asterix</groupId>
@@ -151,6 +172,10 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
     </dependency>
   </dependencies>
 </project>

@@ -19,140 +19,207 @@
 package org.apache.asterix.external.dataflow;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.asterix.common.exceptions.ExceptionUtils;
-import org.apache.asterix.external.api.IFeedMarker;
+import org.apache.asterix.common.exceptions.ErrorCode;
+import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.external.api.IRawRecord;
 import org.apache.asterix.external.api.IRecordDataParser;
 import org.apache.asterix.external.api.IRecordReader;
 import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.FeedLogManager;
 import org.apache.hyracks.api.comm.IFrameWriter;
-import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.util.HyracksConstants;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
-import org.apache.hyracks.dataflow.common.io.MessagingFrameTupleAppender;
-import org.apache.hyracks.dataflow.common.utils.TaskUtil;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class FeedRecordDataFlowController<T> extends AbstractFeedDataFlowController {
-    private static final Logger LOGGER = Logger.getLogger(FeedRecordDataFlowController.class.getName());
-    protected final IRecordDataParser<T> dataParser;
-    protected final IRecordReader<? extends T> recordReader;
+    public static final String INCOMING_RECORDS_COUNT_FIELD_NAME = "incoming-records-count";
+    public static final String FAILED_AT_PARSER_RECORDS_COUNT_FIELD_NAME = "failed-at-parser-records-count";
+
+    public enum State {
+        CREATED,
+        STARTED,
+        STOPPED
+    }
+
+    private static final Logger LOGGER = LogManager.getLogger();
+    private final IRecordDataParser<T> dataParser;
+    private final IRecordReader<T> recordReader;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     protected static final long INTERVAL = 1000;
-    protected final Object mutex = new Object();
-    protected final boolean sendMarker;
-    protected boolean failed = false;
-    private FeedRecordDataFlowController<T>.DataflowMarker dataflowMarker;
-    private Future<?> dataflowMarkerResult;
+    protected State state = State.CREATED;
+    protected long incomingRecordsCount = 0;
+    protected long failedRecordsCount = 0;
 
     public FeedRecordDataFlowController(IHyracksTaskContext ctx, FeedTupleForwarder tupleForwarder,
             FeedLogManager feedLogManager, int numOfOutputFields, IRecordDataParser<T> dataParser,
-            IRecordReader<T> recordReader, boolean sendMarker) throws HyracksDataException {
+            IRecordReader<T> recordReader) throws HyracksDataException {
         super(ctx, tupleForwarder, feedLogManager, numOfOutputFields);
         this.dataParser = dataParser;
         this.recordReader = recordReader;
-        this.sendMarker = sendMarker;
         recordReader.setFeedLogManager(feedLogManager);
         recordReader.setController(this);
     }
 
     @Override
-    public void start(IFrameWriter writer) throws HyracksDataException {
-        startDataflowMarker();
-        HyracksDataException hde = null;
+    public void start(IFrameWriter writer) throws HyracksDataException, InterruptedException {
+        synchronized (this) {
+            if (state == State.STOPPED) {
+                return;
+            } else {
+                setState(State.STARTED);
+            }
+        }
+        Exception failure = null;
         try {
-            failed = false;
             tupleForwarder.initialize(ctx, writer);
-            while (recordReader.hasNext()) {
-                // synchronized on mutex before we call next() so we don't a marker before its record
-                synchronized (mutex) {
-                    IRawRecord<? extends T> record = recordReader.next();
-                    if (record == null) {
-                        flush();
-                        mutex.wait(INTERVAL);
-                        continue;
-                    }
-                    tb.reset();
-                    parseAndForward(record);
+            while (hasNext()) {
+                IRawRecord<? extends T> record = next();
+                if (record == null) {
+                    flush();
+                    Thread.sleep(INTERVAL); // NOSONAR: No one notifies the sleeping thread
+                    continue;
+                }
+                tb.reset();
+                incomingRecordsCount++;
+                if (!parseAndForward(record)) {
+                    failedRecordsCount++;
                 }
             }
-        } catch (InterruptedException e) {
-            //TODO: Find out what could cause an interrupted exception beside termination of a job/feed
-            LOGGER.warn("Feed has been interrupted. Closing the feed", e);
-            Thread.currentThread().interrupt();
-        } catch (Exception e) {
-            failed = true;
-            tupleForwarder.flush();
-            LOGGER.warn("Failure while operating a feed source", e);
-            throw new HyracksDataException(e);
-        }
-        stopDataflowMarker();
-        try {
-            tupleForwarder.close();
-        } catch (Throwable th) {
-            hde = ExceptionUtils.suppressIntoHyracksDataException(hde, th);
-        }
-        try {
-            recordReader.close();
-        } catch (Throwable th) {
-            LOGGER.warn("Failure during while operating a feed sourcec", th);
-            hde = ExceptionUtils.suppressIntoHyracksDataException(hde, th);
-        } finally {
-            closeSignal();
-            if (sendMarker && dataflowMarkerResult != null) {
-                dataflowMarkerResult.cancel(true);
+        } catch (HyracksDataException e) {
+            LOGGER.log(Level.WARN, "Exception during ingestion", e);
+            //if interrupted while waiting for a new record, then it is safe to not fail forward
+            if (e.getComponent() == ErrorCode.ASTERIX
+                    && (e.getErrorCode() == ErrorCode.FEED_STOPPED_WHILE_WAITING_FOR_A_NEW_RECORD)) {
+                // Do nothing. interrupted by the active manager
+            } else if (e.getComponent() == ErrorCode.ASTERIX
+                    && (e.getErrorCode() == ErrorCode.FEED_FAILED_WHILE_GETTING_A_NEW_RECORD)) {
+                // Failure but we know we can for sure push the previously parsed records safely
+                failure = e;
+                try {
+                    flush();
+                } catch (Exception flushException) {
+                    tupleForwarder.fail();
+                    flushException.addSuppressed(e);
+                    failure = flushException;
+                }
+            } else {
+                failure = e;
+                tupleForwarder.fail();
             }
+        } catch (Exception e) {
+            failure = e;
+            tupleForwarder.fail();
+            LOGGER.log(Level.WARN, "Failure while operating a feed source", e);
+        } finally {
+            failure = finish(failure);
         }
-        if (hde != null) {
-            throw hde;
+        if (failure != null) {
+            if (failure instanceof InterruptedException) {
+                throw (InterruptedException) failure;
+            }
+            throw HyracksDataException.create(failure);
         }
     }
 
-    private void parseAndForward(IRawRecord<? extends T> record) throws IOException {
-        synchronized (dataParser) {
-            try {
-                dataParser.parse(record, tb.getDataOutput());
-            } catch (Exception e) {
-                LOGGER.warn(ExternalDataConstants.ERROR_PARSE_RECORD, e);
-                feedLogManager.logRecord(record.toString(), ExternalDataConstants.ERROR_PARSE_RECORD);
-                // continue the outer loop
-                return;
+    private synchronized void setState(State newState) {
+        LOGGER.log(Level.INFO, "State is being set from " + state + " to " + newState);
+        state = newState;
+    }
+
+    public synchronized State getState() {
+        return state;
+    }
+
+    private IRawRecord<? extends T> next() throws Exception {
+        try {
+            return recordReader.next();
+        } catch (InterruptedException e) { // NOSONAR Gracefully handling interrupt to push records in the pipeline
+            if (flushing) {
+                throw e;
             }
-            tb.addFieldEndOffset();
-            addMetaPart(tb, record);
-            addPrimaryKeys(tb, record);
-            tupleForwarder.addTuple(tb);
+            throw new RuntimeDataException(ErrorCode.FEED_STOPPED_WHILE_WAITING_FOR_A_NEW_RECORD, e);
+        } catch (Exception e) {
+            if (flushing) {
+                throw e;
+            }
+            if (!recordReader.handleException(e)) {
+                throw new RuntimeDataException(ErrorCode.FEED_FAILED_WHILE_GETTING_A_NEW_RECORD, e);
+            }
+            return null;
         }
+    }
+
+    private boolean hasNext() throws Exception {
+        while (true) {
+            try {
+                return recordReader.hasNext();
+            } catch (InterruptedException e) { // NOSONAR Gracefully handling interrupt to push records in the pipeline
+                if (flushing) {
+                    throw e;
+                }
+                throw new RuntimeDataException(ErrorCode.FEED_STOPPED_WHILE_WAITING_FOR_A_NEW_RECORD, e);
+            } catch (Exception e) {
+                if (flushing) {
+                    throw e;
+                }
+                if (!recordReader.handleException(e)) {
+                    throw new RuntimeDataException(ErrorCode.FEED_FAILED_WHILE_GETTING_A_NEW_RECORD, e);
+                }
+            }
+        }
+    }
+
+    private Exception finish(Exception failure) {
+        HyracksDataException hde = null;
+        try {
+            recordReader.close();
+        } catch (Exception th) {
+            LOGGER.log(Level.WARN, "Failure during while operating a feed source", th);
+            hde = HyracksDataException.suppress(hde, th);
+        }
+        try {
+            tupleForwarder.close();
+        } catch (Exception th) {
+            hde = HyracksDataException.suppress(hde, th);
+        } finally {
+            closeSignal();
+        }
+        setState(State.STOPPED);
+        if (hde != null) {
+            if (failure != null) {
+                failure.addSuppressed(hde);
+            } else {
+                return hde;
+            }
+        }
+        return failure;
+    }
+
+    private boolean parseAndForward(IRawRecord<? extends T> record) throws IOException {
+        try {
+            dataParser.parse(record, tb.getDataOutput());
+        } catch (Exception e) {
+            LOGGER.log(Level.WARN, ExternalDataConstants.ERROR_PARSE_RECORD, e);
+            feedLogManager.logRecord(record.toString(), ExternalDataConstants.ERROR_PARSE_RECORD);
+            // continue the outer loop
+            return false;
+        }
+        tb.addFieldEndOffset();
+        addMetaPart(tb, record);
+        addPrimaryKeys(tb, record);
+        tupleForwarder.addTuple(tb);
+        return true;
     }
 
     protected void addMetaPart(ArrayTupleBuilder tb, IRawRecord<? extends T> record) throws IOException {
     }
 
     protected void addPrimaryKeys(ArrayTupleBuilder tb, IRawRecord<? extends T> record) throws IOException {
-    }
-
-    private void startDataflowMarker() {
-        ExecutorService executorService = sendMarker ? Executors.newSingleThreadExecutor() : null;
-        if (sendMarker && dataflowMarker == null) {
-            dataflowMarker = new DataflowMarker(recordReader.getProgressReporter(),
-                    TaskUtil.<VSizeFrame> get(HyracksConstants.KEY_MESSAGE, ctx));
-            dataflowMarkerResult = executorService.submit(dataflowMarker);
-        }
-    }
-
-    private void stopDataflowMarker() {
-        if (dataflowMarker != null) {
-            dataflowMarker.stop();
-        }
     }
 
     private void closeSignal() {
@@ -162,98 +229,60 @@ public class FeedRecordDataFlowController<T> extends AbstractFeedDataFlowControl
         }
     }
 
-    private void waitForSignal() throws InterruptedException {
+    private void waitForSignal(long timeout) throws InterruptedException, HyracksDataException {
+        if (timeout <= 0) {
+            throw new IllegalArgumentException("timeout must be greater than 0");
+        }
         synchronized (closed) {
             while (!closed.get()) {
-                closed.wait();
+                long before = System.currentTimeMillis();
+                closed.wait(timeout);
+                timeout -= System.currentTimeMillis() - before;
+                if (!closed.get() && timeout <= 0) {
+                    throw HyracksDataException.create(org.apache.hyracks.api.exceptions.ErrorCode.TIMEOUT);
+                }
             }
         }
     }
 
     @Override
-    public boolean stop() throws HyracksDataException {
-        stopDataflowMarker();
-        HyracksDataException hde = null;
+    public boolean stop(long timeout) throws HyracksDataException {
+        synchronized (this) {
+            switch (state) {
+                case CREATED:
+                case STOPPED:
+                    setState(State.STOPPED);
+                    return true;
+                case STARTED:
+                    break;
+                default:
+                    throw new HyracksDataException("unknown state " + state);
+
+            }
+        }
         if (recordReader.stop()) {
-            if (failed) {
-                // failed, close here
-                try {
-                    tupleForwarder.close();
-                } catch (Throwable th) {
-                    hde = ExceptionUtils.suppressIntoHyracksDataException(hde, th);
-                }
-                try {
-                    recordReader.close();
-                } catch (Throwable th) {
-                    hde = ExceptionUtils.suppressIntoHyracksDataException(hde, th);
-                }
-                if (hde != null) {
-                    throw hde;
-                }
-            } else {
-                try {
-                    waitForSignal();
-                } catch (InterruptedException e) {
-                    throw new HyracksDataException(e);
-                }
+            try {
+                waitForSignal(timeout);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw HyracksDataException.create(e);
             }
             return true;
         }
         return false;
     }
 
-    @Override
-    public boolean handleException(Throwable th) {
-        // This is not a parser record. most likely, this error happened in the record reader.
-        return recordReader.handleException(th);
+    public IRecordReader<T> getReader() {
+        return recordReader;
     }
 
-    private class DataflowMarker implements Runnable {
-        private final IFeedMarker marker;
-        private final VSizeFrame mark;
-        private volatile boolean stopped = false;
+    public IRecordDataParser<T> getParser() {
+        return dataParser;
+    }
 
-        public DataflowMarker(IFeedMarker marker, VSizeFrame mark) {
-            this.marker = marker;
-            this.mark = mark;
-        }
-
-        public synchronized void stop() {
-            stopped = true;
-            notify();
-        }
-
-        @Override
-        public void run() {
-            try {
-                while (true) {
-                    synchronized (this) {
-                        if (!stopped) {
-                            // TODO (amoudi): find a better reactive way to do this
-                            // sleep for two seconds
-                            wait(TimeUnit.SECONDS.toMillis(2));
-                        } else {
-                            break;
-                        }
-                    }
-                    synchronized (mutex) {
-                        if (marker.mark(mark)) {
-                            // broadcast
-                            tupleForwarder.flush();
-                            // clear
-                            mark.getBuffer().clear();
-                            mark.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
-                            mark.getBuffer().flip();
-                        }
-                    }
-                }
-            } catch (InterruptedException e) {
-                LOGGER.warn("Marker stopped", e);
-                Thread.currentThread().interrupt();
-                return;
-            } catch (Exception e) {
-                LOGGER.warn("Marker stopped", e);
-            }
-        }
+    @Override
+    public String getStats() {
+        return "{\"" + INCOMING_RECORDS_COUNT_FIELD_NAME + "\": " + incomingRecordsCount + ", \""
+                + FAILED_AT_PARSER_RECORDS_COUNT_FIELD_NAME + "\": " + failedRecordsCount + "}";
     }
 }

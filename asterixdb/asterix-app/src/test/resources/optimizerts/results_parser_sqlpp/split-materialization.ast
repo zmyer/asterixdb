@@ -26,14 +26,14 @@ Let Variable [ Name=$lonelyusers ]
     SELECT ELEMENT [
     Variable [ Name=$d ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [FacebookUsers]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [TinySocial.FacebookUsers]
       ]
       AS Variable [ Name=$d ]
     ]
     Where
       OperatorExpr [
-        FunctionCall TinySocial.count@1[
+        FunctionCall asterix.count@1[
           FieldAccessor [
             Variable [ Name=$d ]
             Field=friend-ids
@@ -49,14 +49,14 @@ Let Variable [ Name=$lonelyusers2 ]
     SELECT ELEMENT [
     Variable [ Name=$d ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [FacebookUsers]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [TinySocial.FacebookUsers]
       ]
       AS Variable [ Name=$d ]
     ]
     Where
       OperatorExpr [
-        FunctionCall TinySocial.count@1[
+        FunctionCall asterix.count@1[
           FieldAccessor [
             Variable [ Name=$d ]
             Field=friend-ids

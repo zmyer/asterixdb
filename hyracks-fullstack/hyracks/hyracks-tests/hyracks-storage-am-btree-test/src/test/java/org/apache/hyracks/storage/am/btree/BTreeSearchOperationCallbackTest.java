@@ -36,12 +36,11 @@ public class BTreeSearchOperationCallbackTest extends AbstractSearchOperationCal
     @Override
     protected void createIndexInstance() throws Exception {
         ITreeIndexMetadataFrameFactory metaFrameFactory = new LIFOMetaDataFrameFactory();
-        LinkedMetaDataPageManager freePageManager = new LinkedMetaDataPageManager(harness.getBufferCache(),
-                metaFrameFactory);
-        index = BTreeUtils.createBTree(harness.getBufferCache(), harness.getFileMapProvider(),
-                SerdeUtils.serdesToTypeTraits(keySerdes),
+        LinkedMetaDataPageManager freePageManager =
+                new LinkedMetaDataPageManager(harness.getBufferCache(), metaFrameFactory);
+        index = BTreeUtils.createBTree(harness.getBufferCache(), SerdeUtils.serdesToTypeTraits(keySerdes),
                 SerdeUtils.serdesToComparatorFactories(keySerdes, keySerdes.length), BTreeLeafFrameType.REGULAR_NSM,
-                harness.getFileReference(), freePageManager);
+                harness.getFileReference(), freePageManager, false);
     }
 
     @Override

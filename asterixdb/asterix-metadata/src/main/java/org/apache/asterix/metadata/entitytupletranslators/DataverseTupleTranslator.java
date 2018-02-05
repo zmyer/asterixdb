@@ -22,11 +22,9 @@ package org.apache.asterix.metadata.entitytupletranslators;
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.Calendar;
 
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.Dataverse;
@@ -35,7 +33,9 @@ import org.apache.asterix.om.base.AMutableInt32;
 import org.apache.asterix.om.base.ARecord;
 import org.apache.asterix.om.base.AString;
 import org.apache.asterix.om.types.BuiltinType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 
 /**
@@ -52,8 +52,8 @@ public class DataverseTupleTranslator extends AbstractTupleTranslator<Dataverse>
     protected ISerializerDeserializer<AInt32> aInt32Serde;
 
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<ARecord> recordSerDes = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(MetadataRecordTypes.DATAVERSE_RECORDTYPE);
+    private ISerializerDeserializer<ARecord> recordSerDes =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(MetadataRecordTypes.DATAVERSE_RECORDTYPE);
 
     @SuppressWarnings("unchecked")
     protected DataverseTupleTranslator(boolean getTuple) {
@@ -63,7 +63,7 @@ public class DataverseTupleTranslator extends AbstractTupleTranslator<Dataverse>
     }
 
     @Override
-    public Dataverse getMetadataEntityFromTuple(ITupleReference frameTuple) throws IOException {
+    public Dataverse getMetadataEntityFromTuple(ITupleReference frameTuple) throws HyracksDataException {
         byte[] serRecord = frameTuple.getFieldData(DATAVERSE_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordStartOffset = frameTuple.getFieldStart(DATAVERSE_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordLength = frameTuple.getFieldLength(DATAVERSE_PAYLOAD_TUPLE_FIELD_INDEX);
@@ -76,7 +76,8 @@ public class DataverseTupleTranslator extends AbstractTupleTranslator<Dataverse>
     }
 
     @Override
-    public ITupleReference getTupleFromMetadataEntity(Dataverse instance) throws IOException, MetadataException {
+    public ITupleReference getTupleFromMetadataEntity(Dataverse instance)
+            throws HyracksDataException, AlgebricksException {
         // write the key in the first field of the tuple
         tupleBuilder.reset();
         aString.setValue(instance.getDataverseName());

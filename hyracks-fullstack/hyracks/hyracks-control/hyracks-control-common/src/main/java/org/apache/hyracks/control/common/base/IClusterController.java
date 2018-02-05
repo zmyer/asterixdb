@@ -21,9 +21,11 @@ package org.apache.hyracks.control.common.base;
 import java.util.List;
 
 import org.apache.hyracks.api.comm.NetworkAddress;
+import org.apache.hyracks.api.control.CcId;
 import org.apache.hyracks.api.dataflow.TaskAttemptId;
 import org.apache.hyracks.api.dataset.ResultSetId;
 import org.apache.hyracks.api.deployment.DeploymentId;
+import org.apache.hyracks.api.job.DeployedJobSpecId;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.control.common.controllers.NodeRegistration;
 import org.apache.hyracks.control.common.deployment.DeploymentStatus;
@@ -34,44 +36,43 @@ import org.apache.hyracks.control.common.job.profiling.om.JobProfile;
 import org.apache.hyracks.control.common.job.profiling.om.TaskProfile;
 
 public interface IClusterController {
-    public void registerNode(NodeRegistration reg) throws Exception;
+    void registerNode(NodeRegistration reg) throws Exception;
 
-    public void unregisterNode(String nodeId) throws Exception;
+    void unregisterNode(String nodeId) throws Exception;
 
-    public void notifyTaskComplete(JobId jobId, TaskAttemptId taskId, String nodeId, TaskProfile statistics)
+    void notifyTaskComplete(JobId jobId, TaskAttemptId taskId, String nodeId, TaskProfile statistics) throws Exception;
+
+    void notifyTaskFailure(JobId jobId, TaskAttemptId taskId, String nodeId, List<Exception> exceptions)
             throws Exception;
 
-    public void notifyTaskFailure(JobId jobId, TaskAttemptId taskId, String nodeId, List<Exception> exceptions)
-            throws Exception;
+    void notifyDeployedJobSpecFailure(DeployedJobSpecId deployedJobSpecId, String nodeId) throws Exception;
 
-    public void notifyDistributedJobFailure(JobId jobId, String nodeId) throws Exception;
+    void notifyJobletCleanup(JobId jobId, String nodeId) throws Exception;
 
-    public void notifyJobletCleanup(JobId jobId, String nodeId) throws Exception;
+    void notifyDeployBinary(DeploymentId deploymentId, String nodeId, DeploymentStatus status) throws Exception;
 
-    public void notifyDeployBinary(DeploymentId deploymentId, String nodeId, DeploymentStatus status) throws Exception;
+    void notifyStateDump(String nodeId, String stateDumpId, String state) throws Exception;
 
-    public void notifyStateDump(String nodeId, String stateDumpId, String state) throws Exception;
+    void notifyShutdown(String nodeId) throws Exception;
 
-    public void notifyShutdown(String nodeId) throws Exception;
+    void nodeHeartbeat(String id, HeartbeatData hbData) throws Exception;
 
-    public void nodeHeartbeat(String id, HeartbeatData hbData) throws Exception;
+    void reportProfile(String id, List<JobProfile> profiles) throws Exception;
 
-    public void reportProfile(String id, List<JobProfile> profiles) throws Exception;
+    void registerPartitionProvider(PartitionDescriptor partitionDescriptor) throws Exception;
 
-    public void registerPartitionProvider(PartitionDescriptor partitionDescriptor) throws Exception;
+    void registerPartitionRequest(PartitionRequest partitionRequest) throws Exception;
 
-    public void registerPartitionRequest(PartitionRequest partitionRequest) throws Exception;
+    void sendApplicationMessageToCC(byte[] data, DeploymentId deploymentId, String nodeId) throws Exception;
 
-    public void sendApplicationMessageToCC(byte[] data, DeploymentId deploymentId, String nodeId) throws Exception;
+    void registerResultPartitionLocation(JobId jobId, ResultSetId rsId, boolean orderedResult, boolean emptyResult,
+            int partition, int nPartitions, NetworkAddress networkAddress) throws Exception;
 
-    public void registerResultPartitionLocation(JobId jobId, ResultSetId rsId, boolean orderedResult,
-            boolean emptyResult, int partition, int nPartitions, NetworkAddress networkAddress) throws Exception;
+    void reportResultPartitionWriteCompletion(JobId jobId, ResultSetId rsId, int partition) throws Exception;
 
-    public void reportResultPartitionWriteCompletion(JobId jobId, ResultSetId rsId, int partition) throws Exception;
+    void getNodeControllerInfos() throws Exception;
 
-    public void reportResultPartitionFailure(JobId jobId, ResultSetId rsId, int partition) throws Exception;
+    void notifyThreadDump(String nodeId, String requestId, String threadDumpJSON) throws Exception;
 
-    public void getNodeControllerInfos() throws Exception;
-
-    public void notifyThreadDump(String nodeId, String requestId, String threadDumpJSON) throws Exception;
+    CcId getCcId();
 }

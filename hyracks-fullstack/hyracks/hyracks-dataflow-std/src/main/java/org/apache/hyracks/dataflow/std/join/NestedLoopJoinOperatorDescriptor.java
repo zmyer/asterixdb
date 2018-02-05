@@ -68,7 +68,7 @@ public class NestedLoopJoinOperatorDescriptor extends AbstractOperatorDescriptor
             IMissingWriterFactory[] nullWriterFactories1) {
         super(spec, 2, 1);
         this.comparatorFactory = comparatorFactory;
-        this.recordDescriptors[0] = recordDescriptor;
+        this.outRecDescs[0] = recordDescriptor;
         this.memSize = memSize;
         this.predEvaluatorFactory = predEvalFactory;
         this.isLeftOuter = isLeftOuter;
@@ -117,8 +117,8 @@ public class NestedLoopJoinOperatorDescriptor extends AbstractOperatorDescriptor
             final RecordDescriptor rd0 = recordDescProvider.getInputRecordDescriptor(nljAid, 0);
             final RecordDescriptor rd1 = recordDescProvider.getInputRecordDescriptor(getActivityId(), 0);
             final ITuplePairComparator comparator = comparatorFactory.createTuplePairComparator(ctx);
-            final IPredicateEvaluator predEvaluator = (predEvaluatorFactory != null)
-                    ? predEvaluatorFactory.createPredicateEvaluator() : null;
+            final IPredicateEvaluator predEvaluator =
+                    (predEvaluatorFactory != null) ? predEvaluatorFactory.createPredicateEvaluator() : null;
 
             final IMissingWriter[] nullWriters1 = isLeftOuter ? new IMissingWriter[nullWriterFactories1.length] : null;
             if (isLeftOuter) {

@@ -84,14 +84,14 @@ public abstract class AbstractAvgAggregateFunction implements IAggregateEvaluato
     private ClosedRecordConstructorEval recordEval;
 
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<ADouble> doubleSerde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.ADOUBLE);
+    private ISerializerDeserializer<ADouble> doubleSerde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ADOUBLE);
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<AInt64> longSerde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.AINT64);
+    private ISerializerDeserializer<AInt64> longSerde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.AINT64);
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<ANull> nullSerde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.ANULL);
+    private ISerializerDeserializer<ANull> nullSerde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ANULL);
 
     public AbstractAvgAggregateFunction(IScalarEvaluatorFactory[] args, IHyracksTaskContext context)
             throws HyracksDataException {
@@ -140,22 +140,22 @@ public abstract class AbstractAvgAggregateFunction implements IAggregateEvaluato
         }
         ++count;
         switch (typeTag) {
-            case INT8: {
+            case TINYINT: {
                 byte val = AInt8SerializerDeserializer.getByte(data, offset + 1);
                 sum += val;
                 break;
             }
-            case INT16: {
+            case SMALLINT: {
                 short val = AInt16SerializerDeserializer.getShort(data, offset + 1);
                 sum += val;
                 break;
             }
-            case INT32: {
+            case INTEGER: {
                 int val = AInt32SerializerDeserializer.getInt(data, offset + 1);
                 sum += val;
                 break;
             }
-            case INT64: {
+            case BIGINT: {
                 long val = AInt64SerializerDeserializer.getLong(data, offset + 1);
                 sum += val;
                 break;
@@ -182,7 +182,7 @@ public abstract class AbstractAvgAggregateFunction implements IAggregateEvaluato
             // Double check that count 0 is accounted
             if (aggType == ATypeTag.SYSTEM_NULL) {
                 if (GlobalConfig.DEBUG) {
-                    GlobalConfig.ASTERIX_LOGGER.finest("AVG aggregate ran over empty input.");
+                    GlobalConfig.ASTERIX_LOGGER.trace("AVG aggregate ran over empty input.");
                 }
                 resultStorage.getDataOutput().writeByte(ATypeTag.SERIALIZED_SYSTEM_NULL_TYPE_TAG);
                 result.set(resultStorage);
@@ -221,7 +221,7 @@ public abstract class AbstractAvgAggregateFunction implements IAggregateEvaluato
                 // Ignore and return.
                 break;
             }
-            case RECORD: {
+            case OBJECT: {
                 // Expected.
                 aggType = ATypeTag.DOUBLE;
                 int nullBitmapSize = 0;

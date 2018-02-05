@@ -23,46 +23,35 @@ import java.util.List;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
+import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
-import org.apache.hyracks.storage.am.common.api.IIndex;
 import org.apache.hyracks.storage.am.common.api.IIndexDataflowHelper;
-import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
-import org.apache.hyracks.storage.am.common.util.IndexFileNameUtil;
 import org.apache.hyracks.storage.am.lsm.common.api.ITwoPCIndex;
-import org.apache.log4j.Logger;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExternalDatasetIndexesCommitOperatorDescriptor extends AbstractExternalDatasetIndexesOperatorDescriptor {
     private static final long serialVersionUID = 1L;
-    private static final Logger LOGGER =
-            Logger.getLogger(ExternalDatasetIndexesCommitOperatorDescriptor.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public ExternalDatasetIndexesCommitOperatorDescriptor(IOperatorDescriptorRegistry spec,
-            IIndexDataflowHelperFactory filesIndexDataflowHelperFactory, IndexInfoOperatorDescriptor fileIndexesInfo,
-            List<IIndexDataflowHelperFactory> indexesDataflowHelperFactories,
-            List<IndexInfoOperatorDescriptor> indexesInfos) {
-        super(spec, filesIndexDataflowHelperFactory, fileIndexesInfo, indexesDataflowHelperFactories,
-                indexesInfos);
+            List<IIndexDataflowHelperFactory> indexesDataflowHelperFactories) {
+        super(spec, indexesDataflowHelperFactories);
     }
 
     @Override
-    protected void performOpOnIndex(IIndexDataflowHelperFactory indexDataflowHelperFactory, IHyracksTaskContext ctx,
-            IndexInfoOperatorDescriptor fileIndexInfo, int partition) {
-        try {
-            FileReference resourecePath =
-                    IndexFileNameUtil.getIndexAbsoluteFileRef(fileIndexInfo, partition, ctx.getIOManager());
-            LOGGER.warn("performing the operation on " + resourecePath.getFile().getAbsolutePath());
-            // Get DataflowHelper
-            IIndexDataflowHelper indexHelper =
-                    indexDataflowHelperFactory.createIndexDataflowHelper(fileIndexInfo, ctx, partition);
-            // Get index
-            IIndex index = indexHelper.getIndexInstance();
-            // commit transaction
-            ((ITwoPCIndex) index).commitTransaction();
-            LOGGER.warn("operation on " + resourecePath.getFile().getAbsolutePath() + " Succeded");
-        } catch (HyracksDataException | IndexException e) {
-            throw new IllegalStateException(e);
-        }
+    protected void performOpOnIndex(IIndexDataflowHelper indexHelper, IHyracksTaskContext ctx)
+            throws HyracksDataException {
+        String path = indexHelper.getResource().getPath();
+        IIOManager ioManager = ctx.getIoManager();
+        FileReference file = ioManager.resolve(path);
+        LOGGER.warn("performing the operation on " + file.getFile().getAbsolutePath());
+        // Get index
+        IIndex index = indexHelper.getIndexInstance();
+        // commit transaction
+        ((ITwoPCIndex) index).commitTransaction();
+        LOGGER.warn("operation on " + file.getFile().getAbsolutePath() + " Succeded");
     }
-
 }

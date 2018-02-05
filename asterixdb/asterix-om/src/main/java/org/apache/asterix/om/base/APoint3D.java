@@ -18,13 +18,11 @@
  */
 package org.apache.asterix.om.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class APoint3D implements IAObject {
 
@@ -51,11 +49,6 @@ public class APoint3D implements IAObject {
     }
 
     @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitAPoint3D(this);
-    }
-
-    @Override
     public IAType getType() {
         return BuiltinType.APOINT3D;
     }
@@ -77,11 +70,11 @@ public class APoint3D implements IAObject {
 
     @Override
     public String toString() {
-        return "APoint3D: { x: " + x + ", y: " + y + ", z: " + z + " }";
+        return "point3d: { x: " + x + ", y: " + y + ", z: " + z + " }";
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

@@ -35,6 +35,11 @@ import org.apache.hyracks.api.io.IWorkspaceFileFactory;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.partitions.ResultSetPartitionId;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.util.MinimalPrettyPrinter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 public class ResultState implements IStateObject {
     private static final String FILE_PREFIX = "result_";
 
@@ -63,17 +68,22 @@ public class ResultState implements IStateObject {
     private long size;
 
     private long persistentSize;
+    private long remainingReads;
 
     ResultState(ResultSetPartitionId resultSetPartitionId, boolean asyncMode, IIOManager ioManager,
-            IWorkspaceFileFactory fileFactory, int frameSize) {
+            IWorkspaceFileFactory fileFactory, int frameSize, long maxReads) {
+        if (maxReads <= 0) {
+            throw new IllegalArgumentException("maxReads must be > 0");
+        }
         this.resultSetPartitionId = resultSetPartitionId;
         this.asyncMode = asyncMode;
         this.ioManager = ioManager;
         this.fileFactory = fileFactory;
         this.frameSize = frameSize;
+        remainingReads = maxReads;
         eos = new AtomicBoolean(false);
         failed = new AtomicBoolean(false);
-        localPageList = new ArrayList<Page>();
+        localPageList = new ArrayList<>();
 
         fileRef = null;
         writeFileHandle = null;
@@ -97,6 +107,7 @@ public class ResultState implements IStateObject {
         closeWriteFileHandle();
         if (fileRef != null) {
             fileRef.delete();
+            fileRef = null;
         }
     }
 
@@ -107,6 +118,7 @@ public class ResultState implements IStateObject {
             } catch (IOException e) {
                 // Since file handle could not be closed, just ignore.
             }
+            writeFileHandle = null;
         }
     }
 
@@ -115,7 +127,7 @@ public class ResultState implements IStateObject {
             String fName = FILE_PREFIX + String.valueOf(resultSetPartitionId.getPartition());
             fileRef = fileFactory.createUnmanagedWorkspaceFile(fName);
             writeFileHandle = ioManager.open(fileRef, IIOManager.FileReadWriteMode.READ_WRITE,
-                    IIOManager.FileSyncMode.METADATA_ASYNC_DATA_ASYNC);
+                    IIOManager.FileSyncMode.METADATA_ASYNC_DATA_SYNC);
         }
 
         size += ioManager.syncWrite(writeFileHandle, size, buffer);
@@ -146,12 +158,16 @@ public class ResultState implements IStateObject {
     }
 
     public synchronized void readOpen() {
-        // It is a noOp for now, leaving here to keep the API stable for future usage.
+        if (isExhausted()) {
+            throw new IllegalStateException("Result reads exhausted");
+        }
+        remainingReads--;
     }
 
     public synchronized void readClose() throws HyracksDataException {
         if (readFileHandle != null) {
             ioManager.close(readFileHandle);
+            readFileHandle = null;
         }
     }
 
@@ -198,7 +214,7 @@ public class ResultState implements IStateObject {
                     initReadFileHandle();
                 }
                 readSize = ioManager.syncRead(readFileHandle, offset, buffer);
-                if (readSize < 0){
+                if (readSize < 0) {
                     throw new HyracksDataException("Premature end of file");
                 }
             }
@@ -323,5 +339,26 @@ public class ResultState implements IStateObject {
 
         readFileHandle = ioManager.open(fileRef, IIOManager.FileReadWriteMode.READ_ONLY,
                 IIOManager.FileSyncMode.METADATA_ASYNC_DATA_ASYNC);
+    }
+
+    @Override
+    public String toString() {
+        try {
+            ObjectMapper om = new ObjectMapper();
+            ObjectNode on = om.createObjectNode();
+            on.put("rspid", resultSetPartitionId.toString());
+            on.put("async", asyncMode);
+            on.put("remainingReads", remainingReads);
+            on.put("eos", eos.get());
+            on.put("failed", failed.get());
+            on.put("fileRef", String.valueOf(fileRef));
+            return om.writer(new MinimalPrettyPrinter()).writeValueAsString(on);
+        } catch (JsonProcessingException e) { // NOSONAR
+            return e.getMessage();
+        }
+    }
+
+    public synchronized boolean isExhausted() {
+        return remainingReads == 0;
     }
 }

@@ -19,8 +19,6 @@
 package org.apache.hyracks.control.nc.dataset;
 
 import java.nio.ByteBuffer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
@@ -31,9 +29,11 @@ import org.apache.hyracks.api.exceptions.HyracksException;
 import org.apache.hyracks.api.io.IWorkspaceFileFactory;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.partitions.ResultSetPartitionId;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class DatasetPartitionWriter implements IFrameWriter {
-    private static final Logger LOGGER = Logger.getLogger(DatasetPartitionWriter.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final IDatasetPartitionManager manager;
 
@@ -59,7 +59,7 @@ public class DatasetPartitionWriter implements IFrameWriter {
 
     public DatasetPartitionWriter(IHyracksTaskContext ctx, IDatasetPartitionManager manager, JobId jobId,
             ResultSetId rsId, boolean asyncMode, boolean orderedResult, int partition, int nPartitions,
-            DatasetMemoryManager datasetMemoryManager, IWorkspaceFileFactory fileFactory) {
+            DatasetMemoryManager datasetMemoryManager, IWorkspaceFileFactory fileFactory, long maxReads) {
         this.manager = manager;
         this.jobId = jobId;
         this.resultSetId = rsId;
@@ -69,8 +69,8 @@ public class DatasetPartitionWriter implements IFrameWriter {
         this.datasetMemoryManager = datasetMemoryManager;
 
         resultSetPartitionId = new ResultSetPartitionId(jobId, rsId, partition);
-        resultState = new ResultState(resultSetPartitionId, asyncMode, ctx.getIOManager(), fileFactory,
-                ctx.getInitialFrameSize());
+        resultState = new ResultState(resultSetPartitionId, asyncMode, ctx.getIoManager(), fileFactory,
+                ctx.getInitialFrameSize(), maxReads);
     }
 
     public ResultState getResultState() {
@@ -79,7 +79,7 @@ public class DatasetPartitionWriter implements IFrameWriter {
 
     @Override
     public void open() {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("open(" + partition + ")");
         }
         partitionRegistered = false;
@@ -98,20 +98,14 @@ public class DatasetPartitionWriter implements IFrameWriter {
 
     @Override
     public void fail() throws HyracksDataException {
-        try {
-            failed = true;
-            resultState.closeAndDelete();
-            resultState.abort();
-            registerResultPartitionLocation(false);
-            manager.reportPartitionFailure(jobId, resultSetId, partition);
-        } catch (HyracksException e) {
-            throw new HyracksDataException(e);
-        }
+        failed = true;
+        resultState.closeAndDelete();
+        resultState.abort();
     }
 
     @Override
     public void close() throws HyracksDataException {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("close(" + partition + ")");
         }
         try {
@@ -122,9 +116,11 @@ public class DatasetPartitionWriter implements IFrameWriter {
             resultState.close();
         }
         try {
-            manager.reportPartitionWriteCompletion(jobId, resultSetId, partition);
+            if (partitionRegistered) {
+                manager.reportPartitionWriteCompletion(jobId, resultSetId, partition);
+            }
         } catch (HyracksException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 

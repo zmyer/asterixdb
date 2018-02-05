@@ -31,7 +31,6 @@ import org.apache.asterix.metadata.entities.InternalDatasetDetails;
 import org.apache.asterix.metadata.utils.KeyFieldTypeUtil;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.runtime.formats.NonTaggedDataFormat;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
@@ -49,8 +48,7 @@ public class DatasetDataSource extends DataSource {
     private Dataset dataset;
 
     public DatasetDataSource(DataSourceId id, Dataset dataset, IAType itemType, IAType metaItemType,
-            byte datasourceType, IDatasetDetails datasetDetails, INodeDomain datasetDomain)
-            throws AlgebricksException {
+            byte datasourceType, IDatasetDetails datasetDetails, INodeDomain datasetDomain) throws AlgebricksException {
         super(id, itemType, metaItemType, datasourceType, datasetDomain);
         this.dataset = dataset;
         switch (dataset.getDatasetType()) {
@@ -107,8 +105,7 @@ public class DatasetDataSource extends DataSource {
                 ExternalDatasetDetails edd = (ExternalDatasetDetails) externalDataset.getDatasetDetails();
                 IAdapterFactory adapterFactory = metadataProvider.getConfiguredAdapterFactory(externalDataset,
                         edd.getAdapter(), edd.getProperties(), (ARecordType) itemType, null);
-                return metadataProvider.buildExternalDatasetDataScannerRuntime(jobSpec, itemType, adapterFactory,
-                        NonTaggedDataFormat.INSTANCE);
+                return metadataProvider.buildExternalDatasetDataScannerRuntime(jobSpec, itemType, adapterFactory);
             case INTERNAL:
                 DataSourceId id = getId();
                 String dataverseName = id.getDataverseName();
@@ -118,9 +115,9 @@ public class DatasetDataSource extends DataSource {
 
                 int[] minFilterFieldIndexes = createFilterIndexes(minFilterVars, opSchema);
                 int[] maxFilterFieldIndexes = createFilterIndexes(maxFilterVars, opSchema);
-                return metadataProvider.buildBtreeRuntime(jobSpec, opSchema, typeEnv, context, true,
-                        false, ((DatasetDataSource) dataSource).getDataset(), primaryIndex.getIndexName(), null, null,
-                        true, true, minFilterFieldIndexes, maxFilterFieldIndexes);
+                return metadataProvider.buildBtreeRuntime(jobSpec, opSchema, typeEnv, context, true, false,
+                        ((DatasetDataSource) dataSource).getDataset(), primaryIndex.getIndexName(), null, null, true,
+                        true, false, minFilterFieldIndexes, maxFilterFieldIndexes);
             default:
                 throw new AlgebricksException("Unknown datasource type");
         }

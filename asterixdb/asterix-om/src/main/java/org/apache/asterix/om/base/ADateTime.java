@@ -20,12 +20,11 @@ package org.apache.asterix.om.base;
 
 import java.io.IOException;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.base.temporal.GregorianCalendarSystem;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -96,11 +95,6 @@ public class ADateTime implements IAObject {
     }
 
     @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitADateTime(this);
-    }
-
-    @Override
     public boolean deepEqual(IAObject obj) {
         return equals(obj);
     }
@@ -113,7 +107,7 @@ public class ADateTime implements IAObject {
     @Override
     public String toString() {
         StringBuilder sbder = new StringBuilder();
-        sbder.append("ADateTime: { ");
+        sbder.append("datetime: { ");
         try {
             GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(chrononTime, 0, sbder,
                     GregorianCalendarSystem.Fields.YEAR, GregorianCalendarSystem.Fields.MILLISECOND, true);
@@ -136,7 +130,7 @@ public class ADateTime implements IAObject {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

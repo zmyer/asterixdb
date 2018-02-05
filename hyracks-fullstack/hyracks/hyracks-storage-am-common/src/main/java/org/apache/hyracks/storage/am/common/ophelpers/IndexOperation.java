@@ -32,5 +32,8 @@ public enum IndexOperation {
     MERGE,
     FULL_MERGE,
     FLUSH,
-    REPLICATE
+    REPLICATE,
+    DISK_COMPONENT_SCAN,
+    DELETE_MEMORY_COMPONENT,
+    DELETE_DISK_COMPONENTS
 }

@@ -18,11 +18,14 @@
  */
 package org.apache.asterix.external.input.record.reader.twitter;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.external.api.IExternalDataSourceFactory;
 import org.apache.asterix.external.api.IRecordReader;
 import org.apache.asterix.external.api.IRecordReaderFactory;
@@ -32,30 +35,30 @@ import org.apache.asterix.external.util.TwitterUtil.AuthenticationConstants;
 import org.apache.asterix.external.util.TwitterUtil.SearchAPIConstants;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
+import org.apache.hyracks.api.application.IServiceContext;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import twitter4j.FilterQuery;
 
 public class TwitterRecordReaderFactory implements IRecordReaderFactory<String> {
 
     private static final long serialVersionUID = 1L;
-    private static final Logger LOGGER = Logger.getLogger(TwitterRecordReaderFactory.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String DEFAULT_INTERVAL = "10"; // 10 seconds
     private static final int INTAKE_CARDINALITY = 1; // degree of parallelism at intake stage
 
     private Map<String, String> configuration;
     private transient AlgebricksAbsolutePartitionConstraint clusterLocations;
+    private transient IServiceContext serviceCtx;
 
-    public static boolean isTwitterPull(Map<String, String> configuration) {
-        String reader = configuration.get(ExternalDataConstants.KEY_READER);
-        if (reader.equals(ExternalDataConstants.READER_TWITTER_PULL)
-                || reader.equals(ExternalDataConstants.READER_PULL_TWITTER)) {
-            return true;
-        }
-        return false;
-    }
+    private static final List<String> recordReaderNames =
+            Collections.unmodifiableList(Arrays.asList(ExternalDataConstants.READER_TWITTER_PULL,
+                    ExternalDataConstants.READER_TWITTER_PUSH, ExternalDataConstants.READER_PUSH_TWITTER,
+                    ExternalDataConstants.READER_PULL_TWITTER, ExternalDataConstants.READER_USER_STREAM_TWITTER));
 
     @Override
     public DataSourceType getDataSourceType() {
@@ -63,14 +66,27 @@ public class TwitterRecordReaderFactory implements IRecordReaderFactory<String> 
     }
 
     @Override
+    public List<String> getRecordReaderNames() {
+        return recordReaderNames;
+    }
+
+    @Override
     public AlgebricksAbsolutePartitionConstraint getPartitionConstraint() throws AlgebricksException {
-        clusterLocations = IExternalDataSourceFactory.getPartitionConstraints(clusterLocations, INTAKE_CARDINALITY);
+        clusterLocations = IExternalDataSourceFactory.getPartitionConstraints(
+                (ICcApplicationContext) serviceCtx.getApplicationContext(), clusterLocations, INTAKE_CARDINALITY);
         return clusterLocations;
     }
 
     @Override
-    public void configure(Map<String, String> configuration) throws AsterixException {
+    public void configure(IServiceContext serviceCtx, Map<String, String> configuration) throws AsterixException {
+        try {
+            Class.forName("twitter4j.Twitter");
+        } catch (ClassNotFoundException e) {
+            throw new AsterixException(ErrorCode.ADAPTER_TWITTER_TWITTER4J_LIB_NOT_FOUND, e);
+        }
+
         this.configuration = configuration;
+        this.serviceCtx = serviceCtx;
         TwitterUtil.initializeConfigurationWithAuthInfo(configuration);
         if (!validateConfiguration(configuration)) {
             StringBuilder builder = new StringBuilder();
@@ -97,8 +113,8 @@ public class TwitterRecordReaderFactory implements IRecordReaderFactory<String> 
                 }
             } else {
                 configuration.put(SearchAPIConstants.INTERVAL, DEFAULT_INTERVAL);
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning(" Parameter " + SearchAPIConstants.INTERVAL + " not defined, using default ("
+                if (LOGGER.isWarnEnabled()) {
+                    LOGGER.warn(" Parameter " + SearchAPIConstants.INTERVAL + " not defined, using default ("
                             + DEFAULT_INTERVAL + ")");
                 }
             }

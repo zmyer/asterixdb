@@ -56,52 +56,52 @@ public class AObjectAscBinaryComparatorFactory implements IBinaryComparatorFacto
 
             // BOOLEAN
             final IBinaryComparator ascBoolComp = BooleanBinaryComparatorFactory.INSTANCE.createBinaryComparator();
-            // INT8
-            final IBinaryComparator ascByteComp = new PointableBinaryComparatorFactory(BytePointable.FACTORY)
-                    .createBinaryComparator();
-            // INT16
-            final IBinaryComparator ascShortComp = new PointableBinaryComparatorFactory(ShortPointable.FACTORY)
-                    .createBinaryComparator();
-            // INT32
-            final IBinaryComparator ascIntComp = new PointableBinaryComparatorFactory(IntegerPointable.FACTORY)
-                    .createBinaryComparator();
-            // INT64
+            // TINYINT
+            final IBinaryComparator ascByteComp =
+                    new PointableBinaryComparatorFactory(BytePointable.FACTORY).createBinaryComparator();
+            // SMALLINT
+            final IBinaryComparator ascShortComp =
+                    new PointableBinaryComparatorFactory(ShortPointable.FACTORY).createBinaryComparator();
+            // INTEGER
+            final IBinaryComparator ascIntComp =
+                    new PointableBinaryComparatorFactory(IntegerPointable.FACTORY).createBinaryComparator();
+            // BIGINT
             final IBinaryComparator ascLongComp = LongBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // STRING
-            final IBinaryComparator ascStrComp = new PointableBinaryComparatorFactory(UTF8StringPointable.FACTORY)
-                    .createBinaryComparator();
+            final IBinaryComparator ascStrComp =
+                    new PointableBinaryComparatorFactory(UTF8StringPointable.FACTORY).createBinaryComparator();
             // BINARY
-            final IBinaryComparator ascByteArrayComp = new PointableBinaryComparatorFactory(ByteArrayPointable.FACTORY)
-                    .createBinaryComparator();
+            final IBinaryComparator ascByteArrayComp =
+                    new PointableBinaryComparatorFactory(ByteArrayPointable.FACTORY).createBinaryComparator();
             // FLOAT
-            final IBinaryComparator ascFloatComp = new PointableBinaryComparatorFactory(FloatPointable.FACTORY)
-                    .createBinaryComparator();
+            final IBinaryComparator ascFloatComp =
+                    new PointableBinaryComparatorFactory(FloatPointable.FACTORY).createBinaryComparator();
             // DOUBLE
-            final IBinaryComparator ascDoubleComp = new PointableBinaryComparatorFactory(DoublePointable.FACTORY)
-                    .createBinaryComparator();
+            final IBinaryComparator ascDoubleComp =
+                    new PointableBinaryComparatorFactory(DoublePointable.FACTORY).createBinaryComparator();
             // RECTANGLE
-            final IBinaryComparator ascRectangleComp = ARectanglePartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascRectangleComp =
+                    ARectanglePartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // CIRCLE
-            final IBinaryComparator ascCircleComp = ACirclePartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascCircleComp =
+                    ACirclePartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // DURATION
-            final IBinaryComparator ascDurationComp = ADurationPartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascDurationComp =
+                    ADurationPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // INTERVAL
-            final IBinaryComparator ascIntervalComp = AIntervalAscPartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascIntervalComp =
+                    AIntervalAscPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // LINE
             final IBinaryComparator ascLineComp = ALinePartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // POINT
-            final IBinaryComparator ascPointComp = APointPartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascPointComp =
+                    APointPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // POINT3D
-            final IBinaryComparator ascPoint3DComp = APoint3DPartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascPoint3DComp =
+                    APoint3DPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // POLYGON
-            final IBinaryComparator ascPolygonComp = APolygonPartialBinaryComparatorFactory.INSTANCE
-                    .createBinaryComparator();
+            final IBinaryComparator ascPolygonComp =
+                    APolygonPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // UUID
             final IBinaryComparator ascUUIDComp = AUUIDPartialBinaryComparatorFactory.INSTANCE.createBinaryComparator();
             // RAW
@@ -150,13 +150,13 @@ public class AObjectAscBinaryComparatorFactory implements IBinaryComparatorFacto
                 boolean leftValueChanged = false;
 
                 if (tag1 != tag2) {
-                    // tag1 can be promoted to tag2 (e.g. tag1: INT16, tag2: INT32)
+                    // tag1 can be promoted to tag2 (e.g. tag1: SMALLINT, tag2: INTEGER)
                     if (ATypeHierarchy.canPromote(tag1, tag2)) {
                         sourceTypeTag = tag1;
                         targetTypeTag = tag2;
                         typePromotionApplied = true;
                         leftValueChanged = true;
-                        // or tag2 can be promoted to tag1 (e.g. tag2: INT32, tag1: DOUBLE)
+                        // or tag2 can be promoted to tag1 (e.g. tag2: INTEGER, tag1: DOUBLE)
                     } else if (ATypeHierarchy.canPromote(tag2, tag1)) {
                         sourceTypeTag = tag2;
                         targetTypeTag = tag1;
@@ -206,11 +206,11 @@ public class AObjectAscBinaryComparatorFactory implements IBinaryComparatorFacto
                     case BOOLEAN: {
                         return ascBoolComp.compare(b1, s1 + 1, l1 - 1, b2, s2 + 1, l2 - 1);
                     }
-                    case INT8: {
-                        // No type promotion from another type to the INT8 can happen
+                    case TINYINT: {
+                        // No type promotion from another type to the TINYINT can happen
                         return ascByteComp.compare(b1, s1 + 1, l1 - 1, b2, s2 + 1, l2 - 1);
                     }
-                    case INT16: {
+                    case SMALLINT: {
                         if (!typePromotionApplied) {
                             // No type promotion case
                             return ascShortComp.compare(b1, s1 + 1, l1 - 1, b2, s2 + 1, l2 - 1);
@@ -227,7 +227,7 @@ public class AObjectAscBinaryComparatorFactory implements IBinaryComparatorFacto
                     case TIME:
                     case DATE:
                     case YEARMONTHDURATION:
-                    case INT32: {
+                    case INTEGER: {
                         if (!typePromotionApplied) {
                             // No type promotion case
                             return ascIntComp.compare(b1, s1 + 1, l1 - 1, b2, s2 + 1, l2 - 1);
@@ -243,7 +243,7 @@ public class AObjectAscBinaryComparatorFactory implements IBinaryComparatorFacto
                     }
                     case DATETIME:
                     case DAYTIMEDURATION:
-                    case INT64: {
+                    case BIGINT: {
                         if (!typePromotionApplied) {
                             // No type promotion case
                             return ascLongComp.compare(b1, s1 + 1, l1 - 1, b2, s2 + 1, l2 - 1);

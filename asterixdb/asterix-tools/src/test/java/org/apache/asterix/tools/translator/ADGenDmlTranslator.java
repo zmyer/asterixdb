@@ -23,11 +23,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.asterix.common.annotations.TypeDataGen;
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.lang.common.base.Statement;
 import org.apache.asterix.lang.common.statement.DataverseDecl;
 import org.apache.asterix.lang.common.statement.TypeDecl;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.MetadataTransactionContext;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.types.TypeSignature;
@@ -47,10 +45,10 @@ public class ADGenDmlTranslator extends AbstractLangTranslator {
         this.aqlStatements = aqlStatements;
     }
 
-    public void translate() throws AsterixException, MetadataException, AlgebricksException {
+    public void translate() throws AlgebricksException {
         String defaultDataverse = getDefaultDataverse();
-        types = new HashMap<TypeSignature, IAType>();
-        typeDataGenMap = new HashMap<TypeSignature, TypeDataGen>();
+        types = new HashMap<>();
+        typeDataGenMap = new HashMap<>();
 
         for (Statement stmt : aqlStatements) {
             if (stmt.getKind() == Statement.Kind.TYPE_DECL) {

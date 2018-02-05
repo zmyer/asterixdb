@@ -22,22 +22,25 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [ordpercust]
     :
-    FunctionCall orders-aggreg.count@1[
-      Variable [ Name=$o ]
+    FunctionCall asterix.count@1[
+      Variable [ Name=$g ]
     ]
   )
   (
     LiteralExpr [STRING] [totalcust]
     :
-    FunctionCall orders-aggreg.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
-          Variable [ Name=$i ]
+          FieldAccessor [
+            Variable [ Name=$i ]
+            Field=o
+          ]
           Field=total
         ]
         ]
-        FROM [          Variable [ Name=$o ]
+        FROM [          Variable [ Name=$g ]
           AS Variable [ Name=$i ]
         ]
       )
@@ -46,15 +49,18 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [avgcust]
     :
-    FunctionCall orders-aggreg.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
-          Variable [ Name=$i ]
+          FieldAccessor [
+            Variable [ Name=$i ]
+            Field=o
+          ]
           Field=total
         ]
         ]
-        FROM [          Variable [ Name=$o ]
+        FROM [          Variable [ Name=$g ]
           AS Variable [ Name=$i ]
         ]
       )
@@ -62,8 +68,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Orders]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [orders-aggreg.Orders]
   ]
   AS Variable [ Name=$o ]
 ]
@@ -74,7 +80,7 @@ Groupby
     Variable [ Name=$o ]
     Field=cid
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     o:=Variable [ Name=$o ]
   )

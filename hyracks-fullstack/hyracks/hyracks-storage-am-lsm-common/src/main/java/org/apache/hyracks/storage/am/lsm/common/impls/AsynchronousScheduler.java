@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperation;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperation.LSMIOOpertionType;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperation.LSMIOOperationType;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 
 public class AsynchronousScheduler implements ILSMIOOperationScheduler {
@@ -41,12 +41,13 @@ public class AsynchronousScheduler implements ILSMIOOperationScheduler {
     public final static AsynchronousScheduler INSTANCE = new AsynchronousScheduler();
     private ExecutorService executor;
     private final Map<String, ILSMIOOperation> runningFlushOperations = new HashMap<String, ILSMIOOperation>();
-    private final Map<String, PriorityQueue<ILSMIOOperation>> waitingFlushOperations = new HashMap<String, PriorityQueue<ILSMIOOperation>>();
+    private final Map<String, PriorityQueue<ILSMIOOperation>> waitingFlushOperations =
+            new HashMap<String, PriorityQueue<ILSMIOOperation>>();
 
     public void init(ThreadFactory threadFactory) {
         // Creating an executor with the same configuration of Executors.newCachedThreadPool.
-        executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS,
-                new SynchronousQueue<Runnable>(), threadFactory) {
+        executor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>(),
+                threadFactory) {
 
             @Override
             protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
@@ -59,19 +60,21 @@ public class AsynchronousScheduler implements ILSMIOOperationScheduler {
                 super.afterExecute(r, t);
                 LSMIOOperationTask<Boolean> task = (LSMIOOperationTask<Boolean>) r;
                 ILSMIOOperation executedOp = task.getOperation();
-                String id = executedOp.getIndexUniqueIdentifier();
-                synchronized (this) {
-                    runningFlushOperations.remove(id);
-                    if (waitingFlushOperations.containsKey(id)) {
-                        try {
-                            ILSMIOOperation op = waitingFlushOperations.get(id).poll();
-                            if (op != null) {
-                                scheduleOperation(op);
-                            } else {
-                                waitingFlushOperations.remove(id);
+                if (executedOp.getIOOpertionType() == LSMIOOperationType.FLUSH) {
+                    String id = executedOp.getIndexIdentifier();
+                    synchronized (this) {
+                        runningFlushOperations.remove(id);
+                        if (waitingFlushOperations.containsKey(id)) {
+                            try {
+                                ILSMIOOperation op = waitingFlushOperations.get(id).poll();
+                                if (op != null) {
+                                    scheduleOperation(op);
+                                } else {
+                                    waitingFlushOperations.remove(id);
+                                }
+                            } catch (HyracksDataException e) {
+                                t = e.getCause();
                             }
-                        } catch (HyracksDataException e) {
-                            t = e.getCause();
                         }
                     }
                 }
@@ -81,10 +84,10 @@ public class AsynchronousScheduler implements ILSMIOOperationScheduler {
 
     @Override
     public void scheduleOperation(ILSMIOOperation operation) throws HyracksDataException {
-        if (operation.getIOOpertionType() == LSMIOOpertionType.MERGE) {
+        if (operation.getIOOpertionType() == LSMIOOperationType.MERGE) {
             executor.submit(operation);
-        } else {
-            String id = operation.getIndexUniqueIdentifier();
+        } else if (operation.getIOOpertionType() == LSMIOOperationType.FLUSH) {
+            String id = operation.getIndexIdentifier();
             synchronized (executor) {
                 if (runningFlushOperations.containsKey(id)) {
                     if (waitingFlushOperations.containsKey(id)) {
@@ -99,6 +102,10 @@ public class AsynchronousScheduler implements ILSMIOOperationScheduler {
                     executor.submit(operation);
                 }
             }
+        } else {
+            // this should never happen
+            // just guard here to avoid silient failures in case of future extensions
+            throw new IllegalArgumentException("Unknown operation type " + operation.getIOOpertionType());
         }
     }
 }

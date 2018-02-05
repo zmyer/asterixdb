@@ -18,7 +18,6 @@
  */
 package org.apache.asterix.lang.common.parser;
 
-import java.util.List;
 import java.util.Stack;
 
 import org.apache.asterix.common.functions.FunctionSignature;
@@ -35,16 +34,13 @@ public class ScopeChecker {
 
     protected Counter varCounter = new Counter(-1);
 
-    protected Stack<Scope> scopeStack = new Stack<Scope>();
+    protected Stack<Scope> scopeStack = new Stack<>();
 
-    protected Stack<Scope> forbiddenScopeStack = new Stack<Scope>();
+    protected Stack<Scope> forbiddenScopeStack = new Stack<>();
 
     protected String[] inputLines;
 
     protected String defaultDataverse;
-
-    private List<String> dataverses;
-    private List<String> datasets;
 
     public ScopeChecker() {
         scopeStack.push(RootScopeFactory.createRootScope(this));
@@ -64,8 +60,7 @@ public class ScopeChecker {
      * @return new scope
      */
     public final Scope createNewScope() {
-        Scope parent = scopeStack.peek();
-        Scope scope = new Scope(this, parent);// top one as parent
+        Scope scope = extendCurrentScopeNoPush(false);
         scopeStack.push(scope);
         return scope;
     }
@@ -76,20 +71,14 @@ public class ScopeChecker {
      * @return
      */
     public final Scope extendCurrentScope() {
-        return extendCurrentScope(false);
-    }
-
-    public final Scope extendCurrentScope(boolean maskParentScope) {
-        Scope scope = extendCurrentScopeNoPush(maskParentScope);
-        scopeStack.pop();
-        scopeStack.push(scope);
+        Scope scope = extendCurrentScopeNoPush(false);
+        replaceCurrentScope(scope);
         return scope;
     }
 
-    public final Scope extendCurrentScopeNoPush(boolean maskParentScope) {
-        Scope scope = scopeStack.peek();
-        scope = new Scope(this, scope, maskParentScope);
-        return scope;
+    protected final Scope extendCurrentScopeNoPush(boolean maskParentScope) {
+        Scope parent = scopeStack.peek();
+        return new Scope(this, parent, maskParentScope);
     }
 
     public final void replaceCurrentScope(Scope scope) {
@@ -117,6 +106,15 @@ public class ScopeChecker {
      */
     public final Scope getCurrentScope() {
         return scopeStack.peek();
+    }
+
+    /**
+     * get scope preceding the current scope
+     * @return preceding scope or {@code null} if current scope is the top one
+     */
+    public final Scope getPrecedingScope() {
+        int n = scopeStack.size();
+        return n > 1 ? scopeStack.get(n - 2) : null;
     }
 
     /**
@@ -322,33 +320,5 @@ public class ScopeChecker {
         extract.append("\n");
         extract.append(inputLines[endLine - 1].substring(0, endColumn - 1));
         return extract.toString().trim();
-    }
-
-    public void addDataverse(String dataverseName) {
-        if (dataverses != null) {
-            dataverses.add(dataverseName);
-        }
-    }
-
-    public void addDataset(String datasetName) {
-        if (datasets != null) {
-            datasets.add(datasetName);
-        }
-    }
-
-    public void setDataverses(List<String> dataverses) {
-        this.dataverses = dataverses;
-    }
-
-    public void setDatasets(List<String> datasets) {
-        this.datasets = datasets;
-    }
-
-    public List<String> getDataverses() {
-        return dataverses;
-    }
-
-    public List<String> getDatasets() {
-        return datasets;
     }
 }

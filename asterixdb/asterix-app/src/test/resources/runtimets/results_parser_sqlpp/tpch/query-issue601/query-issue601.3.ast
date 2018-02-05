@@ -5,32 +5,26 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [l_linenumber]
     :
-    FieldAccessor [
-      Variable [ Name=$l ]
-      Field=l_linenumber
-    ]
+    Variable [ Name=$l_linenumber ]
   )
   (
     LiteralExpr [STRING] [count_order]
     :
-    FunctionCall tpch.sql-count@1[
+    FunctionCall asterix.count@1[
       (
         SELECT ELEMENT [
-        FieldAccessor [
-          Variable [ Name=#2 ]
-          Field=l
+        Variable [ Name=$g ]
         ]
-        ]
-        FROM [          Variable [ Name=#1 ]
-          AS Variable [ Name=#2 ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=$g ]
         ]
       )
     ]
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [LineItem]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.LineItem]
   ]
   AS Variable [ Name=$l ]
 ]
@@ -41,15 +35,12 @@ Groupby
     Variable [ Name=$l ]
     Field=l_linenumber
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     l:=Variable [ Name=$l ]
   )
 
 Orderby
-  FieldAccessor [
-    Variable [ Name=$l ]
-    Field=l_linenumber
-  ]
+  Variable [ Name=$l_linenumber ]
   ASC
 

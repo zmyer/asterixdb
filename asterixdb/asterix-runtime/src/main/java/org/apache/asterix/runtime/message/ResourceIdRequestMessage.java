@@ -20,16 +20,14 @@ package org.apache.asterix.runtime.message;
 
 import java.util.Set;
 
-import org.apache.asterix.common.exceptions.ExceptionUtils;
-import org.apache.asterix.common.messaging.api.IApplicationMessage;
+import org.apache.asterix.common.cluster.IClusterStateManager;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.messaging.api.ICCMessageBroker;
+import org.apache.asterix.common.messaging.api.ICcAddressedMessage;
 import org.apache.asterix.common.transactions.IResourceIdManager;
-import org.apache.asterix.runtime.utils.AppContextInfo;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.service.IControllerService;
 
-public class ResourceIdRequestMessage implements IApplicationMessage {
+public class ResourceIdRequestMessage implements ICcAddressedMessage {
     private static final long serialVersionUID = 1L;
     private final String src;
 
@@ -38,33 +36,32 @@ public class ResourceIdRequestMessage implements IApplicationMessage {
     }
 
     @Override
-    public void handle(IControllerService cs) throws HyracksDataException, InterruptedException {
+    public void handle(ICcApplicationContext appCtx) throws HyracksDataException, InterruptedException {
         try {
-            ICCMessageBroker broker =
-                    (ICCMessageBroker) AppContextInfo.INSTANCE.getCCApplicationContext().getMessageBroker();
+            ICCMessageBroker broker = (ICCMessageBroker) appCtx.getServiceContext().getMessageBroker();
             ResourceIdRequestResponseMessage reponse = new ResourceIdRequestResponseMessage();
-            if (!ClusterStateManager.INSTANCE.isClusterActive()) {
+            IClusterStateManager clusterStateManager = appCtx.getClusterStateManager();
+            if (!clusterStateManager.isClusterActive()) {
                 reponse.setResourceId(-1);
                 reponse.setException(new Exception("Cannot generate global resource id when cluster is not active."));
             } else {
-                IResourceIdManager resourceIdManager =
-                        AppContextInfo.INSTANCE.getResourceIdManager();
+                IResourceIdManager resourceIdManager = appCtx.getResourceIdManager();
                 reponse.setResourceId(resourceIdManager.createResourceId());
                 if (reponse.getResourceId() < 0) {
                     reponse.setException(new Exception("One or more nodes has not reported max resource id."));
                 }
-                requestMaxResourceID(resourceIdManager, broker);
+                requestMaxResourceID(clusterStateManager, resourceIdManager, broker);
             }
             broker.sendApplicationMessageToNC(reponse, src);
         } catch (Exception e) {
-            throw ExceptionUtils.convertToHyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
-    private void requestMaxResourceID(IResourceIdManager resourceIdManager, ICCMessageBroker broker)
-            throws Exception {
-        Set<String> getParticipantNodes = ClusterStateManager.INSTANCE.getParticipantNodes();
-        ReportMaxResourceIdRequestMessage msg = new ReportMaxResourceIdRequestMessage();
+    private void requestMaxResourceID(IClusterStateManager clusterStateManager, IResourceIdManager resourceIdManager,
+            ICCMessageBroker broker) throws Exception {
+        Set<String> getParticipantNodes = clusterStateManager.getParticipantNodes();
+        ReportLocalCountersRequestMessage msg = new ReportLocalCountersRequestMessage();
         for (String nodeId : getParticipantNodes) {
             if (!resourceIdManager.reported(nodeId)) {
                 broker.sendApplicationMessageToNC(msg, nodeId);
@@ -74,6 +71,6 @@ public class ResourceIdRequestMessage implements IApplicationMessage {
 
     @Override
     public String toString() {
-        return ReportMaxResourceIdRequestMessage.class.getSimpleName();
+        return ResourceIdRequestMessage.class.getSimpleName();
     }
 }

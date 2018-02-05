@@ -21,18 +21,17 @@ package org.apache.hyracks.storage.am.lsm.invertedindex;
 
 import java.io.IOException;
 
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.common.datagen.TupleGenerator;
-import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.config.AccessMethodTestsConfig;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
-import org.apache.hyracks.storage.am.lsm.common.impls.NoOpIOOperationCallback;
 import org.apache.hyracks.storage.am.lsm.invertedindex.common.AbstractInvertedIndexLoadTest;
 import org.apache.hyracks.storage.am.lsm.invertedindex.impls.LSMInvertedIndex;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestContext;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestContext.InvertedIndexType;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestUtils;
+import org.apache.hyracks.storage.common.IIndex;
 
 public class PartitionedLSMInvertedIndexMergeTest extends AbstractInvertedIndexLoadTest {
 
@@ -43,13 +42,13 @@ public class PartitionedLSMInvertedIndexMergeTest extends AbstractInvertedIndexL
     }
 
     @Override
-    protected void runTest(LSMInvertedIndexTestContext testCtx, TupleGenerator tupleGen) throws IOException,
-            IndexException {
+    protected void runTest(LSMInvertedIndexTestContext testCtx, TupleGenerator tupleGen)
+            throws IOException, HyracksDataException {
         IIndex invIndex = testCtx.getIndex();
         invIndex.create();
         invIndex.activate();
-        ILSMIndexAccessor invIndexAccessor = (ILSMIndexAccessor) invIndex.createAccessor(
-                NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
+        ILSMIndexAccessor invIndexAccessor =
+                (ILSMIndexAccessor) invIndex.createAccessor(NoOpIndexAccessParameters.INSTANCE);
 
         for (int i = 0; i < maxTreesToMerge; i++) {
             for (int j = 0; j < i; j++) {
@@ -59,8 +58,8 @@ public class PartitionedLSMInvertedIndexMergeTest extends AbstractInvertedIndexL
                 invIndex.activate();
             }
             // Perform merge.
-            invIndexAccessor.scheduleMerge(NoOpIOOperationCallback.INSTANCE,
-                    ((LSMInvertedIndex) invIndex).getImmutableComponents());
+            invIndexAccessor.scheduleMerge(((LSMInvertedIndex) invIndex).getIOOperationCallback(),
+                    ((LSMInvertedIndex) invIndex).getDiskComponents());
             validateAndCheckIndex(testCtx);
             runTinySearchWorkload(testCtx, tupleGen);
         }

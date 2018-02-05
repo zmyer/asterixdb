@@ -21,7 +21,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.hyracks</groupId>
   <artifactId>apache-hyracks</artifactId>
-  <version>0.3.1-SNAPSHOT</version>
+  <version>0.3.3-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>hyracks-ecosystem-full-stack</name>
   <url>https://asterixdb.apache.org/</url>
@@ -51,16 +51,24 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <file.encoding>UTF-8</file.encoding>
     <jdk.version>1.8</jdk.version>
+    <javac.xlint.value>all</javac.xlint.value>
     <jvm.extraargs />
     <sonar.jacoco.reportPath>${env.PWD}/target/jacoco-merged.exec</sonar.jacoco.reportPath>
-
+    <source-format.goal>format</source-format.goal>
+    <source-format.skip>false</source-format.skip>
+    <skipTests>false</skipTests>
+    <skip.surefire.tests>${skipTests}</skip.surefire.tests>
+    <skip.testResources>${maven.test.skip}</skip.testResources>
+    <testLog4jConfigFile>${root.dir}/src/test/resources/log4j2-test.xml</testLog4jConfigFile>
     <!-- Definition of tests in various categories which may be excluded -->
     <hanging.pregelix.tests>**/pregelix/**/FailureRecovery*.java</hanging.pregelix.tests>
     <hivesterix.perf.tests>**/hivesterix/perf/PerfTestSuite.java</hivesterix.perf.tests>
     <global.test.includes>**/*TestSuite.java,**/*Test.java</global.test.includes>
-    <global.test.excludes>**/Abstract*.java,${hanging.pregelix.tests},${hivesterix.perf.tests}
-    </global.test.excludes>
+    <global.test.excludes>**/Abstract*.java,${hanging.pregelix.tests},${hivesterix.perf.tests}</global.test.excludes>
+    <test.includes>${global.test.includes}</test.includes>
+    <test.excludes>${global.test.excludes}</test.excludes>
     <!-- Versions under dependencymanagement or used in many projects via properties -->
     <hadoop.version>2.2.0</hadoop.version>
     <jacoco.version>0.7.6.201602180812</jacoco.version>
@@ -117,7 +125,12 @@
       <dependency>
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
-        <version>2.5</version>
+        <version>2.6</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-lang</groupId>
+        <artifactId>commons-lang</artifactId>
+        <version>2.6</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
@@ -130,6 +143,11 @@
         <version>2.8.4</version>
       </dependency>
       <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-annotations</artifactId>
+        <version>2.8.4</version>
+      </dependency>
+      <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
         <version>18.0</version>
@@ -137,7 +155,12 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
-        <version>3.5</version>
+        <version>3.7</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-collections4</artifactId>
+        <version>4.1</version>
       </dependency>
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
@@ -154,6 +177,26 @@
         <artifactId>apache-rat-plugin</artifactId>
         <version>0.12</version>
       </dependency>
+      <dependency>
+        <groupId>net.revelc.code.formatter</groupId>
+        <artifactId>formatter-maven-plugin</artifactId>
+        <version>2.0.1</version>
+      </dependency>
+      <dependency>
+        <groupId>args4j</groupId>
+        <artifactId>args4j</artifactId>
+        <version>2.33</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-api</artifactId>
+        <version>2.10.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-core</artifactId>
+        <version>2.10.0</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -162,9 +205,8 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>3.0.0</version>
         <configuration>
-          <excludes>
+          <excludes combine.children="append">
             <exclude>**/DEPENDENCIES</exclude>
           </excludes>
         </configuration>
@@ -172,7 +214,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.10</version>
         <configuration>
           <failOnWarning>true</failOnWarning>
           <outputXML>true</outputXML>
@@ -185,11 +226,6 @@
             </goals>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>versions-maven-plugin</artifactId>
-        <version>1.2</version>
       </plugin>
       <plugin>
         <groupId>org.apache.rat</groupId>
@@ -212,29 +248,43 @@
             <licenseFamily implementation="org.apache.rat.license.Apache20LicenseFamily"/>
           </licenseFamilies>
           <excludeSubProjects>true</excludeSubProjects>
+          <excludes combine.children="append">
+            <exclude>**/*.iml</exclude>
+          </excludes>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.16</version>
         <configuration>
           <failIfNoTests>false</failIfNoTests>
           <forkCount>1</forkCount>
           <reuseForks>false</reuseForks>
           <argLine>-enableassertions -Xmx2048m
             -Dfile.encoding=UTF-8
-            -Djava.util.logging.config.file=${user.home}/logging.properties
             -Xdebug
             -Xrunjdwp:transport=dt_socket,server=y,address=8000,suspend=n
             ${coverageArgLine}
           </argLine>
+          <systemPropertyVariables>
+            <log4j.configurationFile>${testLog4jConfigFile}</log4j.configurationFile>
+          </systemPropertyVariables>
           <includes>
-            <include>${global.test.includes},${test.includes}</include>
+            <include>${test.includes}</include>
           </includes>
-          <excludes>
-            <exclude>${global.test.excludes},${test.excludes}</exclude>
+          <excludes combine.children="append">
+            <exclude>${test.excludes}</exclude>
           </excludes>
+          <skipTests>${skip.surefire.tests}</skipTests>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <log4j.configurationFile>${testLog4jConfigFile}</log4j.configurationFile>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
@@ -243,30 +293,8 @@
         <configuration>
           <source>${jdk.version}</source>
           <target>${jdk.version}</target>
-          <compilerArgument>-Xlint:all</compilerArgument>
+          <compilerArgument>-Xlint:${javac.xlint.value}</compilerArgument>
         </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-resources-plugin</artifactId>
-        <version>2.7</version>
-        <executions>
-          <execution>
-            <id>copy-resources</id>
-            <phase>validate</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>target</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>${root.dir}/src/main/appended-resources</directory>
-                  <!-- <filtering>true</filtering> -->
-                </resource>
-              </resources>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -317,7 +345,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>1.4.1</version>
+        <version>3.0.0-M1</version>
         <executions>
           <execution>
             <id>enforce-versions</id>
@@ -334,18 +362,53 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default-testResources</id>
+            <goals>
+              <goal>testResources</goal>
+            </goals>
+            <configuration>
+              <skip>${skip.testResources}</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>net.revelc.code.formatter</groupId>
+        <artifactId>formatter-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>${source-format.goal}</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <configFile>${root.dir}/AsterixCodeFormatProfile.xml</configFile>
+          <skipFormatting>${source-format.skip}</skipFormatting>
+        </configuration>
+      </plugin>
     </plugins>
     <pluginManagement>
       <plugins>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.6.1</version>
+          <version>3.7.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.rat</groupId>
           <artifactId>apache-rat-plugin</artifactId>
           <version>0.12</version>
+        </plugin>
+        <plugin>
+          <groupId>net.revelc.code.formatter</groupId>
+          <artifactId>formatter-maven-plugin</artifactId>
+          <version>2.0.1</version>
         </plugin>
         <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
         <plugin>
@@ -359,7 +422,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.rat</groupId>
                     <artifactId>apache-rat-plugin</artifactId>
-                    <versionRange>[0.11,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>check</goal>
                     </goals>
@@ -372,7 +435,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <versionRange>[2.17,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>check</goal>
                     </goals>
@@ -385,7 +448,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
-                    <versionRange>[2.10,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>analyze-only</goal>
                     </goals>
@@ -394,19 +457,87 @@
                     <ignore />
                   </action>
                 </pluginExecution>
+                <pluginExecution>
+                  <pluginExecutionFilter>
+                   <groupId>net.revelc.code.formatter</groupId>
+                   <artifactId>formatter-maven-plugin</artifactId>
+                   <versionRange>[2.0.1,)</versionRange>
+                   <goals>
+                       <goal>format</goal>
+                   </goals>
+                   </pluginExecutionFilter>
+                   <action>
+                       <ignore></ignore>
+                   </action>
+                </pluginExecution>
               </pluginExecutions>
             </lifecycleMappingMetadata>
           </configuration>
         </plugin>
         <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>versions-maven-plugin</artifactId>
-            <version>2.1</version>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>versions-maven-plugin</artifactId>
+          <version>2.5</version>
         </plugin>
         <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-scm-plugin</artifactId>
-            <version>1.9.5</version>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-scm-plugin</artifactId>
+          <version>1.9.5</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>appassembler-maven-plugin</artifactId>
+          <version>2.0.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>2.20.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>2.20.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.hyracks</groupId>
+          <artifactId>license-automation-plugin</artifactId>
+          <version>${project.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>3.1.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-antrun-plugin</artifactId>
+          <version>1.8</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-clean-plugin</artifactId>
+          <version>3.0.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>3.0.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <version>3.0.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>3.0.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.doxia</groupId>
+          <artifactId>doxia-maven-plugin</artifactId>
+          <version>1.1.4</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -420,9 +551,45 @@
       </properties>
     </profile>
     <profile>
+      <id>skip-assembly</id>
+      <activation>
+        <file>
+          <missing>src/main/assembly/source.xml</missing>
+        </file>
+      </activation>
+      <properties>
+        <skip.assembly>true</skip.assembly>
+      </properties>
+    </profile>
+    <profile>
       <id>release</id>
       <build>
         <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <!-- We override the configuration plugin to override the descriptor to use for building
+            the source release zip. Specifically, we would like to control the inclusions/exclusions.
+            For example, we exclude the KEYS file from the zip -->
+            <executions>
+              <execution>
+                <!-- Use this id to match the id mentioned in the assembly plugin configuration in
+                the apache parent POM under the apache-release profile -->
+                <id>source-release-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+                <!-- combine.self should be override to replace the configuration in the parent POM -->
+                <configuration combine.self="override">
+                  <descriptors>
+                    <descriptor>src/main/assembly/source.xml</descriptor>
+                  </descriptors>
+                  <skipAssembly>${skip.assembly}</skipAssembly>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-gpg-plugin</artifactId>
@@ -507,4 +674,5 @@
     <module>algebricks</module>
     <module>hyracks-fullstack-license</module>
   </modules>
+
 </project>

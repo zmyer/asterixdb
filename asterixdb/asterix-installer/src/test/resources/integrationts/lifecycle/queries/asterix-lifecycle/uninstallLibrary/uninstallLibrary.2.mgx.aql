@@ -1,1 +1,0 @@
-uninstall -n asterix -d externallibtest -l testlib 

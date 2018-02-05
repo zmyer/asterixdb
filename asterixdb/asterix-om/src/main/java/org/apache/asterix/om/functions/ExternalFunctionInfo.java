@@ -28,26 +28,15 @@ public class ExternalFunctionInfo extends FunctionInfo implements IExternalFunct
 
     private static final long serialVersionUID = 1L;
 
-    private final IResultTypeComputer rtc;
+    private final transient IResultTypeComputer rtc;
     private final List<IAType> argumentTypes;
     private final String body;
     private final String language;
     private final FunctionKind kind;
     private final IAType returnType;
 
-    public ExternalFunctionInfo() {
-        super();
-        rtc = null;
-        argumentTypes = null;
-        body = null;
-        language = null;
-        kind = null;
-        returnType = null;
-
-    }
-
-    public ExternalFunctionInfo(String namespace, String name, int arity, FunctionKind kind,
-            List<IAType> argumentTypes, IAType returnType, IResultTypeComputer rtc, String body, String language) {
+    public ExternalFunctionInfo(String namespace, String name, int arity, FunctionKind kind, List<IAType> argumentTypes,
+            IAType returnType, IResultTypeComputer rtc, String body, String language) {
         super(namespace, name, arity, true);
         this.rtc = rtc;
         this.argumentTypes = argumentTypes;

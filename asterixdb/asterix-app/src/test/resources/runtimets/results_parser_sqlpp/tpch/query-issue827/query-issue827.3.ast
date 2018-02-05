@@ -4,7 +4,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [count_cheaps]
     :
-    FunctionCall tpch.count@1[
+    FunctionCall asterix.count@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -12,8 +12,8 @@ RecordConstructor [
           Field=l_quantity
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItem]
           ]
           AS Variable [ Name=$l ]
         ]
@@ -23,7 +23,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [count_expensives]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         Variable [ Name=$e ]
@@ -35,8 +35,8 @@ RecordConstructor [
               Field=l_extendedprice
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [LineItem]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.LineItem]
               ]
               AS Variable [ Name=$l ]
             ]

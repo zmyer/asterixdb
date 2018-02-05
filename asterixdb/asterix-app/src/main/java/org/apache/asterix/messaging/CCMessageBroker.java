@@ -18,22 +18,39 @@
  */
 package org.apache.asterix.messaging;
 
+import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.asterix.common.messaging.api.IApplicationMessage;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
+import org.apache.asterix.common.exceptions.ErrorCode;
+import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.common.messaging.api.ICCMessageBroker;
+import org.apache.asterix.common.messaging.api.ICcAddressedMessage;
+import org.apache.asterix.common.messaging.api.ICcIdentifiedMessage;
+import org.apache.asterix.common.messaging.api.INcAddressedMessage;
+import org.apache.asterix.common.messaging.api.INcResponse;
+import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.messages.IMessage;
 import org.apache.hyracks.api.util.JavaSerializationUtils;
 import org.apache.hyracks.control.cc.ClusterControllerService;
 import org.apache.hyracks.control.cc.NodeControllerState;
 import org.apache.hyracks.control.cc.cluster.INodeManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class CCMessageBroker implements ICCMessageBroker {
 
-    private final static Logger LOGGER = Logger.getLogger(CCMessageBroker.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private final ClusterControllerService ccs;
+    private final Map<Long, MutablePair<MutableInt, MutablePair<ResponseState, Object>>> handles =
+            new ConcurrentHashMap<>();
+    private static final AtomicLong REQUEST_ID_GENERATOR = new AtomicLong(0);
+    private static final Object UNINITIALIZED = new Object();
 
     public CCMessageBroker(ClusterControllerService ccs) {
         this.ccs = ccs;
@@ -41,17 +58,102 @@ public class CCMessageBroker implements ICCMessageBroker {
 
     @Override
     public void receivedMessage(IMessage message, String nodeId) throws Exception {
-        IApplicationMessage absMessage = (IApplicationMessage) message;
-        if (LOGGER.isLoggable(Level.INFO)) {
-            LOGGER.info("Received message: " + absMessage);
+        ICcAddressedMessage msg = (ICcAddressedMessage) message;
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Received message: " + msg);
         }
-        absMessage.handle(ccs);
+        ICcApplicationContext appCtx = (ICcApplicationContext) ccs.getApplicationContext();
+        msg.handle(appCtx);
     }
 
     @Override
-    public void sendApplicationMessageToNC(IApplicationMessage msg, String nodeId) throws Exception {
+    public void sendApplicationMessageToNC(INcAddressedMessage msg, String nodeId) throws Exception {
         INodeManager nodeManager = ccs.getNodeManager();
         NodeControllerState state = nodeManager.getNodeControllerState(nodeId);
-        state.getNodeController().sendApplicationMessageToNC(JavaSerializationUtils.serialize(msg), null, nodeId);
+        if (msg instanceof ICcIdentifiedMessage) {
+            ((ICcIdentifiedMessage) msg).setCcId(ccs.getCcId());
+        }
+        if (state != null) {
+            state.getNodeController().sendApplicationMessageToNC(JavaSerializationUtils.serialize(msg), null, nodeId);
+        } else {
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("Couldn't send message to unregistered node (" + nodeId + ")");
+            }
+        }
+    }
+
+    @Override
+    public long newRequestId() {
+        return REQUEST_ID_GENERATOR.incrementAndGet();
+    }
+
+    @Override
+    public Object sendSyncRequestToNCs(long reqId, List<String> ncs, List<? extends INcAddressedMessage> requests,
+            long timeout) throws Exception {
+        MutableInt numRequired = new MutableInt(0);
+        MutablePair<MutableInt, MutablePair<ResponseState, Object>> pair =
+                MutablePair.of(numRequired, MutablePair.of(ResponseState.UNINITIALIZED, UNINITIALIZED));
+        pair.getKey().setValue(ncs.size());
+        handles.put(reqId, pair);
+        try {
+            synchronized (pair) {
+                for (int i = 0; i < ncs.size(); i++) {
+                    String nc = ncs.get(i);
+                    INcAddressedMessage message = requests.get(i);
+                    if (!(message instanceof ICcIdentifiedMessage)) {
+                        throw new IllegalStateException("sync request message not cc identified: " + message);
+                    }
+                    sendApplicationMessageToNC(message, nc);
+                }
+                long time = System.currentTimeMillis();
+                while (pair.getLeft().getValue() > 0) {
+                    try {
+                        pair.wait(timeout);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw HyracksDataException.create(e);
+                    }
+                    if (System.currentTimeMillis() - time > timeout && pair.getLeft().getValue() > 0) {
+                        throw new RuntimeDataException(ErrorCode.NC_REQUEST_TIMEOUT, timeout / 1000.0);
+                    }
+                }
+            }
+            MutablePair<ResponseState, Object> right = pair.getRight();
+            switch (right.getKey()) {
+                case FAILURE:
+                    throw HyracksDataException.create((Exception) right.getValue());
+                case SUCCESS:
+                    return right.getRight();
+                default:
+                    throw new RuntimeDataException(ErrorCode.COMPILATION_ILLEGAL_STATE, String.valueOf(right.getKey()));
+            }
+        } finally {
+            handles.remove(reqId);
+        }
+    }
+
+    @Override
+    public void respond(Long reqId, INcResponse response) {
+        Pair<MutableInt, MutablePair<ResponseState, Object>> pair = handles.get(reqId);
+        if (pair != null) {
+            synchronized (pair) {
+                try {
+                    MutablePair<ResponseState, Object> result = pair.getValue();
+                    switch (result.getKey()) {
+                        case SUCCESS:
+                        case UNINITIALIZED:
+                            response.setResult(result);
+                            break;
+                        default:
+                            break;
+                    }
+                } finally {
+                    // Decrement the response counter
+                    MutableInt remainingResponses = pair.getKey();
+                    remainingResponses.setValue(remainingResponses.getValue() - 1);
+                    pair.notifyAll();
+                }
+            }
+        }
     }
 }

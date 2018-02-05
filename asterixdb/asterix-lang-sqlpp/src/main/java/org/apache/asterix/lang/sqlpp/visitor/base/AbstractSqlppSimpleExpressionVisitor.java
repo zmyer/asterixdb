@@ -60,7 +60,6 @@ import org.apache.asterix.lang.sqlpp.clause.SelectRegular;
 import org.apache.asterix.lang.sqlpp.clause.SelectSetOperation;
 import org.apache.asterix.lang.sqlpp.clause.UnnestClause;
 import org.apache.asterix.lang.sqlpp.expression.CaseExpression;
-import org.apache.asterix.lang.sqlpp.expression.IndependentSubquery;
 import org.apache.asterix.lang.sqlpp.expression.SelectExpression;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationRight;
 
@@ -216,6 +215,9 @@ public class AbstractSqlppSimpleExpressionVisitor
         for (GbyVariableExpressionPair gbyVarExpr : gc.getGbyPairList()) {
             gbyVarExpr.setExpr(visit(gbyVarExpr.getExpr(), gc));
         }
+        for (GbyVariableExpressionPair decVarExpr : gc.getDecorPairList()) {
+            decVarExpr.setExpr(visit(decVarExpr.getExpr(), gc));
+        }
         return null;
     }
 
@@ -331,12 +333,6 @@ public class AbstractSqlppSimpleExpressionVisitor
             ia.setIndexExpr(visit(ia.getIndexExpr(), arg));
         }
         return ia;
-    }
-
-    @Override
-    public Expression visit(IndependentSubquery independentSubquery, ILangExpression arg) throws CompilationException {
-        independentSubquery.setExpr(visit(independentSubquery.getExpr(), arg));
-        return independentSubquery;
     }
 
     @Override

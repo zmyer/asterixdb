@@ -73,8 +73,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customers]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.Customers]
   ]
   AS Variable [ Name=$c ]
 ]
@@ -95,8 +95,8 @@ Let Variable [ Name=$orders ]
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Orders]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Orders]
       ]
       AS Variable [ Name=$o ]
     ]
@@ -117,8 +117,8 @@ Let Variable [ Name=$orders ]
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItems]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItems]
           ]
           AS Variable [ Name=$l ]
         ]
@@ -128,8 +128,8 @@ Let Variable [ Name=$orders ]
             SELECT ELEMENT [
             Variable [ Name=$ps ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [PartSupp]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.PartSupp]
               ]
               AS Variable [ Name=$ps ]
             ]

@@ -19,14 +19,14 @@
 package org.apache.hyracks.api.job;
 
 import java.io.Serializable;
-import java.util.EnumSet;
+import java.util.Set;
 
-import org.apache.hyracks.api.application.ICCApplicationContext;
+import org.apache.hyracks.api.application.ICCServiceContext;
 import org.apache.hyracks.api.exceptions.HyracksException;
 
 public interface IActivityClusterGraphGeneratorFactory extends Serializable {
-    public IActivityClusterGraphGenerator createActivityClusterGraphGenerator(JobId jobId,
-            ICCApplicationContext ccAppCtx, EnumSet<JobFlag> jobFlags) throws HyracksException;
+    public IActivityClusterGraphGenerator createActivityClusterGraphGenerator(ICCServiceContext ccServiceCtx,
+            Set<JobFlag> jobFlags) throws HyracksException;
 
     public JobSpecification getJobSpecification();
 }

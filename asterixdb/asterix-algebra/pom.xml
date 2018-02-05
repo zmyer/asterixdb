@@ -21,12 +21,12 @@
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
   <artifactId>asterix-algebra</artifactId>
 
   <properties>
-    <appendedResourcesDirectory>${basedir}/../src/main/appended-resources</appendedResourcesDirectory>
+    <root.dir>${basedir}/..</root.dir>
   </properties>
 
   <licenses>
@@ -81,7 +81,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.9</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -94,23 +93,6 @@
                 <source>target/generated-sources/javacc/</source>
               </sources>
             </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.asterix</groupId>
-        <artifactId>asterix-evaluator-generator-maven-plugin</artifactId>
-        <version>${project.version}</version>
-        <configuration>
-          <evaluatorPackagePrefix>org.apache.asterix.runtime.evaluators</evaluatorPackagePrefix>
-        </configuration>
-        <executions>
-          <execution>
-            <id>generate-evaluator</id>
-            <phase>compile</phase>
-            <goals>
-              <goal>generate-evaluator</goal>
-            </goals>
           </execution>
         </executions>
       </plugin>
@@ -128,20 +110,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>javacc-maven-plugin</artifactId>
-                    <versionRange>[2.6,)</versionRange>
-                    <goals>
-                      <goal>javacc</goal>
-                    </goals>
-                  </pluginExecutionFilter>
-                  <action>
-                    <ignore />
-                  </action>
-                </pluginExecution>
-                <pluginExecution>
-                  <pluginExecutionFilter>
-                    <groupId>org.apache.asterix</groupId>
-                    <artifactId>asterix-evaluator-generator-maven-plugin</artifactId>
-                    <versionRange>(0.8.8-incubating,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>javacc</goal>
                     </goals>
@@ -220,10 +189,6 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
-      <artifactId>hyracks-util</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hyracks</groupId>
       <artifactId>hyracks-dataflow-common</artifactId>
     </dependency>
     <dependency>
@@ -262,11 +227,6 @@
       <artifactId>hyracks-dataflow-std</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.asterix</groupId>
-      <artifactId>asterix-fuzzyjoin</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
       <groupId>org.apache.hyracks</groupId>
       <artifactId>algebricks-runtime</artifactId>
     </dependency>
@@ -276,11 +236,11 @@
     </dependency>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
-      <artifactId>hyracks-storage-am-lsm-common</artifactId>
+      <artifactId>hyracks-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.hyracks</groupId>
-      <artifactId>hyracks-api</artifactId>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
     </dependency>
   </dependencies>
 </project>

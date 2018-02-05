@@ -21,29 +21,26 @@ package org.apache.hyracks.api.dataset;
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksException;
-import org.apache.hyracks.api.io.IWorkspaceFileFactory;
 import org.apache.hyracks.api.job.JobId;
 
 public interface IDatasetPartitionManager extends IDatasetManager {
-    public IFrameWriter createDatasetPartitionWriter(IHyracksTaskContext ctx, ResultSetId rsId, boolean orderedResult,
-            boolean asyncMode, int partition, int nPartitions) throws HyracksException;
+    IFrameWriter createDatasetPartitionWriter(IHyracksTaskContext ctx, ResultSetId rsId, boolean orderedResult,
+            boolean asyncMode, int partition, int nPartitions, long maxReads) throws HyracksException;
 
-    public void registerResultPartitionLocation(JobId jobId, ResultSetId rsId, int partition, int nPartitions,
+    void registerResultPartitionLocation(JobId jobId, ResultSetId rsId, int partition, int nPartitions,
             boolean orderedResult, boolean emptyResult) throws HyracksException;
 
-    public void reportPartitionWriteCompletion(JobId jobId, ResultSetId resultSetId, int partition)
+    void reportPartitionWriteCompletion(JobId jobId, ResultSetId resultSetId, int partition) throws HyracksException;
+
+    void initializeDatasetPartitionReader(JobId jobId, ResultSetId resultSetId, int partition, IFrameWriter noc)
             throws HyracksException;
 
-    public void reportPartitionFailure(JobId jobId, ResultSetId resultSetId, int partition) throws HyracksException;
+    void removePartition(JobId jobId, ResultSetId resultSetId, int partition);
 
-    public void initializeDatasetPartitionReader(JobId jobId, ResultSetId resultSetId, int partition, IFrameWriter noc)
-            throws HyracksException;
+    void abortReader(JobId jobId);
 
-    public void removePartition(JobId jobId, ResultSetId resultSetId, int partition);
+    void abortAllReaders();
 
-    public void abortReader(JobId jobId);
+    void close();
 
-    public IWorkspaceFileFactory getFileFactory();
-
-    public void close();
 }

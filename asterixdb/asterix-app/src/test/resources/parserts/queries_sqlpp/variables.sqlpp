@@ -18,6 +18,7 @@
  */
 
 with  a as 1,
-      b as 1
-select element (b - a)
+      b as 1,
+      _c as 0
+select element (b - a - _c)
 ;

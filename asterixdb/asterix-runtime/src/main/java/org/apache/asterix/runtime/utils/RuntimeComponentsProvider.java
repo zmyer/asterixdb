@@ -18,20 +18,17 @@
  */
 package org.apache.asterix.runtime.utils;
 
-import org.apache.asterix.common.api.IAppRuntimeContext;
 import org.apache.asterix.common.api.IDatasetLifecycleManager;
-import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.storage.am.common.api.IIndexLifecycleManagerProvider;
+import org.apache.asterix.common.api.INcApplicationContext;
+import org.apache.hyracks.api.application.INCServiceContext;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationSchedulerProvider;
+import org.apache.hyracks.storage.common.ILocalResourceRepository;
 import org.apache.hyracks.storage.common.IStorageManager;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
-import org.apache.hyracks.storage.common.file.ILocalResourceRepository;
 import org.apache.hyracks.storage.common.file.IResourceIdFactory;
 
-public class RuntimeComponentsProvider implements IIndexLifecycleManagerProvider, IStorageManager,
-        ILSMIOOperationSchedulerProvider {
+public class RuntimeComponentsProvider implements IStorageManager, ILSMIOOperationSchedulerProvider {
 
     private static final long serialVersionUID = 1L;
 
@@ -41,39 +38,28 @@ public class RuntimeComponentsProvider implements IIndexLifecycleManagerProvider
     }
 
     @Override
-    public ILSMIOOperationScheduler getIOScheduler(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getLSMIOScheduler();
+    public ILSMIOOperationScheduler getIoScheduler(INCServiceContext ctx) {
+        return ((INcApplicationContext) ctx.getApplicationContext()).getLSMIOScheduler();
     }
 
     @Override
-    public IBufferCache getBufferCache(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getBufferCache();
+    public IBufferCache getBufferCache(INCServiceContext ctx) {
+        return ((INcApplicationContext) ctx.getApplicationContext()).getBufferCache();
     }
 
     @Override
-    public IFileMapProvider getFileMapProvider(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getFileMapManager();
+    public ILocalResourceRepository getLocalResourceRepository(INCServiceContext ctx) {
+        return ((INcApplicationContext) ctx.getApplicationContext()).getLocalResourceRepository();
     }
 
     @Override
-    public ILocalResourceRepository getLocalResourceRepository(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getLocalResourceRepository();
+    public IDatasetLifecycleManager getLifecycleManager(INCServiceContext ctx) {
+        return ((INcApplicationContext) ctx.getApplicationContext()).getDatasetLifecycleManager();
     }
 
     @Override
-    public IDatasetLifecycleManager getLifecycleManager(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getDatasetLifecycleManager();
-    }
-
-    @Override
-    public IResourceIdFactory getResourceIdFactory(IHyracksTaskContext ctx) {
-        return ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject())
-                .getResourceIdFactory();
+    public IResourceIdFactory getResourceIdFactory(INCServiceContext ctx) {
+        return ((INcApplicationContext) ctx.getApplicationContext()).getResourceIdFactory();
     }
 
 }

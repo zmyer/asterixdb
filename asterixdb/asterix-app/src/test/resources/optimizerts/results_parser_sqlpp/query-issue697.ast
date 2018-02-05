@@ -17,7 +17,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [avg]
     :
-    FunctionCall test.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -25,12 +25,14 @@ RecordConstructor [
           Field=value
         ]
         ]
-        FROM [          Variable [ Name=$i ]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [test.i]
+          ]
           AS Variable [ Name=$j ]
         ]
         Where
-          FunctionCall null.not@1[
-            FunctionCall null.is-null@1[
+          FunctionCall algebricks.not@1[
+            FunctionCall algebricks.is-null@1[
               FieldAccessor [
                 Variable [ Name=$j ]
                 Field=value
@@ -42,8 +44,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [test]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.test]
   ]
   AS Variable [ Name=$i ]
 ]

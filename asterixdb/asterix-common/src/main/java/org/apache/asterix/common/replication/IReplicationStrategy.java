@@ -18,11 +18,6 @@
  */
 package org.apache.asterix.common.replication;
 
-import java.util.Set;
-
-import org.apache.asterix.event.schema.cluster.Cluster;
-import org.apache.hyracks.api.exceptions.HyracksDataException;
-
 public interface IReplicationStrategy {
 
     /**
@@ -30,30 +25,4 @@ public interface IReplicationStrategy {
      * @return True, if the dataset should be replicated. Otherwise false.
      */
     boolean isMatch(int datasetId);
-
-    /**
-     * @param nodeId
-     * @return The set of nodes that replicate data on {@code nodeId}.
-     */
-    Set<Replica> getRemotePrimaryReplicas(String nodeId);
-
-    /**
-     * @param node
-     * @return The set of nodes that {@code nodeId} replicates data to.
-     */
-    Set<Replica> getRemoteReplicas(String node);
-
-    /**
-     * @param nodeId
-     * @return true if {@code nodeId} has any remote primary replica or remote replica. Otherwise false.
-     */
-    default boolean isParticipant(String nodeId) {
-        return !getRemoteReplicas(nodeId).isEmpty() || !getRemotePrimaryReplicas(nodeId).isEmpty();
-    }
-
-    /**
-     * @param cluster
-     * @return A replication strategy based on the passed configurations.
-     */
-    IReplicationStrategy from(Cluster cluster) throws HyracksDataException;
 }

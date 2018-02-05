@@ -19,8 +19,8 @@
 
 package org.apache.asterix.api.http.servlet;
 
-import static org.apache.asterix.api.http.servlet.ServletConstants.ASTERIX_BUILD_PROP_ATTR;
-import static org.apache.asterix.api.http.servlet.ServletConstants.HYRACKS_CONNECTION_ATTR;
+import static org.apache.asterix.api.http.server.ServletConstants.ASTERIX_APP_CONTEXT_INFO_ATTR;
+import static org.apache.asterix.api.http.server.ServletConstants.HYRACKS_CONNECTION_ATTR;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,12 +32,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.asterix.api.http.server.VersionApiServlet;
 import org.apache.asterix.common.config.BuildProperties;
-import org.apache.asterix.runtime.utils.AppContextInfo;
+import org.apache.asterix.runtime.utils.CcApplicationContext;
 import org.apache.asterix.test.runtime.SqlppExecutionTest;
 import org.apache.hyracks.api.client.IHyracksClientConnection;
 import org.apache.hyracks.http.api.IServletRequest;
 import org.apache.hyracks.http.api.IServletResponse;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,11 +50,20 @@ import io.netty.handler.codec.http.HttpMethod;
 
 public class VersionApiServletTest {
 
-    @Test
-    public void testGet() throws Exception {
+    @Before
+    public void setup() throws Exception {
         // Starts test asterixdb cluster.
         SqlppExecutionTest.setUp();
+    }
 
+    @After
+    public void teardown() throws Exception {
+        // Tears down the asterixdb cluster.
+        SqlppExecutionTest.tearDown();
+    }
+
+    @Test
+    public void testGet() throws Exception {
         // Configures a test version api servlet.
         VersionApiServlet servlet = new VersionApiServlet(new ConcurrentHashMap<>(), new String[] { "/" });
         Map<String, String> propMap = new HashMap<>();
@@ -60,7 +71,7 @@ public class VersionApiServletTest {
         PrintWriter outputWriter = new PrintWriter(outputStream);
 
         // Creates mocks.
-        AppContextInfo mockCtx = mock(AppContextInfo.class);
+        CcApplicationContext mockCtx = mock(CcApplicationContext.class);
         IServletRequest mockRequest = mock(IServletRequest.class);
         IHyracksClientConnection mockHcc = mock(IHyracksClientConnection.class);
         IServletResponse mockResponse = mock(IServletResponse.class);
@@ -69,7 +80,7 @@ public class VersionApiServletTest {
 
         // Put stuff in let map
         servlet.ctx().put(HYRACKS_CONNECTION_ATTR, mockHcc);
-        servlet.ctx().put(ASTERIX_BUILD_PROP_ATTR, mockCtx);
+        servlet.ctx().put(ASTERIX_APP_CONTEXT_INFO_ATTR, mockCtx);
         // Sets up mock returns.
         when(mockResponse.writer()).thenReturn(outputWriter);
         when(mockRequest.getHttpRequest()).thenReturn(mockHttpRequest);
@@ -113,8 +124,5 @@ public class VersionApiServletTest {
 
         // Checks the response contains all the expected keys.
         Assert.assertEquals(actualResponse.toString(), expectedResponse.toString());
-
-        // Tears down the asterixdb cluster.
-        SqlppExecutionTest.tearDown();
     }
 }

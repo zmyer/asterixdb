@@ -23,13 +23,13 @@ Let Variable [ Name=$t ]
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Nation]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Nation]
       ]
       AS Variable [ Name=$nation ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [SelectedNation]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.SelectedNation]
       ]
       AS Variable [ Name=$sn ]
     ]
@@ -71,13 +71,13 @@ Let Variable [ Name=$X ]
     FROM [      Variable [ Name=$t ]
       AS Variable [ Name=$n ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Customer]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Customer]
       ]
       AS Variable [ Name=$customer ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Orders]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Orders]
       ]
       AS Variable [ Name=$orders ]
     ]
@@ -120,7 +120,7 @@ Let Variable [ Name=$X ]
         Variable [ Name=$n ]
         Field=n_nationkey
       ]
-      GROUP AS Variable [ Name=#1 ]
+      GROUP AS Variable [ Name=$g2 ]
       (
         n:=Variable [ Name=$n ]
         customer:=Variable [ Name=$customer ]
@@ -129,16 +129,19 @@ Let Variable [ Name=$X ]
 
     Let Variable [ Name=$sum ]
       :=
-      FunctionCall tpch.sum@1[
+      FunctionCall asterix.sum@1[
         (
           SELECT ELEMENT [
           FieldAccessor [
-            Variable [ Name=$o ]
+            FieldAccessor [
+              Variable [ Name=$g2 ]
+              Field=orders
+            ]
             Field=o_totalprice
           ]
           ]
-          FROM [            Variable [ Name=$orders ]
-            AS Variable [ Name=$o ]
+          FROM [            Variable [ Name=$g2 ]
+            AS Variable [ Name=$g2 ]
           ]
         )
       ]
@@ -160,7 +163,10 @@ RecordConstructor [
           LiteralExpr [STRING] [orderdate]
           :
           FieldAccessor [
-            Variable [ Name=$y ]
+            FieldAccessor [
+              Variable [ Name=$g ]
+              Field=x
+            ]
             Field=order_date
           ]
         )
@@ -168,18 +174,24 @@ RecordConstructor [
           LiteralExpr [STRING] [sum_price]
           :
           FieldAccessor [
-            Variable [ Name=$y ]
+            FieldAccessor [
+              Variable [ Name=$g ]
+              Field=x
+            ]
             Field=sum_price
           ]
         )
       ]
       ]
-      FROM [        Variable [ Name=$x ]
-        AS Variable [ Name=$y ]
+      FROM [        Variable [ Name=$g ]
+        AS Variable [ Name=$g ]
       ]
       Orderby
         FieldAccessor [
-          Variable [ Name=$y ]
+          FieldAccessor [
+            Variable [ Name=$g ]
+            Field=x
+          ]
           Field=sum_price
         ]
         DESC
@@ -200,7 +212,7 @@ Groupby
     Variable [ Name=$x ]
     Field=nation_key
   ]
-  GROUP AS Variable [ Name=#2 ]
+  GROUP AS Variable [ Name=$g ]
   (
     x:=Variable [ Name=$x ]
   )

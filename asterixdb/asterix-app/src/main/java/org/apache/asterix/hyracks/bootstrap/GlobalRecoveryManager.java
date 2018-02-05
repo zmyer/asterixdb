@@ -22,17 +22,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.common.api.IClusterManagementWork;
 import org.apache.asterix.common.api.IClusterManagementWork.ClusterState;
-import org.apache.asterix.common.api.IClusterManagementWorkResponse;
 import org.apache.asterix.common.cluster.IGlobalRecoveryManager;
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
 import org.apache.asterix.common.config.DatasetConfig.ExternalFilePendingOp;
 import org.apache.asterix.common.config.DatasetConfig.TransactionState;
 import org.apache.asterix.common.context.IStorageComponentProvider;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.external.indexing.ExternalFile;
 import org.apache.asterix.metadata.MetadataManager;
 import org.apache.asterix.metadata.MetadataTransactionContext;
@@ -43,35 +41,40 @@ import org.apache.asterix.metadata.entities.ExternalDatasetDetails;
 import org.apache.asterix.metadata.entities.Index;
 import org.apache.asterix.metadata.utils.ExternalIndexingOperations;
 import org.apache.asterix.metadata.utils.MetadataConstants;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
-import org.apache.hyracks.api.client.HyracksConnection;
+import org.apache.hyracks.api.application.ICCServiceContext;
+import org.apache.hyracks.api.client.IHyracksClientConnection;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.JobSpecification;
+import org.apache.hyracks.control.nc.NCShutdownHook;
+import org.apache.hyracks.util.ExitUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class GlobalRecoveryManager implements IGlobalRecoveryManager {
 
-    private static final Logger LOGGER = Logger.getLogger(GlobalRecoveryManager.class.getName());
-    private static GlobalRecoveryManager instance;
-    private static ClusterState state;
-    private final IStorageComponentProvider componentProvider;
-    private HyracksConnection hcc;
+    private static final Logger LOGGER = LogManager.getLogger();
+    protected final IStorageComponentProvider componentProvider;
+    protected final ICCServiceContext serviceCtx;
+    protected IHyracksClientConnection hcc;
+    protected volatile boolean recoveryCompleted;
+    protected volatile boolean recovering;
 
-    private GlobalRecoveryManager(HyracksConnection hcc, IStorageComponentProvider componentProvider) {
-        setState(ClusterState.UNUSABLE);
+    public GlobalRecoveryManager(ICCServiceContext serviceCtx, IHyracksClientConnection hcc,
+            IStorageComponentProvider componentProvider) {
+        this.serviceCtx = serviceCtx;
         this.hcc = hcc;
         this.componentProvider = componentProvider;
     }
 
     @Override
     public Set<IClusterManagementWork> notifyNodeFailure(Collection<String> deadNodeIds) {
-        setState(ClusterStateManager.INSTANCE.getState());
-        ClusterStateManager.INSTANCE.setGlobalRecoveryCompleted(false);
         return Collections.emptySet();
     }
 
     @Override
     public Set<IClusterManagementWork> notifyNodeJoin(String joinedNodeId) {
-        startGlobalRecovery();
         return Collections.emptySet();
     }
 
@@ -82,158 +85,153 @@ public class GlobalRecoveryManager implements IGlobalRecoveryManager {
     }
 
     @Override
-    public void notifyRequestCompletion(IClusterManagementWorkResponse response) {
-        // Do nothing
-    }
-
-    @Override
-    public void notifyStateChange(ClusterState previousState, ClusterState newState) {
-        // Do nothing?
-    }
-
-    @Override
-    public void startGlobalRecovery() {
-        // perform global recovery if state changed to active
-        final ClusterState newState = ClusterStateManager.INSTANCE.getState();
-        boolean needToRecover = !newState.equals(state) && (newState == ClusterState.ACTIVE);
-        if (needToRecover) {
-            Thread recoveryThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    LOGGER.info("Starting AsterixDB's Global Recovery");
-                    MetadataTransactionContext mdTxnCtx = null;
-                    try {
-                        Thread.sleep(4000);
-                        MetadataManager.INSTANCE.init();
-                        // Loop over datasets
-                        mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
-                        List<Dataverse> dataverses = MetadataManager.INSTANCE.getDataverses(mdTxnCtx);
-                        for (Dataverse dataverse : dataverses) {
-                            if (!dataverse.getDataverseName().equals(MetadataConstants.METADATA_DATAVERSE_NAME)) {
-                                MetadataProvider metadataProvider = new MetadataProvider(dataverse, componentProvider);
-                                List<Dataset> datasets = MetadataManager.INSTANCE.getDataverseDatasets(mdTxnCtx,
-                                        dataverse.getDataverseName());
-                                for (Dataset dataset : datasets) {
-                                    if (dataset.getDatasetType() == DatasetType.EXTERNAL) {
-                                        // External dataset
-                                        // Get indexes
-                                        List<Index> indexes = MetadataManager.INSTANCE.getDatasetIndexes(mdTxnCtx,
-                                                dataset.getDataverseName(), dataset.getDatasetName());
-                                        if (!indexes.isEmpty()) {
-                                            // Get the state of the dataset
-                                            ExternalDatasetDetails dsd =
-                                                    (ExternalDatasetDetails) dataset.getDatasetDetails();
-                                            TransactionState datasetState = dsd.getState();
-                                            if (datasetState == TransactionState.BEGIN) {
-                                                List<ExternalFile> files = MetadataManager.INSTANCE
-                                                        .getDatasetExternalFiles(mdTxnCtx, dataset);
-                                                // if persumed abort, roll backward
-                                                // 1. delete all pending files
-                                                for (ExternalFile file : files) {
-                                                    if (file.getPendingOp() != ExternalFilePendingOp.NO_OP) {
-                                                        MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
-                                                    }
-                                                }
-                                                // 2. clean artifacts in NCs
-                                                metadataProvider.setMetadataTxnContext(mdTxnCtx);
-                                                JobSpecification jobSpec = ExternalIndexingOperations
-                                                        .buildAbortOp(dataset, indexes, metadataProvider);
-                                                executeHyracksJob(jobSpec);
-                                                // 3. correct the dataset state
-                                                ((ExternalDatasetDetails) dataset.getDatasetDetails())
-                                                        .setState(TransactionState.COMMIT);
-                                                MetadataManager.INSTANCE.updateDataset(mdTxnCtx, dataset);
-                                                MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
-                                                mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
-                                            } else if (datasetState == TransactionState.READY_TO_COMMIT) {
-                                                List<ExternalFile> files = MetadataManager.INSTANCE
-                                                        .getDatasetExternalFiles(mdTxnCtx, dataset);
-                                                // if ready to commit, roll forward
-                                                // 1. commit indexes in NCs
-                                                metadataProvider.setMetadataTxnContext(mdTxnCtx);
-                                                JobSpecification jobSpec = ExternalIndexingOperations
-                                                        .buildRecoverOp(dataset, indexes, metadataProvider);
-                                                executeHyracksJob(jobSpec);
-                                                // 2. add pending files in metadata
-                                                for (ExternalFile file : files) {
-                                                    if (file.getPendingOp() == ExternalFilePendingOp.ADD_OP) {
-                                                        MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
-                                                        file.setPendingOp(ExternalFilePendingOp.NO_OP);
-                                                        MetadataManager.INSTANCE.addExternalFile(mdTxnCtx, file);
-                                                    } else if (file.getPendingOp() == ExternalFilePendingOp.DROP_OP) {
-                                                        // find original file
-                                                        for (ExternalFile originalFile : files) {
-                                                            if (originalFile.getFileName()
-                                                                    .equals(file.getFileName())) {
-                                                                MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx,
-                                                                        file);
-                                                                MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx,
-                                                                        originalFile);
-                                                                break;
-                                                            }
-                                                        }
-                                                    } else if (file
-                                                            .getPendingOp() == ExternalFilePendingOp.APPEND_OP) {
-                                                        // find original file
-                                                        for (ExternalFile originalFile : files) {
-                                                            if (originalFile.getFileName()
-                                                                    .equals(file.getFileName())) {
-                                                                MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx,
-                                                                        file);
-                                                                MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx,
-                                                                        originalFile);
-                                                                originalFile.setSize(file.getSize());
-                                                                MetadataManager.INSTANCE.addExternalFile(mdTxnCtx,
-                                                                        originalFile);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                // 3. correct the dataset state
-                                                ((ExternalDatasetDetails) dataset.getDatasetDetails())
-                                                        .setState(TransactionState.COMMIT);
-                                                MetadataManager.INSTANCE.updateDataset(mdTxnCtx, dataset);
-                                                MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
-                                                mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
-                    } catch (Exception e) {
-                        // This needs to be fixed <-- Needs to shutdown the system -->
-                        /*
-                         * Note: Throwing this illegal state exception will terminate this thread
-                         * and feeds listeners will not be notified.
-                         */
-                        LOGGER.log(Level.SEVERE, "Global recovery was not completed successfully: ", e);
+    public void startGlobalRecovery(ICcApplicationContext appCtx) {
+        if (!recoveryCompleted && !recovering) {
+            synchronized (this) {
+                if (!recovering) {
+                    recovering = true;
+                    /**
+                     * Perform recovery on a different thread to avoid deadlocks in
+                     * {@link org.apache.asterix.common.cluster.IClusterStateManager}
+                     */
+                    serviceCtx.getControllerService().getExecutor().submit(() -> {
                         try {
-                            MetadataManager.INSTANCE.abortTransaction(mdTxnCtx);
-                        } catch (Exception e1) {
-                            LOGGER.log(Level.SEVERE, "Exception in aborting", e1);
-                            throw new IllegalStateException(e1);
+                            recover(appCtx);
+                        } catch (HyracksDataException e) {
+                            LOGGER.log(Level.ERROR, "Global recovery failed. Shutting down...", e);
+                            ExitUtil.exit(NCShutdownHook.FAILED_TO_RECOVER_EXIT_CODE);
                         }
-                    }
-                    ClusterStateManager.INSTANCE.setGlobalRecoveryCompleted(true);
-                    LOGGER.info("Global Recovery Completed");
+                    });
                 }
-            }, "RecoveryThread");
-            setState(newState);
-            recoveryThread.start();
+            }
         }
     }
 
-    public static GlobalRecoveryManager instance() {
-        return instance;
+    protected void recover(ICcApplicationContext appCtx) throws HyracksDataException {
+        try {
+            LOGGER.info("Starting Global Recovery");
+            MetadataManager.INSTANCE.init();
+            MetadataTransactionContext mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
+            mdTxnCtx = doRecovery(appCtx, mdTxnCtx);
+            MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
+            recoveryCompleted = true;
+            recovering = false;
+            LOGGER.info("Global Recovery Completed. Refreshing cluster state...");
+            appCtx.getClusterStateManager().refreshState();
+        } catch (Exception e) {
+            throw HyracksDataException.create(e);
+        }
     }
 
-    public static synchronized void instantiate(HyracksConnection hcc, IStorageComponentProvider componentProvider) {
-        instance = new GlobalRecoveryManager(hcc, componentProvider);
+    protected MetadataTransactionContext doRecovery(ICcApplicationContext appCtx, MetadataTransactionContext mdTxnCtx)
+            throws Exception {
+        // Loop over datasets
+        for (Dataverse dataverse : MetadataManager.INSTANCE.getDataverses(mdTxnCtx)) {
+            mdTxnCtx = recoverDataset(appCtx, mdTxnCtx, dataverse);
+        }
+        return mdTxnCtx;
     }
 
-    public static synchronized void setState(ClusterState state) {
-        GlobalRecoveryManager.state = state;
+    @Override
+    public void notifyStateChange(ClusterState newState) {
+        if (newState != ClusterState.ACTIVE && newState != ClusterState.RECOVERING) {
+            recoveryCompleted = false;
+        }
     }
+
+    private MetadataTransactionContext recoverDataset(ICcApplicationContext appCtx, MetadataTransactionContext mdTxnCtx,
+            Dataverse dataverse) throws Exception {
+        if (!dataverse.getDataverseName().equals(MetadataConstants.METADATA_DATAVERSE_NAME)) {
+            MetadataProvider metadataProvider = new MetadataProvider(appCtx, dataverse);
+            try {
+                List<Dataset> datasets =
+                        MetadataManager.INSTANCE.getDataverseDatasets(mdTxnCtx, dataverse.getDataverseName());
+                for (Dataset dataset : datasets) {
+                    if (dataset.getDatasetType() == DatasetType.EXTERNAL) {
+                        // External dataset
+                        // Get indexes
+                        List<Index> indexes = MetadataManager.INSTANCE.getDatasetIndexes(mdTxnCtx,
+                                dataset.getDataverseName(), dataset.getDatasetName());
+                        // Get the state of the dataset
+                        ExternalDatasetDetails dsd = (ExternalDatasetDetails) dataset.getDatasetDetails();
+                        TransactionState datasetState = dsd.getState();
+                        if (!indexes.isEmpty()) {
+                            if (datasetState == TransactionState.BEGIN) {
+                                List<ExternalFile> files =
+                                        MetadataManager.INSTANCE.getDatasetExternalFiles(mdTxnCtx, dataset);
+                                // if persumed abort, roll backward
+                                // 1. delete all pending files
+                                for (ExternalFile file : files) {
+                                    if (file.getPendingOp() != ExternalFilePendingOp.NO_OP) {
+                                        MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
+                                    }
+                                }
+                            }
+                            // 2. clean artifacts in NCs
+                            metadataProvider.setMetadataTxnContext(mdTxnCtx);
+                            JobSpecification jobSpec =
+                                    ExternalIndexingOperations.buildAbortOp(dataset, indexes, metadataProvider);
+                            executeHyracksJob(jobSpec);
+                            // 3. correct the dataset state
+                            ((ExternalDatasetDetails) dataset.getDatasetDetails()).setState(TransactionState.COMMIT);
+                            MetadataManager.INSTANCE.updateDataset(mdTxnCtx, dataset);
+                            MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
+                            mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
+                        } else if (datasetState == TransactionState.READY_TO_COMMIT) {
+                            List<ExternalFile> files =
+                                    MetadataManager.INSTANCE.getDatasetExternalFiles(mdTxnCtx, dataset);
+                            // if ready to commit, roll forward
+                            // 1. commit indexes in NCs
+                            metadataProvider.setMetadataTxnContext(mdTxnCtx);
+                            JobSpecification jobSpec =
+                                    ExternalIndexingOperations.buildRecoverOp(dataset, indexes, metadataProvider);
+                            executeHyracksJob(jobSpec);
+                            // 2. add pending files in metadata
+                            for (ExternalFile file : files) {
+                                if (file.getPendingOp() == ExternalFilePendingOp.ADD_OP) {
+                                    MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
+                                    file.setPendingOp(ExternalFilePendingOp.NO_OP);
+                                    MetadataManager.INSTANCE.addExternalFile(mdTxnCtx, file);
+                                } else if (file.getPendingOp() == ExternalFilePendingOp.DROP_OP) {
+                                    // find original file
+                                    for (ExternalFile originalFile : files) {
+                                        if (originalFile.getFileName().equals(file.getFileName())) {
+                                            MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
+                                            MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, originalFile);
+                                            break;
+                                        }
+                                    }
+                                } else if (file.getPendingOp() == ExternalFilePendingOp.APPEND_OP) {
+                                    // find original file
+                                    for (ExternalFile originalFile : files) {
+                                        if (originalFile.getFileName().equals(file.getFileName())) {
+                                            MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, file);
+                                            MetadataManager.INSTANCE.dropExternalFile(mdTxnCtx, originalFile);
+                                            originalFile.setSize(file.getSize());
+                                            MetadataManager.INSTANCE.addExternalFile(mdTxnCtx, originalFile);
+                                        }
+                                    }
+                                }
+                                // 3. correct the dataset state
+                                ((ExternalDatasetDetails) dataset.getDatasetDetails())
+                                        .setState(TransactionState.COMMIT);
+                                MetadataManager.INSTANCE.updateDataset(mdTxnCtx, dataset);
+                                MetadataManager.INSTANCE.commitTransaction(mdTxnCtx);
+                                mdTxnCtx = MetadataManager.INSTANCE.beginTransaction();
+                            }
+                        }
+                    }
+                }
+            } finally {
+                metadataProvider.getLocks().unlock();
+            }
+        }
+        return mdTxnCtx;
+    }
+
+    @Override
+    public boolean isRecoveryCompleted() {
+        return recoveryCompleted;
+    }
+
 }

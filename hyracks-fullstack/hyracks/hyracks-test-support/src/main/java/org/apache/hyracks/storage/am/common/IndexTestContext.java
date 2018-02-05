@@ -25,8 +25,9 @@ import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleReference;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
+import org.apache.hyracks.storage.am.common.impls.IndexAccessParameters;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IIndexAccessor;
 
 @SuppressWarnings("rawtypes")
 public abstract class IndexTestContext<T extends CheckTuple> implements IIndexTestContext<T> {
@@ -36,12 +37,15 @@ public abstract class IndexTestContext<T extends CheckTuple> implements IIndexTe
     protected final ArrayTupleReference tuple = new ArrayTupleReference();
     protected final IIndexAccessor indexAccessor;
 
-    public IndexTestContext(ISerializerDeserializer[] fieldSerdes, IIndex index) throws HyracksDataException {
+    public IndexTestContext(ISerializerDeserializer[] fieldSerdes, IIndex index, boolean filtered)
+            throws HyracksDataException {
         this.fieldSerdes = fieldSerdes;
         this.index = index;
-        this.indexAccessor = (IIndexAccessor) index.createAccessor(TestOperationCallback.INSTANCE,
-                TestOperationCallback.INSTANCE);
-        this.tupleBuilder = new ArrayTupleBuilder(fieldSerdes.length);
+        IndexAccessParameters actx =
+                new IndexAccessParameters(TestOperationCallback.INSTANCE, TestOperationCallback.INSTANCE);
+        this.indexAccessor = index.createAccessor(actx);
+        this.tupleBuilder =
+                filtered ? new ArrayTupleBuilder(fieldSerdes.length + 1) : new ArrayTupleBuilder(fieldSerdes.length);
     }
 
     @Override

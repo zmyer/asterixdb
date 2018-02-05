@@ -20,8 +20,6 @@ package org.apache.hyracks.control.nc.partitions;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
@@ -32,9 +30,11 @@ import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.api.partitions.PartitionId;
 import org.apache.hyracks.control.common.job.PartitionState;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class MaterializedPartitionWriter implements IFrameWriter {
-    private static final Logger LOGGER = Logger.getLogger(MaterializedPartitionWriter.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final IHyracksTaskContext ctx;
 
@@ -65,7 +65,7 @@ public class MaterializedPartitionWriter implements IFrameWriter {
 
     @Override
     public void open() throws HyracksDataException {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("open(" + pid + " by " + taId);
         }
         failed = false;
@@ -75,11 +75,11 @@ public class MaterializedPartitionWriter implements IFrameWriter {
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
         if (handle == null) {
             fRef = manager.getFileFactory().createUnmanagedWorkspaceFile(pid.toString());
-            handle = ctx.getIOManager().open(fRef, IIOManager.FileReadWriteMode.READ_WRITE,
+            handle = ctx.getIoManager().open(fRef, IIOManager.FileReadWriteMode.READ_WRITE,
                     IIOManager.FileSyncMode.METADATA_ASYNC_DATA_ASYNC);
             size = 0;
         }
-        size += ctx.getIOManager().syncWrite(handle, size, buffer);
+        size += ctx.getIoManager().syncWrite(handle, size, buffer);
     }
 
     @Override
@@ -89,16 +89,16 @@ public class MaterializedPartitionWriter implements IFrameWriter {
 
     @Override
     public void close() throws HyracksDataException {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("close(" + pid + " by " + taId);
         }
         if (handle != null) {
-            ctx.getIOManager().close(handle);
+            ctx.getIoManager().close(handle);
         }
         if (!failed) {
-            manager.registerPartition(pid, taId,
-                    new MaterializedPartition(ctx, fRef, executor, ctx.getIOManager()),
-                    PartitionState.COMMITTED, taId.getAttempt() == 0 ? false : true);
+            manager.registerPartition(pid, ctx.getJobletContext().getJobId().getCcId(), taId,
+                    new MaterializedPartition(ctx, fRef, executor, ctx.getIoManager()), PartitionState.COMMITTED,
+                    taId.getAttempt() == 0 ? false : true);
 
         }
     }

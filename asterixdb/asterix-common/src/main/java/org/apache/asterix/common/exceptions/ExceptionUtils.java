@@ -18,11 +18,10 @@
  */
 package org.apache.asterix.common.exceptions;
 
-import org.apache.hyracks.api.exceptions.HyracksDataException;
+import java.util.function.Predicate;
 
 public class ExceptionUtils {
     public static final String INCORRECT_PARAMETER = "Incorrect parameter.\n";
-    public static final String MISSING_PARAMETER = "Missing parameter.\n";
     public static final String PARAMETER_NAME = "Parameter name: ";
     public static final String EXPECTED_VALUE = "Expected value: ";
     public static final String PASSED_VALUE = "Passed value: ";
@@ -35,28 +34,38 @@ public class ExceptionUtils {
                 + expectedValue + System.lineSeparator() + PASSED_VALUE + passedValue;
     }
 
-    public static HyracksDataException suppressIntoHyracksDataException(HyracksDataException hde, Throwable th) {
-        if (hde == null) {
-            return new HyracksDataException(th);
-        } else {
-            hde.addSuppressed(th);
-            return hde;
-        }
+    // Gets the error message for the root cause of a given Throwable instance.
+    public static String getErrorMessage(Throwable th) {
+        Throwable cause = getRootCause(th);
+        return cause.getMessage();
     }
 
-    public static Throwable suppress(Throwable suppressor, Throwable suppressed) {
-        if (suppressor == null) {
-            return suppressed;
-        } else if (suppressed != null) {
-            suppressor.addSuppressed(suppressed);
+    // Finds the root cause of a given Throwable instance.
+    public static Throwable getRootCause(Throwable e) {
+        Throwable current = e;
+        Throwable cause = e.getCause();
+        while (cause != null && cause != current) {
+            Throwable nextCause = current.getCause();
+            current = cause;
+            cause = nextCause;
         }
-        return suppressor;
+        return current;
     }
 
-    public static HyracksDataException convertToHyracksDataException(Throwable throwable) {
-        if (throwable == null || throwable instanceof HyracksDataException) {
-            return (HyracksDataException) throwable;
+    /**
+     * Determines whether supplied exception contains a matching cause in its hierarchy, or is itself a match
+     */
+    public static boolean matchingCause(Throwable e, Predicate<Throwable> test) {
+        Throwable current = e;
+        Throwable cause = e.getCause();
+        while (cause != null && cause != current) {
+            if (test.test(cause)) {
+                return true;
+            }
+            Throwable nextCause = current.getCause();
+            current = cause;
+            cause = nextCause;
         }
-        return new HyracksDataException(throwable);
+        return test.test(e);
     }
 }

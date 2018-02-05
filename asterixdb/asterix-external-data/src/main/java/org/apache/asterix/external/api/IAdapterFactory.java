@@ -21,10 +21,10 @@ package org.apache.asterix.external.api;
 import java.io.Serializable;
 import java.util.Map;
 
-import org.apache.asterix.common.library.ILibraryManager;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
+import org.apache.hyracks.api.application.IServiceContext;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
@@ -40,7 +40,7 @@ public interface IAdapterFactory extends Serializable {
      *
      * @return the display name
      */
-    public String getAlias();
+    String getAlias();
 
     /**
      * Gets a list of partition constraints. A partition constraint can be a
@@ -54,10 +54,8 @@ public interface IAdapterFactory extends Serializable {
      * running on the node with the given IP address.
      *
      * @throws AlgebricksException
-     * @throws HyracksDataException
      */
-    public AlgebricksAbsolutePartitionConstraint getPartitionConstraint()
-            throws HyracksDataException, AlgebricksException;
+    AlgebricksAbsolutePartitionConstraint getPartitionConstraint() throws AlgebricksException;
 
     /**
      * Creates an instance of IDatasourceAdapter.
@@ -67,22 +65,40 @@ public interface IAdapterFactory extends Serializable {
      * @return An instance of IDatasourceAdapter.
      * @throws Exception
      */
-    public IDataSourceAdapter createAdapter(IHyracksTaskContext ctx, int partition) throws HyracksDataException;
+    IDataSourceAdapter createAdapter(IHyracksTaskContext ctx, int partition) throws HyracksDataException;
 
     /**
-     * @param libraryManager
+     * Configure the adapter
+     *
+     * @param serviceContext
      * @param configuration
      * @throws AlgebricksException
      * @throws HyracksDataException
      */
-    public void configure(ILibraryManager libraryManager, Map<String, String> configuration)
+    void configure(IServiceContext serviceContext, Map<String, String> configuration)
             throws HyracksDataException, AlgebricksException;
 
-    public void setOutputType(ARecordType outputType);
+    /**
+     * Set the expected record output type of the adapter
+     *
+     * @param outputType
+     */
+    void setOutputType(ARecordType outputType);
 
-    public void setMetaType(ARecordType metaType);
+    /**
+     * Set the expected meta output type of the adapter
+     *
+     * @param metaType
+     */
+    void setMetaType(ARecordType metaType);
 
-    public ARecordType getOutputType();
+    /**
+     * @return the adapter record output type
+     */
+    ARecordType getOutputType();
 
-    public ARecordType getMetaType();
+    /**
+     * @return the adapter meta output type
+     */
+    ARecordType getMetaType();
 }

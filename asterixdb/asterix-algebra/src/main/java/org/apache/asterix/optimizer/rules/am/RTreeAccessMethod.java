@@ -73,13 +73,13 @@ public class RTreeAccessMethod implements IAccessMethod {
     }
 
     @Override
-    public boolean analyzeFuncExprArgs(AbstractFunctionCallExpression funcExpr,
+    public boolean analyzeFuncExprArgsAndUpdateAnalysisCtx(AbstractFunctionCallExpression funcExpr,
             List<AbstractLogicalOperator> assignsAndUnnests, AccessMethodAnalysisContext analysisCtx,
             IOptimizationContext context, IVariableTypeEnvironment typeEnvironment) throws AlgebricksException {
-        boolean matches = AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVar(funcExpr, analysisCtx, context,
-                typeEnvironment);
+        boolean matches = AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVarAndUpdateAnalysisCtx(funcExpr,
+                analysisCtx, context, typeEnvironment);
         if (!matches) {
-            matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVars(funcExpr, analysisCtx);
+            matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVarsAndUpdateAnalysisCtx(funcExpr, analysisCtx);
         }
         return matches;
     }
@@ -127,7 +127,7 @@ public class RTreeAccessMethod implements IAccessMethod {
             boolean hasGroupBy) throws AlgebricksException {
         // Determine if the index is applicable on the left or right side (if both, we arbitrarily prefer the left
         // side).
-        Dataset dataset = analysisCtx.indexDatasetMap.get(chosenIndex);
+        Dataset dataset = analysisCtx.getDatasetFromIndexDatasetMap(chosenIndex);
         OptimizableOperatorSubTree indexSubTree;
         OptimizableOperatorSubTree probeSubTree;
 
@@ -184,8 +184,9 @@ public class RTreeAccessMethod implements IAccessMethod {
         ARecordType metaRecordType = indexSubTree.getMetaRecordType();
 
         int optFieldIdx = AccessMethodUtils.chooseFirstOptFuncVar(chosenIndex, analysisCtx);
-        Pair<IAType, Boolean> keyPairType = Index.getNonNullableOpenFieldType(optFuncExpr.getFieldType(optFieldIdx),
-                optFuncExpr.getFieldName(optFieldIdx), recordType);
+        IAType optFieldType = optFuncExpr.getFieldType(optFieldIdx);
+        List<String> optFieldName = optFuncExpr.getFieldName(optFieldIdx);
+        Pair<IAType, Boolean> keyPairType = Index.getNonNullableOpenFieldType(optFieldType, optFieldName, recordType);
         if (keyPairType == null) {
             return null;
         }
@@ -195,8 +196,8 @@ public class RTreeAccessMethod implements IAccessMethod {
         int numDimensions = NonTaggedFormatUtil.getNumDimensions(spatialType.getTypeTag());
         int numSecondaryKeys = numDimensions * 2;
         // we made sure indexSubTree has datasource scan
-        AbstractDataSourceOperator dataSourceOp = (AbstractDataSourceOperator) indexSubTree.getDataSourceRef()
-                .getValue();
+        AbstractDataSourceOperator dataSourceOp =
+                (AbstractDataSourceOperator) indexSubTree.getDataSourceRef().getValue();
         RTreeJobGenParams jobGenParams = new RTreeJobGenParams(chosenIndex.getIndexName(), IndexType.RTREE,
                 dataset.getDataverseName(), dataset.getDatasetName(), retainInput, requiresBroadcast);
         // A spatial object is serialized in the constant of the func expr we are optimizing.
@@ -207,14 +208,14 @@ public class RTreeAccessMethod implements IAccessMethod {
         ArrayList<LogicalVariable> keyVarList = new ArrayList<>();
         // List of expressions for the assign.
         ArrayList<Mutable<ILogicalExpression>> keyExprList = new ArrayList<>();
-        Pair<ILogicalExpression, Boolean> returnedSearchKeyExpr = AccessMethodUtils.createSearchKeyExpr(optFuncExpr,
-                indexSubTree, probeSubTree);
+        Pair<ILogicalExpression, Boolean> returnedSearchKeyExpr = AccessMethodUtils.createSearchKeyExpr(chosenIndex,
+                optFuncExpr, optFieldType, indexSubTree, probeSubTree);
         ILogicalExpression searchKeyExpr = returnedSearchKeyExpr.first;
 
         for (int i = 0; i < numSecondaryKeys; i++) {
             // The create MBR function "extracts" one field of an MBR around the given spatial object.
-            AbstractFunctionCallExpression createMBR = new ScalarFunctionCallExpression(
-                    FunctionUtil.getFunctionInfo(BuiltinFunctions.CREATE_MBR));
+            AbstractFunctionCallExpression createMBR =
+                    new ScalarFunctionCallExpression(FunctionUtil.getFunctionInfo(BuiltinFunctions.CREATE_MBR));
             // Spatial object is the constant from the func expr we are optimizing.
             createMBR.getArguments().add(new MutableObject<>(searchKeyExpr));
             // The number of dimensions.
@@ -235,8 +236,8 @@ public class RTreeAccessMethod implements IAccessMethod {
         if (probeSubTree == null) {
             // We are optimizing a selection query.
             // Input to this assign is the EmptyTupleSource (which the dataSourceScan also must have had as input).
-            assignSearchKeys.getInputs().add(new MutableObject<>(
-                    OperatorManipulationUtil.deepCopy(dataSourceOp.getInputs().get(0).getValue())));
+            assignSearchKeys.getInputs().add(
+                    new MutableObject<>(OperatorManipulationUtil.deepCopy(dataSourceOp.getInputs().get(0).getValue())));
             assignSearchKeys.setExecutionMode(dataSourceOp.getExecutionMode());
         } else {
             // We are optimizing a join, place the assign op top of the probe subtree.

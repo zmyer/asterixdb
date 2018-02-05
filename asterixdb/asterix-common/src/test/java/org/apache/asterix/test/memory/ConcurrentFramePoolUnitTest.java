@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.LinkedBlockingDeque;
 
-import org.apache.asterix.common.config.FeedProperties;
+import org.apache.asterix.common.config.ActiveProperties;
 import org.apache.asterix.common.memory.ConcurrentFramePool;
 import org.apache.asterix.common.memory.FrameAction;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
@@ -58,10 +58,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
 
     @org.junit.Test
     public void testMemoryManager() {
-        FeedProperties afp = Mockito.mock(FeedProperties.class);
+        ActiveProperties afp = Mockito.mock(ActiveProperties.class);
         Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-        ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                DEFAULT_FRAME_SIZE);
+        ConcurrentFramePool fmm =
+                new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
         int i = 0;
         while (fmm.get() != null) {
             i++;
@@ -73,10 +73,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testConcurrentMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             FixedSizeAllocator[] runners = new FixedSizeAllocator[NUM_THREADS];
             Thread[] threads = new Thread[NUM_THREADS];
             Arrays.parallelSetAll(runners, (int i) -> new FixedSizeAllocator(fmm));
@@ -104,10 +104,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testVarSizeMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             Random random = new Random();
             int i = 0;
             int req;
@@ -139,10 +139,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testConcurrentVarSizeMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
 
             VarSizeAllocator[] runners = new VarSizeAllocator[NUM_THREADS];
             Thread[] threads = new Thread[NUM_THREADS];
@@ -178,10 +178,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
 
     @org.junit.Test
     public void testAcquireReleaseMemoryManager() throws HyracksDataException {
-        FeedProperties afp = Mockito.mock(FeedProperties.class);
+        ActiveProperties afp = Mockito.mock(ActiveProperties.class);
         Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-        ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                DEFAULT_FRAME_SIZE);
+        ConcurrentFramePool fmm =
+                new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
         Random random = new Random();
         ArrayDeque<ByteBuffer> stack = new ArrayDeque<>();
         while (true) {
@@ -211,10 +211,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testConcurrentAcquireReleaseMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             FixedSizeGoodAllocator[] runners = new FixedSizeGoodAllocator[NUM_THREADS];
             Thread[] threads = new Thread[NUM_THREADS];
             Arrays.parallelSetAll(runners, (int i) -> new FixedSizeGoodAllocator(fmm));
@@ -242,10 +242,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testAcquireReleaseVarSizeMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             Random random = new Random();
             ArrayDeque<ByteBuffer> stack = new ArrayDeque<>();
             int i = 0;
@@ -295,10 +295,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testConcurrentAcquireReleaseVarSizeMemoryManager() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             VarSizeGoodAllocator[] runners = new VarSizeGoodAllocator[NUM_THREADS];
             Thread[] threads = new Thread[NUM_THREADS];
             Arrays.parallelSetAll(runners, (int i) -> new VarSizeGoodAllocator(fmm));
@@ -331,10 +331,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testFixedSizeSubscribtion() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             int i = 0;
             ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_FRAME_SIZE);
             LinkedBlockingDeque<ByteBuffer> buffers = new LinkedBlockingDeque<>();
@@ -397,10 +397,10 @@ public class ConcurrentFramePoolUnitTest extends TestCase {
     @org.junit.Test
     public void testgetWhileSubscribersExist() {
         try {
-            FeedProperties afp = Mockito.mock(FeedProperties.class);
+            ActiveProperties afp = Mockito.mock(ActiveProperties.class);
             Mockito.when(afp.getMemoryComponentGlobalBudget()).thenReturn(FEED_MEM_BUDGET);
-            ConcurrentFramePool fmm = new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(),
-                    DEFAULT_FRAME_SIZE);
+            ConcurrentFramePool fmm =
+                    new ConcurrentFramePool("TestNode", afp.getMemoryComponentGlobalBudget(), DEFAULT_FRAME_SIZE);
             int i = 0;
             ByteBuffer buffer = ByteBuffer.allocate(DEFAULT_FRAME_SIZE);
             LinkedBlockingDeque<ByteBuffer> buffers = new LinkedBlockingDeque<>();

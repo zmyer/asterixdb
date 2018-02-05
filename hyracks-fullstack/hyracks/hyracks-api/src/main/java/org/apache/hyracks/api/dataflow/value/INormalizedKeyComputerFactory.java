@@ -22,4 +22,6 @@ import java.io.Serializable;
 
 public interface INormalizedKeyComputerFactory extends Serializable {
     public INormalizedKeyComputer createNormalizedKeyComputer();
+
+    public INormalizedKeyProperties getNormalizedKeyProperties();
 }

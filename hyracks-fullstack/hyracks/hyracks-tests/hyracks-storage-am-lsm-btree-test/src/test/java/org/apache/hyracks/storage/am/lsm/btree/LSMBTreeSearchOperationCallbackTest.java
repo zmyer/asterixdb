@@ -30,14 +30,17 @@ import org.apache.hyracks.dataflow.common.utils.SerdeUtils;
 import org.apache.hyracks.dataflow.common.utils.TupleUtils;
 import org.apache.hyracks.storage.am.btree.AbstractSearchOperationCallbackTest;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexBulkLoader;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.am.common.impls.IndexAccessParameters;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
 import org.apache.hyracks.storage.am.lsm.btree.util.LSMBTreeTestHarness;
 import org.apache.hyracks.storage.am.lsm.btree.utils.LSMBTreeUtil;
 import org.apache.hyracks.storage.am.lsm.common.impls.NoOpOperationTrackerFactory;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexBulkLoader;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.util.trace.ITracer;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -52,15 +55,13 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
 
     @Override
     protected void createIndexInstance() throws Exception {
-        index = LSMBTreeUtil.createLSMTree(harness.getIOManager(), harness.getVirtualBufferCaches(), harness
-                .getFileReference(),
-                harness.getDiskBufferCache(), harness.getDiskFileMapProvider(),
-                SerdeUtils.serdesToTypeTraits(keySerdes),
+        index = LSMBTreeUtil.createLSMTree(harness.getIOManager(), harness.getVirtualBufferCaches(),
+                harness.getFileReference(), harness.getDiskBufferCache(), SerdeUtils.serdesToTypeTraits(keySerdes),
                 SerdeUtils.serdesToComparatorFactories(keySerdes, keySerdes.length), bloomFilterKeyFields,
                 harness.getBoomFilterFalsePositiveRate(), harness.getMergePolicy(),
-                NoOpOperationTrackerFactory.INSTANCE.getOperationTracker(null), harness.getIOScheduler(),
-                harness.getIOOperationCallback(), true, null, null, null, null, true, harness
-                        .getMetadataPageManagerFactory());
+                NoOpOperationTrackerFactory.INSTANCE.getOperationTracker(null, null), harness.getIOScheduler(),
+                harness.getIOOperationCallbackFactory(), true, null, null, null, null, true,
+                harness.getMetadataPageManagerFactory(), false, ITracer.NONE);
     }
 
     @Override
@@ -102,7 +103,8 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
 
         public SearchTask() throws HyracksDataException {
             this.cb = new SynchronizingSearchOperationCallback();
-            this.accessor = index.createAccessor(NoOpOperationCallback.INSTANCE, cb);
+            IndexAccessParameters actx = new IndexAccessParameters(NoOpOperationCallback.INSTANCE, cb);
+            this.accessor = index.createAccessor(actx);
             this.cursor = accessor.createSearchCursor(false);
             this.predicate = new RangePredicate();
             this.builder = new ArrayTupleBuilder(NUM_KEY_FIELDS);
@@ -140,7 +142,7 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
                 // consume tuples [152, 300]
                 consumeIntTupleRange(152, 300, false, -1);
 
-                cursor.close();
+                cursor.destroy();
             } finally {
                 lock.unlock();
             }
@@ -220,7 +222,7 @@ public class LSMBTreeSearchOperationCallbackTest extends AbstractSearchOperation
         private final ArrayTupleReference tuple;
 
         public InsertionTask() throws HyracksDataException {
-            this.accessor = index.createAccessor(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
+            this.accessor = index.createAccessor(NoOpIndexAccessParameters.INSTANCE);
             this.builder = new ArrayTupleBuilder(NUM_KEY_FIELDS);
             this.tuple = new ArrayTupleReference();
         }

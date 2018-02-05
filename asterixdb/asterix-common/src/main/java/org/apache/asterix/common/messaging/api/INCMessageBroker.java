@@ -18,33 +18,52 @@
  */
 package org.apache.asterix.common.messaging.api;
 
+import org.apache.hyracks.api.control.CcId;
 import org.apache.hyracks.api.messages.IMessageBroker;
 
 public interface INCMessageBroker extends IMessageBroker {
 
     /**
+     * Sends application message from this NC to the primary CC.
+     *
+     * @param message
+     * @throws Exception
+     */
+    public void sendMessageToPrimaryCC(ICcAddressedMessage message) throws Exception;
+
+    /**
      * Sends application message from this NC to the CC.
      *
      * @param message
-     * @param callback
      * @throws Exception
      */
-    public void sendMessageToCC(IApplicationMessage message) throws Exception;
+    public void sendMessageToCC(CcId ccId, ICcAddressedMessage message) throws Exception;
 
     /**
      * Sends application message from this NC to another NC.
      *
      * @param message
-     * @param callback
      * @throws Exception
      */
-    public void sendMessageToNC(String nodeId, IApplicationMessage message)
-            throws Exception;
+    public void sendMessageToNC(String nodeId, INcAddressedMessage message) throws Exception;
 
     /**
      * Queue a message to this {@link INCMessageBroker} for processing
      *
      * @param msg
      */
-    public void queueReceivedMessage(IApplicationMessage msg);
+    public void queueReceivedMessage(INcAddressedMessage msg);
+
+    /**
+     * Creates and registers a Future for a message that will be send through this broker
+     * @return new Future
+     */
+    MessageFuture registerMessageFuture();
+
+    /**
+     * Removes a previously registered Future
+     * @param futureId future identifier
+     * @return existing Future or {@code null} if there was no Future associated with this identifier
+     */
+    MessageFuture deregisterMessageFuture(long futureId);
 }

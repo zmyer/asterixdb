@@ -23,22 +23,20 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.DBLP]
   ]
   AS Variable [ Name=$paperDBLP ]
 ,
   FunctionCall fuzzyjoin.subset-collection@3[
-    FunctionCall Metadata.resolve@-1[
-      LiteralExpr [STRING] [tokensDBLP]
-      Variable [ Name=$paperDBLP ]
+    FunctionCall asterix.dataset@1[
+      LiteralExpr [STRING] [fuzzyjoin.tokensDBLP]
     ]
     LiteralExpr [LONG] [0]
     FunctionCall fuzzyjoin.prefix-len-jaccard@2[
       FunctionCall fuzzyjoin.len@1[
-        FunctionCall Metadata.resolve@-1[
-          LiteralExpr [STRING] [tokensDBLP]
-          Variable [ Name=$paperDBLP ]
+        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [fuzzyjoin.tokensDBLP]
         ]
       ]
       LiteralExpr [FLOAT] [0.5]
@@ -46,26 +44,20 @@ FROM [  FunctionCall Metadata.dataset@1[
   ]
   AS Variable [ Name=$prefixTokenDBLP ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [CSX]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.CSX]
   ]
   AS Variable [ Name=$paperCSX ]
 ,
   FunctionCall fuzzyjoin.subset-collection@3[
-    FunctionCall Metadata.resolve@-1[
-      LiteralExpr [STRING] [tokensCSX]
-      Variable [ Name=$prefixTokenDBLP ]
-      Variable [ Name=$paperDBLP ]
-      Variable [ Name=$paperCSX ]
+    FunctionCall asterix.dataset@1[
+      LiteralExpr [STRING] [fuzzyjoin.tokensCSX]
     ]
     LiteralExpr [LONG] [0]
     FunctionCall fuzzyjoin.prefix-len-jaccard@2[
       FunctionCall fuzzyjoin.len@1[
-        FunctionCall Metadata.resolve@-1[
-          LiteralExpr [STRING] [tokensCSX]
-          Variable [ Name=$prefixTokenDBLP ]
-          Variable [ Name=$paperDBLP ]
-          Variable [ Name=$paperCSX ]
+        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [fuzzyjoin.tokensCSX]
         ]
       ]
       LiteralExpr [FLOAT] [0.5]
@@ -100,8 +92,8 @@ Let Variable [ Name=$tokensDBLP ]
         SELECT ELEMENT [
         Variable [ Name=$tokenGroupped ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [DBLP]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [fuzzyjoin.DBLP]
           ]
           AS Variable [ Name=$paper ]
 ,
@@ -123,34 +115,24 @@ Let Variable [ Name=$tokensDBLP ]
           Variable [ Name=$tokenGroupped ]
           :=
           Variable [ Name=$token ]
-          GROUP AS Variable [ Name=#1 ]
+          GROUP AS Variable [ Name=#2 ]
           (
             paper:=Variable [ Name=$paper ]
             token:=Variable [ Name=$token ]
+            id:=Variable [ Name=$id ]
           )
 
         Orderby
-          FunctionCall fuzzyjoin.sql-count@1[
+          FunctionCall asterix.sql-count@1[
             (
               SELECT ELEMENT [
-              FunctionCall Metadata.resolve@-1[
-                LiteralExpr [STRING] [id]
-                Variable [ Name=$prefixTokenCSX ]
-                Variable [ Name=$token ]
-                Variable [ Name=$tokensUnrankedDBLP ]
-                Variable [ Name=$paper ]
-                Variable [ Name=$tokenGroupped ]
-                Variable [ Name=$prefixTokenDBLP ]
-                Variable [ Name=$paperDBLP ]
-                Variable [ Name=$tokenUnranked ]
-                Variable [ Name=$paperCSX ]
-                Variable [ Name=#1 ]
-                Variable [ Name=#2 ]
-                Variable [ Name=$idDBLP ]
+              FieldAccessor [
+                Variable [ Name=#4 ]
+                Field=id
               ]
               ]
-              FROM [                Variable [ Name=#1 ]
-                AS Variable [ Name=#2 ]
+              FROM [                Variable [ Name=#2 ]
+                AS Variable [ Name=#4 ]
               ]
             )
           ]
@@ -160,7 +142,7 @@ Let Variable [ Name=$tokensDBLP ]
 
       )
       AS Variable [ Name=$tokenRanked ]
- AT 
+ AT
 Variable [ Name=$i ]
     ]
     Where
@@ -201,8 +183,8 @@ Let Variable [ Name=$tokensCSX ]
         SELECT ELEMENT [
         Variable [ Name=$tokenGroupped ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [DBLP]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [fuzzyjoin.DBLP]
           ]
           AS Variable [ Name=$paper ]
 ,
@@ -228,33 +210,20 @@ Let Variable [ Name=$tokensCSX ]
           (
             paper:=Variable [ Name=$paper ]
             token:=Variable [ Name=$token ]
+            id:=Variable [ Name=$id ]
           )
 
         Orderby
-          FunctionCall fuzzyjoin.sql-count@1[
+          FunctionCall asterix.sql-count@1[
             (
               SELECT ELEMENT [
-              FunctionCall Metadata.resolve@-1[
-                LiteralExpr [STRING] [id]
-                Variable [ Name=$tokensUnrankedDBLP ]
-                Variable [ Name=$paper ]
-                Variable [ Name=$tokensDBLP ]
-                Variable [ Name=$tokenUnranked ]
-                Variable [ Name=$idCSX ]
-                Variable [ Name=$idDBLP ]
-                Variable [ Name=#3 ]
-                Variable [ Name=#4 ]
-                Variable [ Name=$prefixTokenCSX ]
-                Variable [ Name=$token ]
-                Variable [ Name=$tokensUnrankedCSX ]
-                Variable [ Name=$tokenGroupped ]
-                Variable [ Name=$prefixTokenDBLP ]
-                Variable [ Name=$paperDBLP ]
-                Variable [ Name=$paperCSX ]
+              FieldAccessor [
+                Variable [ Name=#5 ]
+                Field=id
               ]
               ]
               FROM [                Variable [ Name=#3 ]
-                AS Variable [ Name=#4 ]
+                AS Variable [ Name=#5 ]
               ]
             )
           ]
@@ -264,7 +233,7 @@ Let Variable [ Name=$tokensCSX ]
 
       )
       AS Variable [ Name=$tokenRanked ]
- AT 
+ AT
 Variable [ Name=$i ]
     ]
     Where
@@ -316,12 +285,19 @@ Groupby
   Variable [ Name=$sim ]
   :=
   Variable [ Name=$sim ]
-  GROUP AS Variable [ Name=#5 ]
+  GROUP AS Variable [ Name=#1 ]
   (
     paperDBLP:=Variable [ Name=$paperDBLP ]
     prefixTokenDBLP:=Variable [ Name=$prefixTokenDBLP ]
     paperCSX:=Variable [ Name=$paperCSX ]
     prefixTokenCSX:=Variable [ Name=$prefixTokenCSX ]
+    idDBLP:=Variable [ Name=$idDBLP ]
+    tokensUnrankedDBLP:=Variable [ Name=$tokensUnrankedDBLP ]
+    tokensDBLP:=Variable [ Name=$tokensDBLP ]
+    idCSX:=Variable [ Name=$idCSX ]
+    tokensUnrankedCSX:=Variable [ Name=$tokensUnrankedCSX ]
+    tokensCSX:=Variable [ Name=$tokensCSX ]
+    sim:=Variable [ Name=$sim ]
   )
 
 Orderby

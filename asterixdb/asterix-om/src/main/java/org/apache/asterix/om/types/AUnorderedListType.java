@@ -18,16 +18,16 @@
  */
 package org.apache.asterix.om.types;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.asterix.om.base.AUnorderedList;
 import org.apache.asterix.om.base.IAObject;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class AUnorderedListType extends AbstractCollectionType {
 
     private static final long serialVersionUID = 1L;
 
-    public static final AUnorderedListType FULLY_OPEN_UNORDEREDLIST_TYPE = new AUnorderedListType(null,"");
+    public static final AUnorderedListType FULLY_OPEN_UNORDEREDLIST_TYPE = new AUnorderedListType(null, "");
 
     /**
      * @param itemType
@@ -39,12 +39,12 @@ public class AUnorderedListType extends AbstractCollectionType {
 
     @Override
     public ATypeTag getTypeTag() {
-        return ATypeTag.UNORDEREDLIST;
+        return ATypeTag.MULTISET;
     }
 
     @Override
     public String getDisplayName() {
-        return "AUnorderedList";
+        return "multiset";
     }
 
     @Override
@@ -77,7 +77,7 @@ public class AUnorderedListType extends AbstractCollectionType {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode type = om.createObjectNode();
         type.put("type", AUnorderedListType.class.getName());

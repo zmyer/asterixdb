@@ -64,8 +64,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
         Map<LogicalVariable, AbstractOperatorWithNestedPlans> nspWithAgg = new HashMap<>();
         Map<ILogicalExpression, ILogicalExpression> aggExprToVarExpr = new HashMap<>();
         // first collect vars. referring to listified sequences
-        boolean changed = collectVarsBottomUp(opRef, context, nspAggVars, nspWithAgg, nspAggVarToPlanIndex,
-                aggExprToVarExpr);
+        boolean changed =
+                collectVarsBottomUp(opRef, context, nspAggVars, nspWithAgg, nspAggVarToPlanIndex, aggExprToVarExpr);
         if (changed) {
             removeRedundantListifies(nspAggVars, nspWithAgg, nspAggVarToPlanIndex);
         }
@@ -111,9 +111,7 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
             }
         }
         // Removes subplans.
-        for (Map.Entry<AbstractOperatorWithNestedPlans, List<ILogicalPlan>> entry : nspToSubplanListMap.entrySet()) {
-            entry.getKey().getNestedPlans().removeAll(entry.getValue());
-        }
+        nspToSubplanListMap.forEach((key, value) -> key.getNestedPlans().removeAll(value));
     }
 
     private boolean collectVarsBottomUp(Mutable<ILogicalOperator> opRef, IOptimizationContext context,
@@ -149,8 +147,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
                 if (op1.getOperatorTag() == LogicalOperatorTag.ASSIGN) {
                     AssignOperator assign = (AssignOperator) op1;
                     for (Mutable<ILogicalExpression> exprRef : assign.getExpressions()) {
-                        Pair<Boolean, ILogicalExpression> p = extractAggFunctionsFromExpression(exprRef, nspWithAgg,
-                                aggregateExprToVarExpr, context);
+                        Pair<Boolean, ILogicalExpression> p =
+                                extractAggFunctionsFromExpression(exprRef, nspWithAgg, aggregateExprToVarExpr, context);
                         if (p.first) {
                             change = true;
                             exprRef.setValue(p.second);
@@ -160,8 +158,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
                 if (op1.getOperatorTag() == LogicalOperatorTag.SELECT) {
                     SelectOperator select = (SelectOperator) op1;
                     Mutable<ILogicalExpression> exprRef = select.getCondition();
-                    Pair<Boolean, ILogicalExpression> p = extractAggFunctionsFromExpression(exprRef, nspWithAgg,
-                            aggregateExprToVarExpr, context);
+                    Pair<Boolean, ILogicalExpression> p =
+                            extractAggFunctionsFromExpression(exprRef, nspWithAgg, aggregateExprToVarExpr, context);
                     if (p.first) {
                         change = true;
                         exprRef.setValue(p.second);
@@ -285,8 +283,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
                         if (nspOp != null) {
                             if (!aggregateExprToVarExpr.containsKey(expr)) {
                                 LogicalVariable newVar = context.newVar();
-                                AggregateFunctionCallExpression aggFun = BuiltinFunctions
-                                        .makeAggregateFunctionExpression(fi, fce.getArguments());
+                                AggregateFunctionCallExpression aggFun =
+                                        BuiltinFunctions.makeAggregateFunctionExpression(fi, fce.getArguments());
                                 rewriteAggregateInNestedSubplan(argVar, nspOp, aggFun, newVar, context);
                                 ILogicalExpression newVarExpr = new VariableReferenceExpression(newVar);
                                 aggregateExprToVarExpr.put(expr, newVarExpr);
@@ -301,8 +299,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
 
                 boolean change = false;
                 for (Mutable<ILogicalExpression> a : fce.getArguments()) {
-                    Pair<Boolean, ILogicalExpression> aggArg = extractAggFunctionsFromExpression(a, nspWithAgg,
-                            aggregateExprToVarExpr, context);
+                    Pair<Boolean, ILogicalExpression> aggArg =
+                            extractAggFunctionsFromExpression(a, nspWithAgg, aggregateExprToVarExpr, context);
                     if (aggArg.first.booleanValue()) {
                         a.setValue(aggArg.second);
                         change = true;
@@ -326,8 +324,8 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
             for (int i = 0; i < n; i++) {
                 LogicalVariable v = aggOp.getVariables().get(i);
                 if (v.equals(oldAggVar)) {
-                    AbstractFunctionCallExpression oldAggExpr = (AbstractFunctionCallExpression) aggOp.getExpressions()
-                            .get(i).getValue();
+                    AbstractFunctionCallExpression oldAggExpr =
+                            (AbstractFunctionCallExpression) aggOp.getExpressions().get(i).getValue();
                     AggregateFunctionCallExpression newAggFun = BuiltinFunctions
                             .makeAggregateFunctionExpression(aggFun.getFunctionIdentifier(), new ArrayList<>());
                     for (Mutable<ILogicalExpression> arg : oldAggExpr.getArguments()) {
@@ -423,55 +421,55 @@ public class PushAggregateIntoNestedSubplanRule implements IAlgebraicRewriteRule
             AggregateOperator nspAgg = (AggregateOperator) nspAggRef.getValue();
             Mutable<ILogicalOperator> nspAggChildRef = nspAgg.getInputs().get(0);
             LogicalVariable listifyVar = findListifiedVariable(nspAgg, varFromNestedAgg);
-            if (listifyVar == null) {
-                    continue;
-            }
-            OperatorManipulationUtil.substituteVarRec(aggInSubplanOp, unnestVar, listifyVar, true, context);
-            nspAgg.getVariables().addAll(aggInSubplanOp.getVariables());
-            nspAgg.getExpressions().addAll(aggInSubplanOp.getExpressions());
-            for (LogicalVariable v : aggInSubplanOp.getVariables()) {
-                nspWithAgg.put(v, nspOp);
-                nspAggVars.put(v, 0);
-                nspAggVarToPlanIndex.put(v, i);
-            }
+            if (listifyVar != null) {
+                OperatorManipulationUtil.substituteVarRec(aggInSubplanOp, unnestVar, listifyVar, true, context);
+                nspAgg.getVariables().addAll(aggInSubplanOp.getVariables());
+                nspAgg.getExpressions().addAll(aggInSubplanOp.getExpressions());
+                for (LogicalVariable v : aggInSubplanOp.getVariables()) {
+                    nspWithAgg.put(v, nspOp);
+                    nspAggVars.put(v, 0);
+                    nspAggVarToPlanIndex.put(v, i);
+                }
 
-            Mutable<ILogicalOperator> opRef1InSubplan = aggInSubplanOp.getInputs().get(0);
-            if (!opRef1InSubplan.getValue().getInputs().isEmpty()) {
-                Mutable<ILogicalOperator> opRef2InSubplan = opRef1InSubplan.getValue().getInputs().get(0);
-                AbstractLogicalOperator op2InSubplan = (AbstractLogicalOperator) opRef2InSubplan.getValue();
-                if (op2InSubplan.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
-                    List<Mutable<ILogicalOperator>> nspInpList = nspAgg.getInputs();
-                    nspInpList.clear();
-                    nspInpList.add(opRef1InSubplan);
-                    while (true) {
-                        opRef2InSubplan = opRef1InSubplan.getValue().getInputs().get(0);
-                        op2InSubplan = (AbstractLogicalOperator) opRef2InSubplan.getValue();
-                        if (op2InSubplan.getOperatorTag() == LogicalOperatorTag.UNNEST) {
-                            List<Mutable<ILogicalOperator>> opInpList = opRef1InSubplan.getValue().getInputs();
-                            opInpList.clear();
-                            opInpList.add(nspAggChildRef);
-                            break;
-                        }
-                        opRef1InSubplan = opRef2InSubplan;
-                        if (opRef1InSubplan.getValue().getInputs().isEmpty()) {
-                            throw new IllegalStateException(
+                Mutable<ILogicalOperator> opRef1InSubplan = aggInSubplanOp.getInputs().get(0);
+                if (!opRef1InSubplan.getValue().getInputs().isEmpty()) {
+                    Mutable<ILogicalOperator> opRef2InSubplan = opRef1InSubplan.getValue().getInputs().get(0);
+                    AbstractLogicalOperator op2InSubplan = (AbstractLogicalOperator) opRef2InSubplan.getValue();
+                    if (op2InSubplan.getOperatorTag() != LogicalOperatorTag.NESTEDTUPLESOURCE) {
+                        List<Mutable<ILogicalOperator>> nspInpList = nspAgg.getInputs();
+                        nspInpList.clear();
+                        nspInpList.add(opRef1InSubplan);
+                        while (true) {
+                            opRef2InSubplan = opRef1InSubplan.getValue().getInputs().get(0);
+                            op2InSubplan = (AbstractLogicalOperator) opRef2InSubplan.getValue();
+                            if (op2InSubplan.getOperatorTag() == LogicalOperatorTag.UNNEST) {
+                                List<Mutable<ILogicalOperator>> opInpList = opRef1InSubplan.getValue().getInputs();
+                                opInpList.clear();
+                                opInpList.add(nspAggChildRef);
+                                break;
+                            }
+                            opRef1InSubplan = opRef2InSubplan;
+                            if (opRef1InSubplan.getValue().getInputs().isEmpty()) {
+                                throw new IllegalStateException(
                                         "PushAggregateIntoNestedSubplanRule: could not find UNNEST.");
+                            }
                         }
                     }
                 }
+                subplanOpRef.setValue(subplan.getInputs().get(0).getValue());
+                OperatorPropertiesUtil.typeOpRec(nspAggRef, context);
+                return true;
             }
-            subplanOpRef.setValue(subplan.getInputs().get(0).getValue());
-            OperatorPropertiesUtil.typeOpRec(nspAggRef, context);
         }
-        return true;
+        return false;
     }
 
     private LogicalVariable findListifiedVariable(AggregateOperator nspAgg, LogicalVariable varFromNestedAgg) {
         int n = nspAgg.getVariables().size();
         for (int i = 0; i < n; i++) {
             if (nspAgg.getVariables().get(i).equals(varFromNestedAgg)) {
-                AbstractFunctionCallExpression fce = (AbstractFunctionCallExpression) nspAgg.getExpressions().get(i)
-                        .getValue();
+                AbstractFunctionCallExpression fce =
+                        (AbstractFunctionCallExpression) nspAgg.getExpressions().get(i).getValue();
                 if (fce.getFunctionIdentifier().equals(BuiltinFunctions.LISTIFY)) {
                     ILogicalExpression argExpr = fce.getArguments().get(0).getValue();
                     if (argExpr.getExpressionTag() == LogicalExpressionTag.VARIABLE) {

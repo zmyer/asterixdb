@@ -31,28 +31,6 @@
              ResultOffsetPath="results"
              QueryOffsetPath="queries"
              QueryFileExtension=".aql">
-  <test-group name="external-library">
-    <test-case FilePath="external-library">
-      <compilation-unit name="typed_adapter">
-        <output-dir compare="Text">typed_adapter</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="external-library">
-      <compilation-unit name="classad-parser-new">
-        <output-dir compare="Text">classad-parser-new</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="external-library">
-      <compilation-unit name="classad-parser-old">
-        <output-dir compare="Text">classad-parser-old</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="external-library">
-      <compilation-unit name="getCapital">
-        <output-dir compare="Text">getCapital</output-dir>
-      </compilation-unit>
-    </test-case>
-  </test-group>
   <test-group name="external">
     <test-case FilePath="external">
       <compilation-unit name="invalid-format">
@@ -146,47 +124,22 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="feeds">
-      <compilation-unit name="feed-with-multiple-indexes">
-        <output-dir compare="Text">feed-with-multiple-indexes</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="feeds">
       <compilation-unit name="twitter-feed">
         <output-dir compare="Text">twitter-feed</output-dir>
-        <expected-error>One or more parameters are missing from adapter configuration</expected-error>
-        <expected-error>Unknown source feed</expected-error>
+        <expected-error>Twitter4J library not found!</expected-error>
+        <expected-error>Unknown source feed: TwitterFeed</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="feeds">
       <compilation-unit name="revised-tweet-parser">
         <output-dir compare="Text">revised-tweet-parser</output-dir>
-        <expected-error>One or more parameters are missing from adapter configuration</expected-error>
-        <expected-error>Unknown source feed</expected-error>
+        <expected-error>Twitter4J library not found!</expected-error>
+        <expected-error>Unknown source feed: TwitterFeed</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="feeds">
       <compilation-unit name="connect-feed">
         <output-dir compare="Text">connect-feed</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="feeds">
-      <compilation-unit name="feed-with-external-parser">
-        <output-dir compare="Text">feed-with-external-parser</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="feeds">
-      <compilation-unit name="feed-with-external-parser-with-open-index">
-        <output-dir compare="Text">feed-with-external-parser-with-open-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="feeds">
-      <compilation-unit name="feed-with-external-parser-with-two-open-indexes">
-        <output-dir compare="Text">feed-with-external-parser-with-two-open-indexes</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="feeds">
-      <compilation-unit name="feed-with-external-function">
-        <output-dir compare="Text">feed-with-external-function</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="feeds">
@@ -204,11 +157,13 @@
         <output-dir compare="Text">change-feed</output-dir>
       </compilation-unit>
     </test-case>
+    <!-- see ASTERIXDB-1881
     <test-case FilePath="feeds">
       <compilation-unit name="feed-with-meta-pk-in-meta">
         <output-dir compare="Text">feed-with-meta-pk-in-meta</output-dir>
       </compilation-unit>
     </test-case>
+    -->
     <test-case FilePath="feeds">
       <compilation-unit name="feeds_07">
         <output-dir compare="Text">feeds_07</output-dir>
@@ -282,13 +237,64 @@
     <test-case FilePath="feeds">
       <compilation-unit name="start-started-feed">
         <output-dir compare="Text">start-started-feed</output-dir>
-        <expected-error>Feed TweetFeed is started already.</expected-error>
+        <expected-error>experiments.TweetFeed(Feed) is already started</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="feeds">
       <compilation-unit name="stop-stopped-feed">
         <output-dir compare="Text">stop-stopped-feed</output-dir>
-        <expected-error>Feed TweetFeed is not started.</expected-error>
+        <expected-error>new_experiments.TweetFeed(Feed) cannot be stopped because its state is STOPPED</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="push-socket-with-auuid">
+        <output-dir compare="Text">push-socket-with-auuid</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="connect-feed-with-function">
+        <output-dir compare="Text">connect-feed-with-function</output-dir>
+        <expected-error>Incompatible function language</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="disconnect-live-feed">
+        <output-dir compare="Text">disconnect-live-feed</output-dir>
+        <expected-error>This operation cannot be done when Feed</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="connect-live-feed">
+        <output-dir compare="Text">connect-live-feed</output-dir>
+        <expected-error>This operation cannot be done when Feed</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="record-reader-with-malformed-input-stream">
+        <output-dir compare="Text">record-reader-with-malformed-input-stream</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="feed-with-undefined-function">
+        <output-dir compare="Text">feed-with-undefined-function</output-dir>
+        <expected-error>Cannot find function</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="drop-function-used-by-feed">
+        <output-dir compare="Text">drop-function-used-by-feed</output-dir>
+        <expected-error>Function experiments.test_func0@1 is being used. It cannot be dropped</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="drop-function-no-longer-used-by-feed">
+        <output-dir compare="Text">drop-function-used-by-feed</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="drop-dataverse-with-function-used-by-feed">
+        <output-dir compare="Text">drop-dataverse-with-function-used-by-feed</output-dir>
+        <expected-error>Function fundv.test_func0@1 is being used. It cannot be dropped</expected-error>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -335,6 +341,11 @@
     </test-case>
     <test-case FilePath="upsert">
       <compilation-unit name="primary-secondary-btree">
+        <output-dir compare="Text">primary-secondary-btree</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="upsert">
+      <compilation-unit name="primary-correlated-secondary-btree">
         <output-dir compare="Text">primary-secondary-btree</output-dir>
       </compilation-unit>
     </test-case>
@@ -443,6 +454,11 @@
     <test-case FilePath="fulltext">
       <compilation-unit name="fulltext-07">
         <output-dir compare="Text">fulltext-07</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="fulltext">
+      <compilation-unit name="fulltext-08">
+        <output-dir compare="Text">fulltext-08</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="fulltext">
@@ -1668,7 +1684,7 @@
     <test-case FilePath="dml">
       <compilation-unit name="insert-duplicated-keys-from-query">
         <output-dir compare="Text">insert-duplicated-keys-from-query</output-dir>
-        <expected-error>Failed to insert key since key already exists</expected-error>
+        <expected-error>Inserting duplicate keys into the primary storage</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -1688,6 +1704,11 @@
     </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="using-correlated-prefix-merge-policy">
+        <output-dir compare="Text">using-correlated-prefix-merge-policy</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="using-correlated-prefix-merge-policy-with-feed">
         <output-dir compare="Text">using-correlated-prefix-merge-policy</output-dir>
       </compilation-unit>
     </test-case>
@@ -1851,7 +1872,7 @@
     <test-case FilePath="dml">
       <compilation-unit name="insert-duplicated-keys">
         <output-dir compare="Text">insert-duplicated-keys</output-dir>
-        <expected-error>org.apache.hyracks.storage.am.common.exceptions.TreeIndexDuplicateKeyException: Failed to insert key since key already exists</expected-error>
+        <expected-error>Inserting duplicate keys into the primary storage</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -1920,6 +1941,12 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="load-with-autogenerated-no-field">
+        <output-dir compare="Text">load-with-autogenerated-no-field</output-dir>
+        <expected-error>ASX1014: Field "not_id" is not found [CompilationException]</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="load-with-index">
         <output-dir compare="Text">load-with-index</output-dir>
       </compilation-unit>
@@ -1985,6 +2012,12 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit
+        name="scan-delete-btree-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-delete-rtree-secondary-index-nullable">
         <output-dir compare="Text">scan-delete-rtree-secondary-index-nullable</output-dir>
       </compilation-unit>
@@ -1997,6 +2030,12 @@
     <test-case FilePath="dml">
       <compilation-unit name="scan-insert-btree-secondary-index-nullable">
         <output-dir compare="Text">scan-insert-btree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit
+        name="scan-insert-btree-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -2079,6 +2118,12 @@
         <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit
+        name="scan-delete-btree-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-ngram-secondary-index-open">
         <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index-open</output-dir>
@@ -2097,6 +2142,11 @@
     <test-case FilePath="dml">
       <compilation-unit name="scan-insert-btree-secondary-index-open">
         <output-dir compare="Text">scan-insert-btree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-btree-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -2685,7 +2735,7 @@
     <test-case FilePath="fuzzyjoin">
       <compilation-unit name="dblp-aqlplus_2">
         <output-dir compare="Text">dblp-aqlplus_2</output-dir>
-        <expected-error>Type mismatch: function similarity-jaccard expects its 1st input parameter to be type orderedlist or unorderedlist, but the actual input type is string</expected-error>
+        <expected-error>Type mismatch: function similarity-jaccard expects its 1st input parameter to be type array or multiset, but the actual input type is string</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="fuzzyjoin">
@@ -3047,6 +3097,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="index-selection">
+      <compilation-unit name="intersection-with-filter">
+        <output-dir compare="Text">intersection-with-filter</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
       <compilation-unit name="intersection_with_nodegroup">
         <output-dir compare="Text">intersection</output-dir>
       </compilation-unit>
@@ -3326,11 +3381,13 @@
         <output-dir compare="Text">query_dataset_with_meta-2</output-dir>
       </compilation-unit>
     </test-case>
+    <!-- see ASTERIXDB-1881
     <test-case FilePath="meta">
       <compilation-unit name="query_dataset_with_meta_primary_index-1">
         <output-dir compare="Text">query_dataset_with_meta_primary_index-1</output-dir>
       </compilation-unit>
     </test-case>
+    -->
     <test-case FilePath="meta">
       <compilation-unit name="query_dataset_with_meta_failure">
         <output-dir compare="Text">query_dataset_with_meta_failure</output-dir>
@@ -3463,25 +3520,25 @@
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="index-type-collision">
           <output-dir compare="Text">index-type-collision</output-dir>
-          <expected-error>Cannot create index testIdx2 , enforced index testIdx1 on field "[value]" is already defined with type "[int32]"</expected-error>
+          <expected-error>Cannot create index testIdx2 , enforced index testIdx1 on field "[value]" is already defined with type "[integer]"</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="index-type-promotion-collision">
           <output-dir compare="Text">index-type-promotion-collision</output-dir>
-          <expected-error>Cannot create index testIdx2 , enforced index testIdx1 on field "[value]" is already defined with type "[int64]"</expected-error>
+          <expected-error>Cannot create index testIdx2 , enforced index testIdx1 on field "[value]" is already defined with type "[bigint]"</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="missing-enforce-statement">
           <output-dir compare="Text">missing-enforce-statement</output-dir>
-          <expected-error>Cannot create typed index on "[value]" field without enforcing it's type</expected-error>
+          <expected-error>ASX1042: Cannot create non-enforced typed index of this kind: RTREE</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="missing-optionality">
           <output-dir compare="Text">missing-optionality</output-dir>
-          <expected-error>"?"</expected-error>
+          <expected-error>Cannot create enforced index on "[value]" field with non-optional type</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
@@ -4532,6 +4589,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="numeric">
+      <compilation-unit name="scientific">
+        <output-dir compare="Text">scientific</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="numeric">
       <compilation-unit name="subtract_double">
         <output-dir compare="Text">subtract_double</output-dir>
       </compilation-unit>
@@ -4867,7 +4929,7 @@
     <test-case FilePath="open-closed">
       <compilation-unit name="query-issue487"><!-- This test case is never run!!!! -->
         <output-dir compare="Text">query-issue487</output-dir>
-        <expected-error>org.apache.asterix.common.exceptions.AsterixException</expected-error>
+        <expected-error>type mismatch: missing a required closed field name: string</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="open-closed">
@@ -6321,12 +6383,6 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="cross-dataverse">
-      <compilation-unit name="cross-dv13">
-        <output-dir compare="Text">cross-dv13</output-dir>
-        <expected-error>Recursive invocation testdv2.fun03@0</expected-error>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="cross-dataverse">
       <compilation-unit name="cross-dv14">
         <output-dir compare="Text">cross-dv14</output-dir>
       </compilation-unit>
@@ -6334,12 +6390,6 @@
     <test-case FilePath="cross-dataverse">
       <compilation-unit name="cross-dv15">
         <output-dir compare="Text">cross-dv15</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="cross-dataverse">
-      <compilation-unit name="cross-dv16">
-        <output-dir compare="Text">cross-dv16</output-dir>
-        <expected-error>Recursive invocation testdv1.fun04@0</expected-error>
       </compilation-unit>
     </test-case>
     <!--NotImplementedException: No binary comparator factory implemented for type RECORD.
@@ -6372,7 +6422,7 @@
     <test-case FilePath="cross-dataverse">
       <compilation-unit name="drop-dataverse">
         <output-dir compare="Text">drop-dataverse</output-dir>
-        <expected-error>org.apache.asterix.metadata.MetadataException: Cannot drop dataverse. Type a.a used by dataset b.b1</expected-error>
+        <expected-error>Cannot drop dataverse. Type a.a used by dataset b.b1</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="cross-dataverse">
@@ -6569,12 +6619,6 @@
       </compilation-unit>
     </test-case>
     -->
-    <test-case FilePath="user-defined-functions">
-      <compilation-unit name="udf26"><!-- Error not propagated properly -->
-        <output-dir compare="Text">udf26</output-dir>
-        <expected-error>function test.needs_f1@1 depends upon function test.f1@0 which is undefined</expected-error>
-      </compilation-unit>
-    </test-case>
     <test-case FilePath="user-defined-functions"><!-- Exception is never thrown!! -->
       <compilation-unit name="udf27">
         <output-dir compare="Text">udf27</output-dir>
@@ -6747,7 +6791,7 @@
     <test-case FilePath="load">
       <compilation-unit name="file-not-found">
         <output-dir compare="Text">none</output-dir>
-        <expected-error>org.apache.hyracks.api.exceptions.HyracksDataException: ASX3077: bla: path not found</expected-error>
+        <expected-error>ASX3077: bla: path not found</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="user-defined-functions">
@@ -6758,7 +6802,7 @@
     <test-case FilePath="load">
       <compilation-unit name="duplicate-key-error">
         <output-dir compare="Text">none</output-dir>
-        <expected-error>Input stream given to BTree bulk load has duplicates</expected-error>
+        <expected-error>Loading duplicate keys into the primary storage</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="load">
@@ -6973,10 +7017,10 @@
     <test-case FilePath="types">
       <compilation-unit name="domain_boundaries_error">
         <output-dir compare="Text">domain_boundaries_error</output-dir>
-        <expected-error>ASX0006: Invalid format for int8 in int8</expected-error>
-        <expected-error>ASX0006: Invalid format for int16 in int16</expected-error>
-        <expected-error>ASX0006: Invalid format for int32 in int32</expected-error>
-        <expected-error>ASX0006: Invalid format for int64 in int64</expected-error>
+        <expected-error>ASX0006: Invalid format for int8 in tinyint</expected-error>
+        <expected-error>ASX0006: Invalid format for int16 in smallint</expected-error>
+        <expected-error>ASX0006: Invalid format for int32 in integer</expected-error>
+        <expected-error>ASX0006: Invalid format for int64 in bigint</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="types">
@@ -7149,6 +7193,50 @@
         <output-dir compare="Text">promotion_opentype_field_vs_opentype_field_02</output-dir>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_boolean_01">
+        <output-dir compare="Text">to_boolean_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_boolean_02">
+        <output-dir compare="Text">to_boolean_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_string_01">
+        <output-dir compare="Text">to_string_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_string_02">
+        <output-dir compare="Text">to_string_02</output-dir>
+        <expected-error>ASX0004: Unsupported type</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_double_01">
+        <output-dir compare="Text">to_double_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_double_02">
+        <output-dir compare="Text">to_double_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_bigint_01">
+        <output-dir compare="Text">to_bigint_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_bigint_02">
+        <output-dir compare="Text">to_bigint_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
   </test-group>
   <test-group name="materialization">
     <test-case FilePath="materialization">
@@ -7199,6 +7287,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="filters">
+      <compilation-unit name="insert-with-secondary-correlated-btree">
+        <output-dir compare="Text">insert-with-secondary-btree</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
       <compilation-unit name="insert-with-secondary-inverted-ngram">
         <output-dir compare="Text">insert-with-secondary-inverted-ngram</output-dir>
       </compilation-unit>
@@ -7216,6 +7309,16 @@
     <test-case FilePath="filters">
       <compilation-unit name="nested-filterequality-predicate">
         <output-dir compare="Text">nested-filter-equality-predicate</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
+      <compilation-unit name="upsert">
+        <output-dir compare="Text">upsert</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
+      <compilation-unit name="delete">
+        <output-dir compare="Text">delete</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -7304,73 +7407,6 @@
     <test-case FilePath="binary">
       <compilation-unit name="query_id">
         <output-dir compare="Text">query_id</output-dir>
-      </compilation-unit>
-    </test-case>
-  </test-group>
-  <test-group name="temp-dataset">
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="delete-from-loaded-dataset">
-        <output-dir compare="Text">delete-from-loaded-dataset</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="delete-from-loaded-dataset-with-index">
-        <output-dir compare="Text">delete-from-loaded-dataset-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="drop-empty-secondary-indexes">
-        <output-dir compare="Text">drop-empty-secondary-indexes</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="drop-index">
-        <output-dir compare="Text">drop-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="empty-load-with-index">
-        <output-dir compare="Text">empty-load-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="insert-and-scan-dataset">
-        <output-dir compare="Text">insert-and-scan-dataset</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="q01_pricing_summary_report_nt">
-        <output-dir compare="Text">q01_pricing_summary_report_nt</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-delete-rtree-secondary-index">
-        <output-dir compare="Text">scan-delete-rtree-secondary-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-rtree-secondary-index">
-        <output-dir compare="Text">scan-insert-rtree-secondary-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-persistent-to-temp">
-        <output-dir compare="Text">scan-insert-persistent-to-temp</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-temp-to-persistent">
-        <output-dir compare="Text">scan-insert-temp-to-persistent</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="insert-and-scan-dataset-with-index">
-        <output-dir compare="Text">insert-and-scan-dataset-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="temp_primary_plus_ngram_flush">
-        <output-dir compare="Text">temp_primary_plus_ngram_flush</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>

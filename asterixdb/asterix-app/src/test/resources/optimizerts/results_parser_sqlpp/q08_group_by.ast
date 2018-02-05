@@ -135,8 +135,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Supplier]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [q08_group_by.Supplier]
   ]
   AS Variable [ Name=$s ]
 ,
@@ -222,8 +222,8 @@ FROM [  FunctionCall Metadata.dataset@1[
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [q08_group_by.LineItem]
           ]
           AS Variable [ Name=$l ]
 ,
@@ -248,8 +248,8 @@ FROM [  FunctionCall Metadata.dataset@1[
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Orders]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [q08_group_by.Orders]
               ]
               AS Variable [ Name=$o ]
 ,
@@ -266,8 +266,8 @@ FROM [  FunctionCall Metadata.dataset@1[
                   )
                 ]
                 ]
-                FROM [                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [Customer]
+                FROM [                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [q08_group_by.Customer]
                   ]
                   AS Variable [ Name=$c ]
 ,
@@ -284,13 +284,13 @@ FROM [  FunctionCall Metadata.dataset@1[
                       )
                     ]
                     ]
-                    FROM [                      FunctionCall Metadata.dataset@1[
-                        LiteralExpr [STRING] [Nation]
+                    FROM [                      FunctionCall asterix.dataset@1[
+                        LiteralExpr [STRING] [q08_group_by.Nation]
                       ]
                       AS Variable [ Name=$n1 ]
 ,
-                      FunctionCall Metadata.dataset@1[
-                        LiteralExpr [STRING] [Region]
+                      FunctionCall asterix.dataset@1[
+                        LiteralExpr [STRING] [q08_group_by.Region]
                       ]
                       AS Variable [ Name=$r1 ]
                     ]
@@ -385,8 +385,8 @@ FROM [  FunctionCall Metadata.dataset@1[
       )
       AS Variable [ Name=$lnrco ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Part]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [q08_group_by.Part]
       ]
       AS Variable [ Name=$p ]
     ]

@@ -18,7 +18,7 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
+FROM [  FunctionCall asterix.dataset@1[
     LiteralExpr [STRING] [Event]
   ]
   AS Variable [ Name=$event ]
@@ -54,24 +54,21 @@ Groupby
   (
     event:=Variable [ Name=$event ]
     sponsor:=Variable [ Name=$sponsor ]
+    es:=Variable [ Name=$es ]
   )
 
 Let Variable [ Name=$sig_sponsorship_count ]
   :=
-  FunctionCall null.sql-count@1[
+  FunctionCall asterix.sql-count@1[
     (
       SELECT ELEMENT [
-      FunctionCall Metadata.resolve@-1[
-        LiteralExpr [STRING] [es]
-        Variable [ Name=$sponsor ]
-        Variable [ Name=$event ]
-        Variable [ Name=$sig_name ]
-        Variable [ Name=#1 ]
-        Variable [ Name=#2 ]
+      FieldAccessor [
+        Variable [ Name=#3 ]
+        Field=es
       ]
       ]
       FROM [        Variable [ Name=#1 ]
-        AS Variable [ Name=#2 ]
+        AS Variable [ Name=#3 ]
       ]
     )
   ]
@@ -88,23 +85,18 @@ Let Variable [ Name=$by_chapter ]
       (
         LiteralExpr [STRING] [escount]
         :
-        FunctionCall null.sql-count@1[
+        FunctionCall asterix.sql-count@1[
           (
             SELECT ELEMENT [
-            FunctionCall Metadata.resolve@-1[
-              LiteralExpr [STRING] [es]
-              Variable [ Name=#4 ]
-              Variable [ Name=$e ]
-              Variable [ Name=$sponsor ]
-              Variable [ Name=$sig_sponsorship_count ]
-              Variable [ Name=$chapter_name ]
-              Variable [ Name=$event ]
-              Variable [ Name=$sig_name ]
-              Variable [ Name=#1 ]
-              Variable [ Name=#3 ]
+            FieldAccessor [
+              FieldAccessor [
+                Variable [ Name=#4 ]
+                Field=e
+              ]
+              Field=es
             ]
             ]
-            FROM [              Variable [ Name=#3 ]
+            FROM [              Variable [ Name=#2 ]
               AS Variable [ Name=#4 ]
             ]
           )
@@ -112,7 +104,7 @@ Let Variable [ Name=$by_chapter ]
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
+    FROM [      FunctionCall asterix.dataset@1[
         LiteralExpr [STRING] [es]
       ]
       AS Variable [ Name=$e ]
@@ -127,7 +119,7 @@ Let Variable [ Name=$by_chapter ]
         ]
         Field=chapter_name
       ]
-      GROUP AS Variable [ Name=#3 ]
+      GROUP AS Variable [ Name=#2 ]
       (
         e:=Variable [ Name=$e ]
       )

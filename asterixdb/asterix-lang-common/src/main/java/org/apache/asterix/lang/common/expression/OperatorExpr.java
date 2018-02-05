@@ -20,20 +20,19 @@ package org.apache.asterix.lang.common.expression;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
+import java.util.Objects;
 
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.lang.common.base.AbstractExpression;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.struct.OperatorType;
 import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
-import org.apache.commons.lang3.ObjectUtils;
 
 public class OperatorExpr extends AbstractExpression {
     private List<Expression> exprList;
     private List<OperatorType> opList;
     private List<Integer> exprBroadcastIdx;
-    private boolean currentop = false;
+    private boolean currentop;
 
     public OperatorExpr() {
         super();
@@ -92,12 +91,18 @@ public class OperatorExpr extends AbstractExpression {
     }
 
     public void addOperator(String strOp) throws CompilationException {
-        Optional<OperatorType> op = OperatorType.fromSymbol(strOp);
-        if (op.isPresent()) {
-            opList.add(op.get());
-        } else {
+        OperatorType op = OperatorType.fromSymbol(strOp);
+        if (op == null) {
             throw new CompilationException("Unsupported operator: " + strOp);
         }
+        addOperator(op);
+    }
+
+    public void addOperator(OperatorType op) {
+        if (op == null) {
+            throw new NullPointerException();
+        }
+        opList.add(op);
     }
 
     @Override
@@ -121,7 +126,7 @@ public class OperatorExpr extends AbstractExpression {
 
     @Override
     public int hashCode() {
-        return ObjectUtils.hashCodeMulti(currentop, exprBroadcastIdx, exprList, opList);
+        return Objects.hash(currentop, exprBroadcastIdx, exprList, opList);
     }
 
     @Override
@@ -133,7 +138,7 @@ public class OperatorExpr extends AbstractExpression {
             return false;
         }
         OperatorExpr target = (OperatorExpr) object;
-        return currentop == target.isCurrentop() && ObjectUtils.equals(exprBroadcastIdx, target.exprBroadcastIdx)
-                && ObjectUtils.equals(exprList, target.exprList) && ObjectUtils.equals(opList, target.opList);
+        return currentop == target.isCurrentop() && Objects.equals(exprBroadcastIdx, target.exprBroadcastIdx)
+                && Objects.equals(exprList, target.exprList) && Objects.equals(opList, target.opList);
     }
 }

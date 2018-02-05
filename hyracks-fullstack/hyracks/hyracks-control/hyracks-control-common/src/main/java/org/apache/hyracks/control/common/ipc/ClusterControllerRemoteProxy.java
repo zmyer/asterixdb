@@ -21,14 +21,34 @@ package org.apache.hyracks.control.common.ipc;
 import java.util.List;
 
 import org.apache.hyracks.api.comm.NetworkAddress;
+import org.apache.hyracks.api.control.CcId;
 import org.apache.hyracks.api.dataflow.TaskAttemptId;
 import org.apache.hyracks.api.dataset.ResultSetId;
 import org.apache.hyracks.api.deployment.DeploymentId;
+import org.apache.hyracks.api.job.DeployedJobSpecId;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.control.common.base.IClusterController;
 import org.apache.hyracks.control.common.controllers.NodeRegistration;
 import org.apache.hyracks.control.common.deployment.DeploymentStatus;
 import org.apache.hyracks.control.common.heartbeat.HeartbeatData;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.GetNodeControllersInfoFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.NodeHeartbeatFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.NotifyDeployBinaryFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.NotifyJobletCleanupFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.NotifyTaskCompleteFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.NotifyTaskFailureFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.RegisterNodeFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.RegisterPartitionProviderFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.RegisterPartitionRequestFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.RegisterResultPartitionLocationFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.ReportDeployedJobSpecFailureFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.ReportProfileFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.ReportResultPartitionWriteCompletionFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.SendApplicationMessageFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.ShutdownResponseFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.StateDumpResponseFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.ThreadDumpResponseFunction;
+import org.apache.hyracks.control.common.ipc.CCNCFunctions.UnregisterNodeFunction;
 import org.apache.hyracks.control.common.job.PartitionDescriptor;
 import org.apache.hyracks.control.common.job.PartitionRequest;
 import org.apache.hyracks.control.common.job.profiling.om.JobProfile;
@@ -36,138 +56,134 @@ import org.apache.hyracks.control.common.job.profiling.om.TaskProfile;
 import org.apache.hyracks.ipc.api.IIPCHandle;
 
 public class ClusterControllerRemoteProxy implements IClusterController {
-    private final IIPCHandle ipcHandle;
 
-    public ClusterControllerRemoteProxy(IIPCHandle ipcHandle) {
+    private final CcId ccId;
+    private IIPCHandle ipcHandle;
+
+    public ClusterControllerRemoteProxy(CcId ccId, IIPCHandle ipcHandle) {
+        this.ccId = ccId;
         this.ipcHandle = ipcHandle;
     }
 
     @Override
     public void registerNode(NodeRegistration reg) throws Exception {
-        CCNCFunctions.RegisterNodeFunction fn = new CCNCFunctions.RegisterNodeFunction(reg);
+        RegisterNodeFunction fn = new RegisterNodeFunction(reg);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void unregisterNode(String nodeId) throws Exception {
-        CCNCFunctions.UnregisterNodeFunction fn = new CCNCFunctions.UnregisterNodeFunction(nodeId);
+        UnregisterNodeFunction fn = new UnregisterNodeFunction(nodeId);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void notifyTaskComplete(JobId jobId, TaskAttemptId taskId, String nodeId, TaskProfile statistics)
             throws Exception {
-        CCNCFunctions.NotifyTaskCompleteFunction fn = new CCNCFunctions.NotifyTaskCompleteFunction(jobId, taskId,
-                nodeId, statistics);
+        NotifyTaskCompleteFunction fn = new NotifyTaskCompleteFunction(jobId, taskId, nodeId, statistics);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void notifyTaskFailure(JobId jobId, TaskAttemptId taskId, String nodeId, List<Exception> exceptions)
             throws Exception {
-        CCNCFunctions.NotifyTaskFailureFunction fn = new CCNCFunctions.NotifyTaskFailureFunction(jobId, taskId, nodeId,
-                exceptions);
+        NotifyTaskFailureFunction fn = new NotifyTaskFailureFunction(jobId, taskId, nodeId, exceptions);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void notifyJobletCleanup(JobId jobId, String nodeId) throws Exception {
-        CCNCFunctions.NotifyJobletCleanupFunction fn = new CCNCFunctions.NotifyJobletCleanupFunction(jobId, nodeId);
+        NotifyJobletCleanupFunction fn = new NotifyJobletCleanupFunction(jobId, nodeId);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void notifyDeployBinary(DeploymentId deploymentId, String nodeId, DeploymentStatus status) throws Exception {
-        CCNCFunctions.NotifyDeployBinaryFunction fn = new CCNCFunctions.NotifyDeployBinaryFunction(deploymentId,
-                nodeId, status);
+        NotifyDeployBinaryFunction fn = new NotifyDeployBinaryFunction(deploymentId, nodeId, status);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void nodeHeartbeat(String id, HeartbeatData hbData) throws Exception {
-        CCNCFunctions.NodeHeartbeatFunction fn = new CCNCFunctions.NodeHeartbeatFunction(id, hbData);
+        NodeHeartbeatFunction fn = new NodeHeartbeatFunction(id, hbData);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void reportProfile(String id, List<JobProfile> profiles) throws Exception {
-        CCNCFunctions.ReportProfileFunction fn = new CCNCFunctions.ReportProfileFunction(id, profiles);
+        ReportProfileFunction fn = new ReportProfileFunction(id, profiles);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void registerPartitionProvider(PartitionDescriptor partitionDescriptor) throws Exception {
-        CCNCFunctions.RegisterPartitionProviderFunction fn = new CCNCFunctions.RegisterPartitionProviderFunction(
-                partitionDescriptor);
+        RegisterPartitionProviderFunction fn = new RegisterPartitionProviderFunction(partitionDescriptor);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void registerPartitionRequest(PartitionRequest partitionRequest) throws Exception {
-        CCNCFunctions.RegisterPartitionRequestFunction fn = new CCNCFunctions.RegisterPartitionRequestFunction(
-                partitionRequest);
+        RegisterPartitionRequestFunction fn = new RegisterPartitionRequestFunction(partitionRequest);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void sendApplicationMessageToCC(byte[] data, DeploymentId deploymentId, String nodeId) throws Exception {
-        CCNCFunctions.SendApplicationMessageFunction fn = new CCNCFunctions.SendApplicationMessageFunction(data,
-                deploymentId, nodeId);
+        SendApplicationMessageFunction fn = new SendApplicationMessageFunction(data, deploymentId, nodeId);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void registerResultPartitionLocation(JobId jobId, ResultSetId rsId, boolean orderedResult,
-                                                boolean emptyResult, int partition, int nPartitions,
-                                                NetworkAddress networkAddress) throws Exception {
-        CCNCFunctions.RegisterResultPartitionLocationFunction fn =
-                new CCNCFunctions.RegisterResultPartitionLocationFunction(jobId, rsId, orderedResult, emptyResult,
-                        partition, nPartitions, networkAddress);
+            boolean emptyResult, int partition, int nPartitions, NetworkAddress networkAddress) throws Exception {
+        RegisterResultPartitionLocationFunction fn = new RegisterResultPartitionLocationFunction(jobId, rsId,
+                orderedResult, emptyResult, partition, nPartitions, networkAddress);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void reportResultPartitionWriteCompletion(JobId jobId, ResultSetId rsId, int partition) throws Exception {
-        CCNCFunctions.ReportResultPartitionWriteCompletionFunction fn =
-                new CCNCFunctions.ReportResultPartitionWriteCompletionFunction(jobId, rsId, partition);
+        ReportResultPartitionWriteCompletionFunction fn =
+                new ReportResultPartitionWriteCompletionFunction(jobId, rsId, partition);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
-    public void reportResultPartitionFailure(JobId jobId, ResultSetId rsId, int partition) throws Exception {
-        CCNCFunctions.ReportResultPartitionFailureFunction fn =
-                new CCNCFunctions.ReportResultPartitionFailureFunction(jobId, rsId, partition);
-        ipcHandle.send(-1, fn, null);
-    }
-
-    @Override
-    public void notifyDistributedJobFailure(JobId jobId, String nodeId) throws Exception {
-        CCNCFunctions.ReportDistributedJobFailureFunction fn =
-                new CCNCFunctions.ReportDistributedJobFailureFunction(jobId, nodeId);
+    public void notifyDeployedJobSpecFailure(DeployedJobSpecId deployedJobSpecId, String nodeId) throws Exception {
+        ReportDeployedJobSpecFailureFunction fn = new ReportDeployedJobSpecFailureFunction(deployedJobSpecId, nodeId);
         ipcHandle.send(-1, fn, null);
     }
 
     @Override
     public void getNodeControllerInfos() throws Exception {
-        ipcHandle.send(-1, new CCNCFunctions.GetNodeControllersInfoFunction(), null);
+        ipcHandle.send(-1, new GetNodeControllersInfoFunction(), null);
     }
 
     @Override
     public void notifyStateDump(String nodeId, String stateDumpId, String state) throws Exception {
-        CCNCFunctions.StateDumpResponseFunction fn =
-                new CCNCFunctions.StateDumpResponseFunction(nodeId, stateDumpId, state);
+        StateDumpResponseFunction fn = new StateDumpResponseFunction(nodeId, stateDumpId, state);
         ipcHandle.send(-1, fn, null);
     }
+
     @Override
-    public void notifyShutdown(String nodeId) throws Exception{
-        CCNCFunctions.ShutdownResponseFunction sdrf = new CCNCFunctions.ShutdownResponseFunction(nodeId);
+    public void notifyShutdown(String nodeId) throws Exception {
+        ShutdownResponseFunction sdrf = new ShutdownResponseFunction(nodeId);
         ipcHandle.send(-1, sdrf, null);
     }
 
     @Override
     public void notifyThreadDump(String nodeId, String requestId, String threadDumpJSON) throws Exception {
-        CCNCFunctions.ThreadDumpResponseFunction tdrf =
-                new CCNCFunctions.ThreadDumpResponseFunction(nodeId, requestId, threadDumpJSON);
+        ThreadDumpResponseFunction tdrf = new ThreadDumpResponseFunction(nodeId, requestId, threadDumpJSON);
         ipcHandle.send(-1, tdrf, null);
+    }
+
+    @Override
+    public CcId getCcId() {
+        return ccId;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " " + ccId + " [" + ipcHandle.getRemoteAddress() + "]";
     }
 }

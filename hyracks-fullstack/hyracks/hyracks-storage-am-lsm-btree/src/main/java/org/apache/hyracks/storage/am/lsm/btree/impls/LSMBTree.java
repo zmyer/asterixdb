@@ -20,50 +20,34 @@
 package org.apache.hyracks.storage.am.lsm.btree.impls;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.bloomfilter.impls.BloomCalculations;
-import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilterFactory;
-import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilterSpecification;
 import org.apache.hyracks.storage.am.btree.impls.BTree;
 import org.apache.hyracks.storage.am.btree.impls.BTree.BTreeAccessor;
-import org.apache.hyracks.storage.am.btree.impls.BTree.BTreeBulkLoader;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexBulkLoader;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
 import org.apache.hyracks.storage.am.common.api.IPageManager;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
 import org.apache.hyracks.storage.am.common.api.ITreeIndex;
-import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrameFactory;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
-import org.apache.hyracks.storage.am.common.exceptions.TreeIndexDuplicateKeyException;
-import org.apache.hyracks.storage.am.common.impls.AbstractSearchPredicate;
-import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
-import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
-import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.lsm.btree.tuples.LSMBTreeTupleReference;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
+import org.apache.hyracks.storage.am.lsm.common.api.AbstractLSMWithBloomFilterDiskComponent;
+import org.apache.hyracks.storage.am.lsm.common.api.IComponentFilterHelper;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFrameFactory;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMHarness;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponentBulkLoader;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponentFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperation;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallback;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexFileManager;
@@ -71,315 +55,147 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMMergePolicy;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
-import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
 import org.apache.hyracks.storage.am.lsm.common.freepage.VirtualFreePageManager;
 import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndex;
-import org.apache.hyracks.storage.am.lsm.common.impls.BlockingIOOperationCallbackWrapper;
+import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndexOperationContext;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFileReferences;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFilterManager;
-import org.apache.hyracks.storage.am.lsm.common.impls.LSMIndexSearchCursor;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMTreeIndexAccessor;
-import org.apache.hyracks.storage.am.lsm.common.impls.TreeIndexFactory;
+import org.apache.hyracks.storage.am.lsm.common.impls.LSMTreeIndexAccessor.ICursorFactory;
+import org.apache.hyracks.storage.common.IIndexAccessParameters;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.IModificationOperationCallback;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.ISearchPredicate;
+import org.apache.hyracks.storage.common.MultiComparator;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
+import org.apache.hyracks.util.trace.ITracer;
 
 public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
 
-    // For creating BTree's used in flush and merge.
-    protected final LSMBTreeDiskComponentFactory componentFactory;
-    // For creating BTree's used in bulk load. Different from diskBTreeFactory
-    // because it should have a different tuple writer in it's leaf frames.
-    protected final LSMBTreeDiskComponentFactory bulkLoadComponentFactory;
-
+    private static final ICursorFactory cursorFactory = opCtx -> new LSMBTreeSearchCursor(opCtx);
     // Common for in-memory and on-disk components.
     protected final ITreeIndexFrameFactory insertLeafFrameFactory;
     protected final ITreeIndexFrameFactory deleteLeafFrameFactory;
     protected final IBinaryComparatorFactory[] cmpFactories;
+    private final boolean updateAware;
 
     private final boolean needKeyDupCheck;
-    private final int[] btreeFields;
+
     // Primary LSMBTree has a Bloomfilter, but Secondary one doesn't have.
     private final boolean hasBloomFilter;
 
     public LSMBTree(IIOManager ioManager, List<IVirtualBufferCache> virtualBufferCaches,
             ITreeIndexFrameFactory interiorFrameFactory, ITreeIndexFrameFactory insertLeafFrameFactory,
-            ITreeIndexFrameFactory deleteLeafFrameFactory, ILSMIndexFileManager fileManager,
-            TreeIndexFactory<BTree> diskBTreeFactory, TreeIndexFactory<BTree> bulkLoadBTreeFactory,
-            BloomFilterFactory bloomFilterFactory, ILSMComponentFilterFactory filterFactory,
+            ITreeIndexFrameFactory deleteLeafFrameFactory, IBufferCache diskBufferCache,
+            ILSMIndexFileManager fileManager, ILSMDiskComponentFactory componentFactory,
+            ILSMDiskComponentFactory bulkLoadComponentFactory, IComponentFilterHelper filterHelper,
             ILSMComponentFilterFrameFactory filterFrameFactory, LSMComponentFilterManager filterManager,
-            double bloomFilterFalsePositiveRate, IFileMapProvider diskFileMapProvider, int fieldCount,
-            IBinaryComparatorFactory[] cmpFactories, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker,
-            ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback, boolean needKeyDupCheck,
-            int[] btreeFields, int[] filterFields, boolean durable) throws HyracksDataException {
-        super(ioManager, virtualBufferCaches, diskBTreeFactory.getBufferCache(), fileManager, diskFileMapProvider,
-                bloomFilterFalsePositiveRate, mergePolicy, opTracker, ioScheduler, ioOpCallback, filterFrameFactory,
-                filterManager, filterFields, durable);
+            double bloomFilterFalsePositiveRate, int fieldCount, IBinaryComparatorFactory[] cmpFactories,
+            ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler,
+            ILSMIOOperationCallbackFactory ioOpCallbackFactory, boolean needKeyDupCheck, int[] btreeFields,
+            int[] filterFields, boolean durable, boolean updateAware, ITracer tracer) throws HyracksDataException {
+        super(ioManager, virtualBufferCaches, diskBufferCache, fileManager, bloomFilterFalsePositiveRate, mergePolicy,
+                opTracker, ioScheduler, ioOpCallbackFactory, componentFactory, bulkLoadComponentFactory,
+                filterFrameFactory, filterManager, filterFields, durable, filterHelper, btreeFields, tracer);
         this.insertLeafFrameFactory = insertLeafFrameFactory;
         this.deleteLeafFrameFactory = deleteLeafFrameFactory;
         this.cmpFactories = cmpFactories;
+        this.updateAware = updateAware;
         int i = 0;
         for (IVirtualBufferCache virtualBufferCache : virtualBufferCaches) {
-            LSMBTreeMemoryComponent mutableComponent = new LSMBTreeMemoryComponent(
-                    new BTree(virtualBufferCache, virtualBufferCache.getFileMapProvider(),
-                            new VirtualFreePageManager(virtualBufferCache), interiorFrameFactory,
+            LSMBTreeMemoryComponent mutableComponent = new LSMBTreeMemoryComponent(this,
+                    new BTree(virtualBufferCache, new VirtualFreePageManager(virtualBufferCache), interiorFrameFactory,
                             insertLeafFrameFactory, cmpFactories, fieldCount,
                             ioManager.resolveAbsolutePath(fileManager.getBaseDir() + "_virtual_" + i)),
                     virtualBufferCache, i == 0 ? true : false,
-                    filterFactory == null ? null : filterFactory.createFilter());
+                    filterHelper == null ? null : filterHelper.createFilter());
             memoryComponents.add(mutableComponent);
             ++i;
         }
-        componentFactory = new LSMBTreeDiskComponentFactory(diskBTreeFactory, bloomFilterFactory, filterFactory);
-        bulkLoadComponentFactory =
-                new LSMBTreeDiskComponentFactory(bulkLoadBTreeFactory, bloomFilterFactory, filterFactory);
         this.needKeyDupCheck = needKeyDupCheck;
-        this.btreeFields = btreeFields;
         this.hasBloomFilter = needKeyDupCheck;
     }
 
     // Without memory components
     public LSMBTree(IIOManager ioManager, ITreeIndexFrameFactory insertLeafFrameFactory,
-            ITreeIndexFrameFactory deleteLeafFrameFactory, ILSMIndexFileManager fileManager,
-            TreeIndexFactory<BTree> diskBTreeFactory, TreeIndexFactory<BTree> bulkLoadBTreeFactory,
-            BloomFilterFactory bloomFilterFactory, double bloomFilterFalsePositiveRate,
-            IFileMapProvider diskFileMapProvider, int fieldCount, IBinaryComparatorFactory[] cmpFactories,
-            ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler,
-            ILSMIOOperationCallback ioOpCallback, boolean needKeyDupCheck, boolean durable) {
-        super(ioManager, diskBTreeFactory.getBufferCache(), fileManager, diskFileMapProvider,
-                bloomFilterFalsePositiveRate, mergePolicy, opTracker, ioScheduler, ioOpCallback, durable);
+            ITreeIndexFrameFactory deleteLeafFrameFactory, IBufferCache bufferCache, ILSMIndexFileManager fileManager,
+            ILSMDiskComponentFactory componentFactory, ILSMDiskComponentFactory bulkLoadComponentFactory,
+            double bloomFilterFalsePositiveRate, IBinaryComparatorFactory[] cmpFactories, ILSMMergePolicy mergePolicy,
+            ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler,
+            ILSMIOOperationCallbackFactory ioOpCallbackFactory, boolean needKeyDupCheck, boolean durable,
+            ITracer tracer) throws HyracksDataException {
+        super(ioManager, bufferCache, fileManager, bloomFilterFalsePositiveRate, mergePolicy, opTracker, ioScheduler,
+                ioOpCallbackFactory, componentFactory, bulkLoadComponentFactory, durable, tracer);
         this.insertLeafFrameFactory = insertLeafFrameFactory;
         this.deleteLeafFrameFactory = deleteLeafFrameFactory;
         this.cmpFactories = cmpFactories;
-        componentFactory = new LSMBTreeDiskComponentFactory(diskBTreeFactory, bloomFilterFactory, null);
-        bulkLoadComponentFactory = new LSMBTreeDiskComponentFactory(bulkLoadBTreeFactory, bloomFilterFactory, null);
         this.needKeyDupCheck = needKeyDupCheck;
-        this.btreeFields = null;
-        //TODO remove BloomFilter from external dataset's secondary LSMBTree index
         this.hasBloomFilter = true;
+        this.updateAware = false;
     }
 
     @Override
-    public synchronized void create() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to create the index since it is activated.");
-        }
-
-        fileManager.deleteDirs();
-        fileManager.createDirs();
-        diskComponents.clear();
+    public boolean isPrimaryIndex() {
+        return needKeyDupCheck;
     }
 
     @Override
-    public synchronized void activate() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to activate the index since it is already activated.");
-        }
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        immutableComponents.clear();
-        List<LSMComponentFileReferences> validFileReferences;
-        try {
-            validFileReferences = fileManager.cleanupAndGetValidFiles();
-        } catch (IndexException e) {
-            throw new HyracksDataException(e);
-        }
-        for (LSMComponentFileReferences lsmComonentFileReference : validFileReferences) {
-            LSMBTreeDiskComponent component;
-            try {
-                component =
-                        createDiskComponent(componentFactory, lsmComonentFileReference.getInsertIndexFileReference(),
-                                lsmComonentFileReference.getBloomFilterFileReference(), false);
-            } catch (IndexException e) {
-                throw new HyracksDataException(e);
-            }
-            immutableComponents.add(component);
-        }
-        isActivated = true;
+    public IBinaryComparatorFactory[] getComparatorFactories() {
+        return cmpFactories;
     }
 
     @Override
-    public synchronized void deactivate(boolean flushOnExit) throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to deactivate the index since it is already deactivated.");
-        }
-
-        if (flushOnExit) {
-            BlockingIOOperationCallbackWrapper cb = new BlockingIOOperationCallbackWrapper(ioOpCallback);
-            ILSMIndexAccessor accessor =
-                    createAccessor(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
-            accessor.scheduleFlush(cb);
-            try {
-                cb.waitForIO();
-            } catch (InterruptedException e) {
-                throw new HyracksDataException(e);
-            }
-        }
-
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        for (ILSMDiskComponent c : immutableComponents) {
-            LSMBTreeDiskComponent component = (LSMBTreeDiskComponent) c;
-            component.getBTree().deactivateCloseHandle();
-            if (hasBloomFilter) {
-                component.getBloomFilter().deactivate();
-            }
-        }
-        deallocateMemoryComponents();
-        isActivated = false;
-    }
-
-    @Override
-    public synchronized void deactivate() throws HyracksDataException {
-        deactivate(true);
-    }
-
-    @Override
-    public void destroy() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to destroy the index since it is activated.");
-        }
-
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        for (ILSMDiskComponent c : immutableComponents) {
-            LSMBTreeDiskComponent component = (LSMBTreeDiskComponent) c;
-            component.getBTree().destroy();
-            if (hasBloomFilter) {
-                component.getBloomFilter().destroy();
-            }
-        }
-        for (ILSMComponent c : memoryComponents) {
-            LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-            mutableComponent.getBTree().destroy();
-        }
-        fileManager.deleteDirs();
-    }
-
-    @Override
-    public void clear() throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to clear the index since it is not activated.");
-        }
-
-        clearMemoryComponents();
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        for (ILSMComponent c : immutableComponents) {
-            LSMBTreeDiskComponent component = (LSMBTreeDiskComponent) c;
-            if (hasBloomFilter) {
-                component.getBloomFilter().deactivate();
-            }
-            component.getBTree().deactivate();
-            if (hasBloomFilter) {
-                component.getBloomFilter().destroy();
-            }
-            component.getBTree().destroy();
-        }
-        immutableComponents.clear();
-    }
-
-    @Override
-    public void getOperationalComponents(ILSMIndexOperationContext ctx) throws HyracksDataException {
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        List<ILSMComponent> operationalComponents = ctx.getComponentHolder();
-        int cmc = currentMutableComponentId.get();
-        ctx.setCurrentMutableComponentId(cmc);
-        operationalComponents.clear();
-        switch (ctx.getOperation()) {
-            case UPDATE:
-            case PHYSICALDELETE:
-            case FLUSH:
-            case DELETE:
-                operationalComponents.add(memoryComponents.get(cmc));
-                break;
-            case INSERT:
-            case UPSERT:
-                addOperationalMutableComponents(operationalComponents);
-                operationalComponents.addAll(immutableComponents);
-                break;
-            case SEARCH:
-                if (memoryComponentsAllocated) {
-                    addOperationalMutableComponents(operationalComponents);
-                }
-                if (filterManager != null) {
-                    for (ILSMComponent c : immutableComponents) {
-                        if (c.getLSMComponentFilter().satisfy(
-                                ((AbstractSearchPredicate) ctx.getSearchPredicate()).getMinFilterTuple(),
-                                ((AbstractSearchPredicate) ctx.getSearchPredicate()).getMaxFilterTuple(),
-                                ((LSMBTreeOpContext) ctx).filterCmp)) {
-                            operationalComponents.add(c);
-                        }
-                    }
-                } else {
-                    operationalComponents.addAll(immutableComponents);
-                }
-
-                break;
-            case MERGE:
-                operationalComponents.addAll(ctx.getComponentsToBeMerged());
-                break;
-            case FULL_MERGE:
-                operationalComponents.addAll(immutableComponents);
-                break;
-            case REPLICATE:
-                operationalComponents.addAll(ctx.getComponentsToBeReplicated());
-                break;
-            default:
-                throw new UnsupportedOperationException("Operation " + ctx.getOperation() + " not supported.");
-        }
-    }
-
-    @Override
-    public void modify(IIndexOperationContext ictx, ITupleReference tuple)
-            throws HyracksDataException, IndexException {
+    public void modify(IIndexOperationContext ictx, ITupleReference tuple) throws HyracksDataException {
         LSMBTreeOpContext ctx = (LSMBTreeOpContext) ictx;
-
         ITupleReference indexTuple;
-        if (ctx.indexTuple != null) {
-            ctx.indexTuple.reset(tuple);
-            indexTuple = ctx.indexTuple;
+        if (ctx.getIndexTuple() != null) {
+            ctx.getIndexTuple().reset(tuple);
+            indexTuple = ctx.getIndexTuple();
+            ctx.getCurrentMutableBTreeAccessor().getOpContext().resetNonIndexFieldsTuple(tuple);
         } else {
             indexTuple = tuple;
         }
 
         switch (ctx.getOperation()) {
             case PHYSICALDELETE:
-                ctx.currentMutableBTreeAccessor.delete(indexTuple);
+                ctx.getCurrentMutableBTreeAccessor().delete(indexTuple);
                 break;
             case INSERT:
                 insert(indexTuple, ctx);
                 break;
             default:
-                ctx.currentMutableBTreeAccessor.upsert(indexTuple);
+                ctx.getCurrentMutableBTreeAccessor().upsert(indexTuple);
                 break;
         }
-        if (ctx.filterTuple != null) {
-            ctx.filterTuple.reset(tuple);
-            memoryComponents.get(currentMutableComponentId.get()).getLSMComponentFilter().update(ctx.filterTuple,
-                    ctx.filterCmp);
-        }
+        updateFilter(ctx, tuple);
     }
 
-    private boolean insert(ITupleReference tuple, LSMBTreeOpContext ctx) throws HyracksDataException, IndexException {
-        LSMBTreePointSearchCursor searchCursor = ctx.insertSearchCursor;
-        IIndexCursor memCursor = ctx.memCursor;
+    private boolean insert(ITupleReference tuple, LSMBTreeOpContext ctx) throws HyracksDataException {
+        LSMBTreePointSearchCursor searchCursor = ctx.getInsertSearchCursor();
+        IIndexCursor memCursor = ctx.getMemCursor();
         RangePredicate predicate = (RangePredicate) ctx.getSearchPredicate();
         predicate.setHighKey(tuple);
         predicate.setLowKey(tuple);
         if (needKeyDupCheck) {
             // first check the inmemory component
-            ctx.currentMutableBTreeAccessor.search(memCursor, predicate);
+            ctx.getCurrentMutableBTreeAccessor().search(memCursor, predicate);
             try {
                 if (memCursor.hasNext()) {
                     memCursor.next();
                     LSMBTreeTupleReference lsmbtreeTuple = (LSMBTreeTupleReference) memCursor.getTuple();
                     if (!lsmbtreeTuple.isAntimatter()) {
-                        throw new TreeIndexDuplicateKeyException("Failed to insert key since key already exists.");
+                        throw HyracksDataException.create(ErrorCode.DUPLICATE_KEY);
                     } else {
-                        memCursor.close();
-                        ctx.currentMutableBTreeAccessor.upsertIfConditionElseInsert(tuple,
+                        memCursor.destroy();
+                        ctx.getCurrentMutableBTreeAccessor().upsertIfConditionElseInsert(tuple,
                                 AntimatterAwareTupleAcceptor.INSTANCE);
                         return true;
                     }
                 }
             } finally {
-                memCursor.close();
+                memCursor.destroy();
             }
 
             // TODO: Can we just remove the above code that search the mutable
@@ -394,57 +210,52 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
             search(ctx, searchCursor, predicate);
             try {
                 if (searchCursor.hasNext()) {
-                    throw new TreeIndexDuplicateKeyException("Failed to insert key since key already exists.");
+                    throw HyracksDataException.create(ErrorCode.DUPLICATE_KEY);
                 }
             } finally {
-                searchCursor.close();
+                searchCursor.destroy();
                 // Add the current active mutable component back
                 ctx.getComponentHolder().add(0, firstComponent);
             }
         }
-        ctx.currentMutableBTreeAccessor.upsertIfConditionElseInsert(tuple, AntimatterAwareTupleAcceptor.INSTANCE);
+        ctx.getCurrentMutableBTreeAccessor().upsertIfConditionElseInsert(tuple, AntimatterAwareTupleAcceptor.INSTANCE);
         return true;
     }
 
     @Override
     public void search(ILSMIndexOperationContext ictx, IIndexCursor cursor, ISearchPredicate pred)
-            throws HyracksDataException, IndexException {
+            throws HyracksDataException {
         LSMBTreeOpContext ctx = (LSMBTreeOpContext) ictx;
         List<ILSMComponent> operationalComponents = ctx.getComponentHolder();
-        ctx.searchInitialState.reset(pred, operationalComponents);
-        cursor.open(ctx.searchInitialState, pred);
+        ctx.getSearchInitialState().reset(pred, operationalComponents);
+        cursor.open(ctx.getSearchInitialState(), pred);
     }
 
     @Override
-    public void scheduleFlush(ILSMIndexOperationContext ctx, ILSMIOOperationCallback callback)
-            throws HyracksDataException {
-        ILSMComponent flushingComponent = ctx.getComponentHolder().get(0);
-        LSMComponentFileReferences componentFileRefs = fileManager.getRelFlushFileReference();
-        LSMBTreeOpContext opCtx = createOpContext(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
-        assert ctx.getComponentHolder().size() == 1;
-        opCtx.setOperation(IndexOperation.FLUSH);
-        opCtx.getComponentHolder().add(flushingComponent);
-        ILSMIndexAccessor flushAccessor = new LSMBTreeAccessor(lsmHarness, opCtx);
-        ioScheduler.scheduleOperation(new LSMBTreeFlushOperation(flushAccessor, flushingComponent,
-                componentFileRefs.getInsertIndexFileReference(), componentFileRefs.getBloomFilterFileReference(),
-                callback, fileManager.getBaseDir()));
+    public void scanDiskComponents(ILSMIndexOperationContext ictx, IIndexCursor cursor) throws HyracksDataException {
+        if (!isPrimaryIndex()) {
+            throw HyracksDataException.create(ErrorCode.DISK_COMPONENT_SCAN_NOT_ALLOWED_FOR_SECONDARY_INDEX);
+        }
+        LSMBTreeOpContext ctx = (LSMBTreeOpContext) ictx;
+        List<ILSMComponent> operationalComponents = ctx.getComponentHolder();
+        MultiComparator comp = MultiComparator.create(getComparatorFactories());
+        ISearchPredicate pred = new RangePredicate(null, null, true, true, comp, comp);
+        ctx.getSearchInitialState().reset(pred, operationalComponents);
+        ((LSMBTreeSearchCursor) cursor).scan(ctx.getSearchInitialState(), pred);
     }
 
     @Override
-    public ILSMDiskComponent flush(ILSMIOOperation operation) throws HyracksDataException, IndexException {
+    public ILSMDiskComponent doFlush(ILSMIOOperation operation) throws HyracksDataException {
         LSMBTreeFlushOperation flushOp = (LSMBTreeFlushOperation) operation;
         LSMBTreeMemoryComponent flushingComponent = (LSMBTreeMemoryComponent) flushOp.getFlushingComponent();
-        IIndexAccessor accessor = flushingComponent.getBTree().createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        IIndexAccessor accessor = flushingComponent.getIndex().createAccessor(NoOpIndexAccessParameters.INSTANCE);
 
         RangePredicate nullPred = new RangePredicate(null, null, true, true, null, null);
         long numElements = 0L;
-        BloomFilterSpecification bloomFilterSpec = null;
         if (hasBloomFilter) {
             //count elements in btree for creating Bloomfilter
             IIndexCursor countingCursor = ((BTreeAccessor) accessor).createCountingSearchCursor();
             accessor.search(countingCursor, nullPred);
-
             try {
                 while (countingCursor.hasNext()) {
                     countingCursor.next();
@@ -452,45 +263,38 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
                     numElements = IntegerPointable.getInteger(countTuple.getFieldData(0), countTuple.getFieldStart(0));
                 }
             } finally {
-                countingCursor.close();
+                countingCursor.destroy();
             }
-
-            int maxBucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
-            bloomFilterSpec = BloomCalculations.computeBloomSpec(maxBucketsPerElement, bloomFilterFalsePositiveRate);
         }
 
-        LSMBTreeDiskComponent component = createDiskComponent(componentFactory, flushOp.getBTreeFlushTarget(),
-                flushOp.getBloomFilterFlushTarget(), true);
-        IIndexBulkLoader bulkLoader = component.getBTree().createBulkLoader(1.0f, false, numElements, false);
-        IIndexBulkLoader builder = null;
-        if (hasBloomFilter) {
-            builder = component.getBloomFilter().createBuilder(numElements, bloomFilterSpec.getNumHashes(),
-                    bloomFilterSpec.getNumBucketsPerElements());
-        }
+        ILSMDiskComponent component =
+                createDiskComponent(componentFactory, flushOp.getTarget(), null, flushOp.getBloomFilterTarget(), true);
+
+        ILSMDiskComponentBulkLoader componentBulkLoader =
+                component.createBulkLoader(1.0f, false, numElements, false, false, false);
 
         IIndexCursor scanCursor = accessor.createSearchCursor(false);
         accessor.search(scanCursor, nullPred);
         try {
             while (scanCursor.hasNext()) {
                 scanCursor.next();
-                if (hasBloomFilter) {
-                    builder.add(scanCursor.getTuple());
+                // we can safely throw away updated tuples in secondary BTree components, because they correspond to
+                // deleted tuples
+                if (updateAware && ((LSMBTreeTupleReference) scanCursor.getTuple()).isUpdated()) {
+                    continue;
                 }
-                bulkLoader.add(scanCursor.getTuple());
+                componentBulkLoader.add(scanCursor.getTuple());
             }
         } finally {
-            scanCursor.close();
-            if (hasBloomFilter) {
-                builder.end();
-            }
+            scanCursor.destroy();
         }
 
         if (component.getLSMComponentFilter() != null) {
             List<ITupleReference> filterTuples = new ArrayList<>();
             filterTuples.add(flushingComponent.getLSMComponentFilter().getMinTuple());
             filterTuples.add(flushingComponent.getLSMComponentFilter().getMaxTuple());
-            filterManager.updateFilter(component.getLSMComponentFilter(), filterTuples);
-            filterManager.writeFilter(component.getLSMComponentFilter(), component.getBTree());
+            getFilterManager().updateFilter(component.getLSMComponentFilter(), filterTuples);
+            getFilterManager().writeFilter(component.getLSMComponentFilter(), component.getMetadataHolder());
         }
         // Write metadata from memory component to disk
         // Q. what about the merge operation? how do we resolve conflicts
@@ -500,77 +304,39 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
         // TODO This code should be in the callback and not in the index
         flushingComponent.getMetadata().copy(component.getMetadata());
 
-        bulkLoader.end();
+        componentBulkLoader.end();
+
         return component;
     }
 
     @Override
-    public void scheduleMerge(ILSMIndexOperationContext ctx, ILSMIOOperationCallback callback)
-            throws HyracksDataException, IndexException {
-        LSMBTreeOpContext opCtx = createOpContext(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
-        opCtx.setOperation(IndexOperation.MERGE);
-        List<ILSMComponent> mergingComponents = ctx.getComponentHolder();
-        boolean returnDeletedTuples = false;
-        if (ctx.getComponentHolder().get(ctx.getComponentHolder().size() - 1) != diskComponents
-                .get(diskComponents.size() - 1)) {
-            returnDeletedTuples = true;
-        }
-        ITreeIndexCursor cursor = new LSMBTreeRangeSearchCursor(opCtx, returnDeletedTuples);
-        BTree firstBTree = ((LSMBTreeDiskComponent) mergingComponents.get(0)).getBTree();
-        BTree lastBTree = ((LSMBTreeDiskComponent) mergingComponents.get(mergingComponents.size() - 1)).getBTree();
-        FileReference firstFile = firstBTree.getFileReference();
-        FileReference lastFile = lastBTree.getFileReference();
-        LSMComponentFileReferences relMergeFileRefs =
-                fileManager.getRelMergeFileReference(firstFile.getFile().getName(), lastFile.getFile().getName());
-        ILSMIndexAccessor accessor = new LSMBTreeAccessor(lsmHarness, opCtx);
-        ioScheduler.scheduleOperation(new LSMBTreeMergeOperation(accessor, mergingComponents, cursor,
-                relMergeFileRefs.getInsertIndexFileReference(), relMergeFileRefs.getBloomFilterFileReference(),
-                callback, fileManager.getBaseDir()));
-    }
-
-    @Override
-    public ILSMDiskComponent merge(ILSMIOOperation operation) throws HyracksDataException, IndexException {
+    public ILSMDiskComponent doMerge(ILSMIOOperation operation) throws HyracksDataException {
         LSMBTreeMergeOperation mergeOp = (LSMBTreeMergeOperation) operation;
-        ITreeIndexCursor cursor = mergeOp.getCursor();
+        IIndexCursor cursor = mergeOp.getCursor();
         RangePredicate rangePred = new RangePredicate(null, null, true, true, null, null);
-        ILSMIndexOperationContext opCtx = ((LSMIndexSearchCursor) cursor).getOpCtx();
-        opCtx.getComponentHolder().addAll(mergeOp.getMergingComponents());
-        search(opCtx, cursor, rangePred);
+        search(mergeOp.getAccessor().getOpContext(), cursor, rangePred);
         List<ILSMComponent> mergedComponents = mergeOp.getMergingComponents();
-
         long numElements = 0L;
-        BloomFilterSpecification bloomFilterSpec = null;
         if (hasBloomFilter) {
             //count elements in btree for creating Bloomfilter
             for (int i = 0; i < mergedComponents.size(); ++i) {
-                numElements += ((LSMBTreeDiskComponent) mergedComponents.get(i)).getBloomFilter().getNumElements();
+                numElements += ((AbstractLSMWithBloomFilterDiskComponent) mergedComponents.get(i)).getBloomFilter()
+                        .getNumElements();
             }
-            int maxBucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
-            bloomFilterSpec = BloomCalculations.computeBloomSpec(maxBucketsPerElement, bloomFilterFalsePositiveRate);
         }
-        LSMBTreeDiskComponent mergedComponent = createDiskComponent(componentFactory, mergeOp.getBTreeMergeTarget(),
-                mergeOp.getBloomFilterMergeTarget(), true);
+        ILSMDiskComponent mergedComponent =
+                createDiskComponent(componentFactory, mergeOp.getTarget(), null, mergeOp.getBloomFilterTarget(), true);
 
-        IIndexBulkLoader bulkLoader = mergedComponent.getBTree().createBulkLoader(1.0f, false, numElements, false);
-        IIndexBulkLoader builder = null;
-        if (hasBloomFilter) {
-            builder = mergedComponent.getBloomFilter().createBuilder(numElements, bloomFilterSpec.getNumHashes(),
-                    bloomFilterSpec.getNumBucketsPerElements());
-        }
+        ILSMDiskComponentBulkLoader componentBulkLoader =
+                mergedComponent.createBulkLoader(1.0f, false, numElements, false, false, false);
         try {
             while (cursor.hasNext()) {
                 cursor.next();
                 ITupleReference frameTuple = cursor.getTuple();
-                if (hasBloomFilter) {
-                    builder.add(frameTuple);
-                }
-                bulkLoader.add(frameTuple);
+                componentBulkLoader.add(frameTuple);
             }
         } finally {
-            cursor.close();
-            if (hasBloomFilter) {
-                builder.end();
-            }
+            cursor.destroy();
         }
         if (mergedComponent.getLSMComponentFilter() != null) {
             List<ITupleReference> filterTuples = new ArrayList<>();
@@ -578,375 +344,104 @@ public class LSMBTree extends AbstractLSMIndex implements ITreeIndex {
                 filterTuples.add(mergeOp.getMergingComponents().get(i).getLSMComponentFilter().getMinTuple());
                 filterTuples.add(mergeOp.getMergingComponents().get(i).getLSMComponentFilter().getMaxTuple());
             }
-            filterManager.updateFilter(mergedComponent.getLSMComponentFilter(), filterTuples);
-            filterManager.writeFilter(mergedComponent.getLSMComponentFilter(), mergedComponent.getBTree());
+            getFilterManager().updateFilter(mergedComponent.getLSMComponentFilter(), filterTuples);
+            getFilterManager().writeFilter(mergedComponent.getLSMComponentFilter(),
+                    mergedComponent.getMetadataHolder());
         }
-        bulkLoader.end();
+        componentBulkLoader.end();
         return mergedComponent;
     }
 
-    protected LSMBTreeDiskComponent createDiskComponent(LSMBTreeDiskComponentFactory factory,
-            FileReference btreeFileRef, FileReference bloomFilterFileRef, boolean createComponent)
-            throws HyracksDataException, IndexException {
-        // Create new BTree instance.
-        LSMBTreeDiskComponent component =
-                factory.createComponent(new LSMComponentFileReferences(btreeFileRef, null, bloomFilterFileRef));
-        // BTree will be closed during cleanup of merge().
-        if (createComponent) {
-            component.getBTree().create();
-        }
-        component.getBTree().activate();
-        if (hasBloomFilter) {
-            if (createComponent) {
-                component.getBloomFilter().create();
-            }
-            component.getBloomFilter().activate();
-        }
-        if (component.getLSMComponentFilter() != null && !createComponent) {
-            filterManager.readFilter(component.getLSMComponentFilter(), component.getBTree());
-        }
-        return component;
+    @Override
+    protected ILSMIOOperation createFlushOperation(AbstractLSMIndexOperationContext opCtx,
+            LSMComponentFileReferences componentFileRefs, ILSMIOOperationCallback callback) {
+        ILSMIndexAccessor accessor = createAccessor(opCtx);
+        return new LSMBTreeFlushOperation(accessor, componentFileRefs.getInsertIndexFileReference(),
+                componentFileRefs.getBloomFilterFileReference(), callback, fileManager.getBaseDir().getAbsolutePath());
     }
 
     @Override
-    public IIndexBulkLoader createBulkLoader(float fillLevel, boolean verifyInput, long numElementsHint,
-            boolean checkIfEmptyIndex) throws TreeIndexException {
-        try {
-            return new LSMBTreeBulkLoader(fillLevel, verifyInput, numElementsHint, checkIfEmptyIndex);
-        } catch (HyracksDataException e) {
-            throw new TreeIndexException(e);
-        }
-    }
-
-    protected ILSMDiskComponent createBulkLoadTarget() throws HyracksDataException, IndexException {
-        LSMComponentFileReferences componentFileRefs = fileManager.getRelFlushFileReference();
-        return createDiskComponent(bulkLoadComponentFactory, componentFileRefs.getInsertIndexFileReference(),
-                componentFileRefs.getBloomFilterFileReference(), true);
-    }
-
-    @Override
-    public void markAsValid(ILSMDiskComponent lsmComponent) throws HyracksDataException {
-        // The order of forcing the dirty page to be flushed is critical. The
-        // bloom filter must be always done first.
-        LSMBTreeDiskComponent component = (LSMBTreeDiskComponent) lsmComponent;
-        if (hasBloomFilter) {
-            markAsValidInternal(component.getBTree().getBufferCache(), component.getBloomFilter());
-        }
-        markAsValidInternal(component.getBTree());
-    }
-
-    public class LSMBTreeBulkLoader implements IIndexBulkLoader {
-        private final ILSMDiskComponent component;
-        private final BTreeBulkLoader bulkLoader;
-        private final IIndexBulkLoader builder;
-        private boolean cleanedUpArtifacts = false;
-        private boolean isEmptyComponent = true;
-        private boolean endedBloomFilterLoad = false;
-        public final PermutingTupleReference indexTuple;
-        public final PermutingTupleReference filterTuple;
-        public final MultiComparator filterCmp;
-
-        public LSMBTreeBulkLoader(float fillFactor, boolean verifyInput, long numElementsHint,
-                boolean checkIfEmptyIndex) throws TreeIndexException, HyracksDataException {
-            if (checkIfEmptyIndex && !isEmptyIndex()) {
-                throw new TreeIndexException("Cannot load an index that is not empty");
-            }
-            try {
-                component = createBulkLoadTarget();
-            } catch (HyracksDataException | IndexException e) {
-                throw new TreeIndexException(e);
-            }
-            bulkLoader = (BTreeBulkLoader) ((LSMBTreeDiskComponent) component).getBTree().createBulkLoader(fillFactor,
-                    verifyInput, numElementsHint, false);
-
-            if (hasBloomFilter) {
-                int maxBucketsPerElement = BloomCalculations.maxBucketsPerElement(numElementsHint);
-                BloomFilterSpecification bloomFilterSpec =
-                        BloomCalculations.computeBloomSpec(maxBucketsPerElement, bloomFilterFalsePositiveRate);
-                builder = ((LSMBTreeDiskComponent) component).getBloomFilter().createBuilder(numElementsHint,
-                        bloomFilterSpec.getNumHashes(), bloomFilterSpec.getNumBucketsPerElements());
-            } else {
-                builder = null;
-            }
-
-            if (filterFields != null) {
-                indexTuple = new PermutingTupleReference(btreeFields);
-                filterCmp = MultiComparator.create(component.getLSMComponentFilter().getFilterCmpFactories());
-                filterTuple = new PermutingTupleReference(filterFields);
-            } else {
-                indexTuple = null;
-                filterCmp = null;
-                filterTuple = null;
-            }
-        }
-
-        @Override
-        public void add(ITupleReference tuple) throws IndexException, HyracksDataException {
-            try {
-                ITupleReference t;
-                if (indexTuple != null) {
-                    indexTuple.reset(tuple);
-                    t = indexTuple;
-                } else {
-                    t = tuple;
-                }
-
-                bulkLoader.add(t);
-                if (hasBloomFilter) {
-                    builder.add(t);
-                }
-
-                if (filterTuple != null) {
-                    filterTuple.reset(tuple);
-                    component.getLSMComponentFilter().update(filterTuple, filterCmp);
-                }
-            } catch (IndexException | HyracksDataException | RuntimeException e) {
-                cleanupArtifacts();
-                throw e;
-            }
-            if (isEmptyComponent) {
-                isEmptyComponent = false;
-            }
-        }
-
-        protected void cleanupArtifacts() throws HyracksDataException {
-            if (!cleanedUpArtifacts) {
-                cleanedUpArtifacts = true;
-                if (hasBloomFilter && !endedBloomFilterLoad) {
-                    builder.abort();
-                    endedBloomFilterLoad = true;
-                }
-                ((LSMBTreeDiskComponent) component).getBTree().deactivate();
-                ((LSMBTreeDiskComponent) component).getBTree().destroy();
-                if (hasBloomFilter) {
-                    ((LSMBTreeDiskComponent) component).getBloomFilter().deactivate();
-                    ((LSMBTreeDiskComponent) component).getBloomFilter().destroy();
-                }
-            }
-        }
-
-        @Override
-        public void end() throws HyracksDataException, IndexException {
-            if (!cleanedUpArtifacts) {
-                if (hasBloomFilter && !endedBloomFilterLoad) {
-                    builder.end();
-                    endedBloomFilterLoad = true;
-                }
-
-                if (component.getLSMComponentFilter() != null) {
-                    filterManager.writeFilter(component.getLSMComponentFilter(),
-                            ((LSMBTreeDiskComponent) component).getBTree());
-                }
-                bulkLoader.end();
-
-                if (isEmptyComponent) {
-                    cleanupArtifacts();
-                } else {
-                    //TODO(amoudi): Ensure Bulk load follow the same lifecycle Other Operations (Flush, Merge, etc).
-                    //then after operation should be called from harness as well
-                    //https://issues.apache.org/jira/browse/ASTERIXDB-1764
-                    ioOpCallback.afterOperation(LSMOperationType.FLUSH, null, component);
-                    lsmHarness.addBulkLoadedComponent(component);
-                }
-            }
-        }
-
-        @Override
-        public void abort() throws HyracksDataException {
-            if (bulkLoader != null) {
-                bulkLoader.abort();
-            }
-
-            if (builder != null) {
-                builder.abort();
-            }
-
-        }
-    }
-
     public LSMBTreeOpContext createOpContext(IModificationOperationCallback modificationCallback,
             ISearchOperationCallback searchCallback) {
-        int numBloomFilterKeyFields = hasBloomFilter ? componentFactory.getBloomFilterKeyFields().length : 0;
-        return new LSMBTreeOpContext(memoryComponents, insertLeafFrameFactory, deleteLeafFrameFactory,
-                modificationCallback, searchCallback, numBloomFilterKeyFields, btreeFields, filterFields, lsmHarness);
+        int numBloomFilterKeyFields = hasBloomFilter
+                ? ((LSMBTreeWithBloomFilterDiskComponentFactory) componentFactory).getBloomFilterKeyFields().length : 0;
+        return new LSMBTreeOpContext(this, memoryComponents, insertLeafFrameFactory, deleteLeafFrameFactory,
+                modificationCallback, searchCallback, numBloomFilterKeyFields, getTreeFields(), getFilterFields(),
+                getHarness(), getFilterCmpFactories(), tracer);
     }
 
     @Override
-    public ILSMIndexAccessor createAccessor(IModificationOperationCallback modificationCallback,
-            ISearchOperationCallback searchCallback) {
-        return new LSMBTreeAccessor(lsmHarness, createOpContext(modificationCallback, searchCallback));
+    public ILSMIndexAccessor createAccessor(IIndexAccessParameters iap) {
+        return createAccessor(createOpContext(iap.getModificationCallback(), iap.getSearchOperationCallback()));
     }
 
-    public class LSMBTreeAccessor extends LSMTreeIndexAccessor {
-        public LSMBTreeAccessor(ILSMHarness lsmHarness, ILSMIndexOperationContext ctx) {
-            super(lsmHarness, ctx);
-        }
-
-        @Override
-        public IIndexCursor createSearchCursor(boolean exclusive) {
-            return new LSMBTreeSearchCursor(ctx);
-        }
-
-        public MultiComparator getMultiComparator() {
-            LSMBTreeOpContext concreteCtx = (LSMBTreeOpContext) ctx;
-            return concreteCtx.cmp;
-        }
-    }
-
-    @Override
-    public IBufferCache getBufferCache() {
-        return diskBufferCache;
-    }
-
-    @Override
-    public IBinaryComparatorFactory[] getComparatorFactories() {
-        return cmpFactories;
+    public ILSMIndexAccessor createAccessor(AbstractLSMIndexOperationContext opCtx) {
+        return new LSMTreeIndexAccessor(getHarness(), opCtx, cursorFactory);
     }
 
     @Override
     public ITreeIndexFrameFactory getInteriorFrameFactory() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getInteriorFrameFactory();
+        return mutableComponent.getIndex().getInteriorFrameFactory();
     }
 
     @Override
     public int getFieldCount() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getFieldCount();
+        return mutableComponent.getIndex().getFieldCount();
     }
 
     @Override
     public int getFileId() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getFileId();
+        return mutableComponent.getIndex().getFileId();
     }
 
     @Override
     public IPageManager getPageManager() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getPageManager();
+        return mutableComponent.getIndex().getPageManager();
     }
 
     @Override
     public ITreeIndexFrameFactory getLeafFrameFactory() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getLeafFrameFactory();
-    }
-
-    @Override
-    public long getMemoryAllocationSize() {
-        long size = 0;
-        for (ILSMComponent c : memoryComponents) {
-            LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-            IBufferCache virtualBufferCache = mutableComponent.getBTree().getBufferCache();
-            size += virtualBufferCache.getNumPages() * virtualBufferCache.getPageSize();
-        }
-        return size;
+        return mutableComponent.getIndex().getLeafFrameFactory();
     }
 
     @Override
     public int getRootPageId() {
         LSMBTreeMemoryComponent mutableComponent =
                 (LSMBTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getBTree().getRootPageId();
+        return mutableComponent.getIndex().getRootPageId();
     }
 
     @Override
-    public void validate() throws HyracksDataException {
-        validateMemoryComponents();
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        for (ILSMDiskComponent c : immutableComponents) {
-            BTree btree = ((LSMBTreeDiskComponent) c).getBTree();
-            btree.validate();
-        }
+    protected LSMComponentFileReferences getMergeFileReferences(ILSMDiskComponent firstComponent,
+            ILSMDiskComponent lastComponent) throws HyracksDataException {
+        BTree firstBTree = (BTree) firstComponent.getIndex();
+        BTree lastBTree = (BTree) lastComponent.getIndex();
+        FileReference firstFile = firstBTree.getFileReference();
+        FileReference lastFile = lastBTree.getFileReference();
+        return fileManager.getRelMergeFileReference(firstFile.getFile().getName(), lastFile.getFile().getName());
     }
 
     @Override
-    public String toString() {
-        return "LSMBTree [" + fileManager.getBaseDir() + "]";
-    }
-
-    @Override
-    public boolean isPrimaryIndex() {
-        return needKeyDupCheck;
-    }
-
-    @Override
-    public Set<String> getLSMComponentPhysicalFiles(ILSMComponent lsmComponent) {
-        Set<String> files = new HashSet<>();
-        LSMBTreeDiskComponent component = (LSMBTreeDiskComponent) lsmComponent;
-        files.add(component.getBTree().getFileReference().getFile().getAbsolutePath());
-        if (hasBloomFilter) {
-            files.add(component.getBloomFilter().getFileReference().getFile().getAbsolutePath());
+    protected ILSMIOOperation createMergeOperation(AbstractLSMIndexOperationContext opCtx,
+            LSMComponentFileReferences mergeFileRefs, ILSMIOOperationCallback callback) {
+        boolean returnDeletedTuples = false;
+        ILSMIndexAccessor accessor = createAccessor(opCtx);
+        List<ILSMComponent> mergingComponents = opCtx.getComponentHolder();
+        if (mergingComponents.get(mergingComponents.size() - 1) != diskComponents.get(diskComponents.size() - 1)) {
+            returnDeletedTuples = true;
         }
-        return files;
-    }
-
-    @Override
-    public synchronized void allocateMemoryComponents() throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to allocate memory components since the index is not active");
-        }
-        if (memoryComponentsAllocated) {
-            return;
-        }
-        for (ILSMComponent c : memoryComponents) {
-            LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-            ((IVirtualBufferCache) mutableComponent.getBTree().getBufferCache()).open();
-            mutableComponent.getBTree().create();
-            mutableComponent.getBTree().activate();
-        }
-        memoryComponentsAllocated = true;
-    }
-
-    private void addOperationalMutableComponents(List<ILSMComponent> operationalComponents) {
-        int cmc = currentMutableComponentId.get();
-        int numMutableComponents = memoryComponents.size();
-        for (int i = 0; i < numMutableComponents - 1; i++) {
-            ILSMComponent c = memoryComponents.get((cmc + i + 1) % numMutableComponents);
-            LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-            if (mutableComponent.isReadable()) {
-                // Make sure newest components are added first
-                operationalComponents.add(0, mutableComponent);
-            }
-        }
-        // The current mutable component is always added
-        operationalComponents.add(0, memoryComponents.get(cmc));
-    }
-
-    private synchronized void clearMemoryComponents() throws HyracksDataException {
-        if (memoryComponentsAllocated) {
-            for (ILSMComponent c : memoryComponents) {
-                LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-                mutableComponent.getBTree().clear();
-                mutableComponent.reset();
-            }
-        }
-    }
-
-    private synchronized void validateMemoryComponents() throws HyracksDataException {
-        if (memoryComponentsAllocated) {
-            for (ILSMComponent c : memoryComponents) {
-                LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-                mutableComponent.getBTree().validate();
-            }
-        }
-    }
-
-    private synchronized void deallocateMemoryComponents() throws HyracksDataException {
-        if (memoryComponentsAllocated) {
-            for (ILSMComponent c : memoryComponents) {
-                LSMBTreeMemoryComponent mutableComponent = (LSMBTreeMemoryComponent) c;
-                mutableComponent.getBTree().deactivate();
-                mutableComponent.getBTree().destroy();
-                ((IVirtualBufferCache) mutableComponent.getBTree().getBufferCache()).close();
-            }
-            memoryComponentsAllocated = false;
-        }
+        LSMBTreeRangeSearchCursor cursor = new LSMBTreeRangeSearchCursor(opCtx, returnDeletedTuples);
+        return new LSMBTreeMergeOperation(accessor, cursor, mergeFileRefs.getInsertIndexFileReference(),
+                mergeFileRefs.getBloomFilterFileReference(), callback, fileManager.getBaseDir().getAbsolutePath());
     }
 }

@@ -78,8 +78,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [PartSupp]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [loj-super-key_02.PartSupp]
   ]
   AS Variable [ Name=$ps ]
 ]
@@ -89,8 +89,8 @@ Let Variable [ Name=$items ]
     SELECT ELEMENT [
     Variable [ Name=$li ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [LineItems]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [loj-super-key_02.LineItems]
       ]
       AS Variable [ Name=$li ]
     ]

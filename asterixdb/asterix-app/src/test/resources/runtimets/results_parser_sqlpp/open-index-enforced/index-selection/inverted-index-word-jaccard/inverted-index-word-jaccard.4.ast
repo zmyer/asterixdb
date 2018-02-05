@@ -44,8 +44,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLPOpen]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.DBLPOpen]
   ]
   AS Variable [ Name=$o ]
 ]

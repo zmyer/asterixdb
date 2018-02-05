@@ -41,9 +41,10 @@ create type test.LineItemType as
   l_shipinstruct : string,
   l_shipmode : string,
   l_comment : string
-}
+};
 
 create  dataset LineItem(LineItemType) primary key l_orderkey,l_linenumber;
 
 create  index idx_partkey  on LineItem (l_partkey) type btree;
 
+create  primary index sec_primary_idx  on LineItem;

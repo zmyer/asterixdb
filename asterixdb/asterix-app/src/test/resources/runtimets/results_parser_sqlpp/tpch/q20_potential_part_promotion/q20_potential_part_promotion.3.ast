@@ -52,7 +52,7 @@ FROM [  (
             OperatorExpr [
               LiteralExpr [DOUBLE] [0.5]
               *
-              FunctionCall tpch.sum@1[
+              FunctionCall asterix.sum@1[
                 (
                   SELECT ELEMENT [
                   FieldAccessor [
@@ -60,7 +60,17 @@ FROM [  (
                     Field=l_quantity
                   ]
                   ]
-                  FROM [                    Variable [ Name=$l ]
+                  FROM [                    (
+                      SELECT ELEMENT [
+                      FunctionCall asterix.field-access-by-name@2[
+                        Variable [ Name=$g ]
+                        LiteralExpr [STRING] [l]
+                      ]
+                      ]
+                      FROM [                        Variable [ Name=$g ]
+                        AS Variable [ Name=$g ]
+                      ]
+                    )
                     AS Variable [ Name=$i ]
                   ]
                 )
@@ -69,8 +79,8 @@ FROM [  (
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItem]
           ]
           AS Variable [ Name=$l ]
         ]
@@ -87,7 +97,7 @@ FROM [  (
             Variable [ Name=$l ]
             Field=l_suppkey
           ]
-          GROUP AS Variable [ Name=#1 ]
+          GROUP AS Variable [ Name=$g ]
           (
             l:=Variable [ Name=$l ]
           )
@@ -124,8 +134,8 @@ FROM [  (
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Partsupp]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Partsupp]
           ]
           AS Variable [ Name=$ps ]
 ,
@@ -142,8 +152,8 @@ FROM [  (
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Part]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.Part]
               ]
               AS Variable [ Name=$p ]
             ]
@@ -235,13 +245,13 @@ FROM [  (
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Nation]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Nation]
       ]
       AS Variable [ Name=$n ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Supplier]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Supplier]
       ]
       AS Variable [ Name=$s ]
     ]

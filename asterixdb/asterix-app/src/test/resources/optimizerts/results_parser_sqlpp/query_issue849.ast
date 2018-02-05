@@ -45,8 +45,8 @@ FROM [  UnorderedListConstructor [
       Field=b
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [s]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.s]
       ]
       AS Variable [ Name=$z ]
     ]

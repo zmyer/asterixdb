@@ -22,8 +22,12 @@ import org.apache.hyracks.control.common.job.profiling.om.TaskProfile;
 import org.apache.hyracks.control.common.work.AbstractWork;
 import org.apache.hyracks.control.nc.NodeControllerService;
 import org.apache.hyracks.control.nc.Task;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class NotifyTaskCompleteWork extends AbstractWork {
+    private static final Logger LOGGER = LogManager.getLogger();
     private final NodeControllerService ncs;
     private final Task task;
 
@@ -34,14 +38,19 @@ public class NotifyTaskCompleteWork extends AbstractWork {
 
     @Override
     public void run() {
-        TaskProfile taskProfile = new TaskProfile(task.getTaskAttemptId(), task.getPartitionSendProfile());
-        task.dumpProfile(taskProfile);
+        TaskProfile taskProfile =
+                new TaskProfile(task.getTaskAttemptId(), task.getPartitionSendProfile(), task.getStatsCollector());
         try {
-            ncs.getClusterController().notifyTaskComplete(task.getJobletContext().getJobId(), task.getTaskAttemptId(),
-                    ncs.getId(), taskProfile);
+            ncs.getClusterController(task.getJobletContext().getJobId().getCcId()).notifyTaskComplete(
+                    task.getJobletContext().getJobId(), task.getTaskAttemptId(), ncs.getId(), taskProfile);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.ERROR, "Failed notifying task complete for " + task.getTaskAttemptId(), e);
         }
         task.getJoblet().removeTask(task);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + ":" + task.getTaskAttemptId();
     }
 }

@@ -23,7 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,7 +30,6 @@ import org.apache.asterix.builders.IARecordBuilder;
 import org.apache.asterix.builders.RecordBuilder;
 import org.apache.asterix.builders.UnorderedListBuilder;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.FeedPolicyEntity;
@@ -43,6 +41,7 @@ import org.apache.asterix.om.base.AUnorderedList;
 import org.apache.asterix.om.base.IACursor;
 import org.apache.asterix.om.types.AUnorderedListType;
 import org.apache.asterix.om.types.BuiltinType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
@@ -73,7 +72,7 @@ public class FeedPolicyTupleTranslator extends AbstractTupleTranslator<FeedPolic
     }
 
     @Override
-    public FeedPolicyEntity getMetadataEntityFromTuple(ITupleReference frameTuple) throws IOException {
+    public FeedPolicyEntity getMetadataEntityFromTuple(ITupleReference frameTuple) throws HyracksDataException {
         byte[] serRecord = frameTuple.getFieldData(FEED_POLICY_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordStartOffset = frameTuple.getFieldStart(FEED_POLICY_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordLength = frameTuple.getFieldLength(FEED_POLICY_PAYLOAD_TUPLE_FIELD_INDEX);
@@ -95,7 +94,7 @@ public class FeedPolicyTupleTranslator extends AbstractTupleTranslator<FeedPolic
 
         IACursor cursor = ((AUnorderedList) feedPolicyRecord
                 .getValueByPos(MetadataRecordTypes.FEED_POLICY_ARECORD_PROPERTIES_FIELD_INDEX)).getCursor();
-        Map<String, String> policyParamters = new HashMap<String, String>();
+        Map<String, String> policyParamters = new HashMap<>();
         String key;
         String value;
         while (cursor.next()) {
@@ -111,7 +110,7 @@ public class FeedPolicyTupleTranslator extends AbstractTupleTranslator<FeedPolic
 
     @Override
     public ITupleReference getTupleFromMetadataEntity(FeedPolicyEntity feedPolicy)
-            throws IOException, MetadataException {
+            throws HyracksDataException, AlgebricksException {
         // write the key in the first three fields of the tuple
         ArrayBackedValueStorage itemValue = new ArrayBackedValueStorage();
 
@@ -142,7 +141,7 @@ public class FeedPolicyTupleTranslator extends AbstractTupleTranslator<FeedPolic
         fieldValue.reset();
         aString.setValue(feedPolicy.getDescription());
         stringSerde.serialize(aString, fieldValue.getDataOutput());
-        recordBuilder.addField(MetadataRecordTypes.FEED_POLICY_ARECORD_POLICY_NAME_FIELD_INDEX, fieldValue);
+        recordBuilder.addField(MetadataRecordTypes.FEED_POLICY_ARECORD_DESCRIPTION_FIELD_INDEX, fieldValue);
 
         // write field 3 (properties)
         Map<String, String> properties = feedPolicy.getProperties();

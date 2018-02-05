@@ -31,6 +31,7 @@ import org.apache.asterix.dataflow.data.nontagged.hash.ListItemBinaryHashFunctio
 import org.apache.asterix.om.functions.BuiltinFunctions;
 import org.apache.asterix.om.functions.IFunctionDescriptor;
 import org.apache.asterix.om.functions.IFunctionDescriptorFactory;
+import org.apache.asterix.om.functions.IFunctionTypeInferer;
 import org.apache.asterix.om.pointables.AListVisitablePointable;
 import org.apache.asterix.om.pointables.ARecordVisitablePointable;
 import org.apache.asterix.om.pointables.PointableAllocator;
@@ -47,6 +48,7 @@ import org.apache.asterix.runtime.evaluators.functions.BinaryHashMap;
 import org.apache.asterix.runtime.evaluators.functions.PointableHelper;
 import org.apache.asterix.runtime.exceptions.InvalidDataFormatException;
 import org.apache.asterix.runtime.exceptions.TypeMismatchException;
+import org.apache.asterix.runtime.functions.FunctionTypeInferers;
 import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
 import org.apache.hyracks.algebricks.runtime.base.IScalarEvaluator;
 import org.apache.hyracks.algebricks.runtime.base.IScalarEvaluatorFactory;
@@ -67,7 +69,13 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
         public IFunctionDescriptor createFunctionDescriptor() {
             return new RecordAddFieldsDescriptor();
         }
+
+        @Override
+        public IFunctionTypeInferer createFunctionTypeInferer() {
+            return new FunctionTypeInferers.RecordAddFieldsTypeInferer();
+        }
     };
+
     private static final long serialVersionUID = 1L;
     private ARecordType outRecType;
     private ARecordType inRecType;
@@ -105,12 +113,8 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
                 final ArrayBackedValueStorage fieldNamePointable = new ArrayBackedValueStorage();
                 final ArrayBackedValueStorage fieldValuePointer = new ArrayBackedValueStorage();
                 final PointableHelper pointableHelper = new PointableHelper();
-                try {
-                    pointableHelper.serializeString("field-name", fieldNamePointable, true);
-                    pointableHelper.serializeString("field-value", fieldValuePointer, true);
-                } catch (AsterixException e) {
-                    throw new HyracksDataException(e);
-                }
+                pointableHelper.serializeString("field-name", fieldNamePointable, true);
+                pointableHelper.serializeString("field-value", fieldValuePointer, true);
 
                 return new IScalarEvaluator() {
                     public static final int TABLE_FRAME_SIZE = 32768; // the default 32k frame size
@@ -118,17 +122,17 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
                     private final RecordBuilder recordBuilder = new RecordBuilder();
                     private final RuntimeRecordTypeInfo requiredRecordTypeInfo = new RuntimeRecordTypeInfo();
 
-                    private final IBinaryHashFunction putHashFunc = ListItemBinaryHashFunctionFactory.INSTANCE
-                            .createBinaryHashFunction();
-                    private final IBinaryHashFunction getHashFunc = ListItemBinaryHashFunctionFactory.INSTANCE
-                            .createBinaryHashFunction();
+                    private final IBinaryHashFunction putHashFunc =
+                            ListItemBinaryHashFunctionFactory.INSTANCE.createBinaryHashFunction();
+                    private final IBinaryHashFunction getHashFunc =
+                            ListItemBinaryHashFunctionFactory.INSTANCE.createBinaryHashFunction();
                     private final BinaryEntry keyEntry = new BinaryEntry();
                     private final BinaryEntry valEntry = new BinaryEntry();
                     private final IVisitablePointable tempValReference = allocator.allocateEmpty();
-                    private final IBinaryComparator cmp = ListItemBinaryComparatorFactory.INSTANCE
-                            .createBinaryComparator();
-                    private BinaryHashMap hashMap = new BinaryHashMap(TABLE_SIZE, TABLE_FRAME_SIZE, putHashFunc,
-                            getHashFunc, cmp);
+                    private final IBinaryComparator cmp =
+                            ListItemBinaryComparatorFactory.INSTANCE.createBinaryComparator();
+                    private BinaryHashMap hashMap =
+                            new BinaryHashMap(TABLE_SIZE, TABLE_FRAME_SIZE, putHashFunc, getHashFunc, cmp);
                     private ArrayBackedValueStorage resultStorage = new ArrayBackedValueStorage();
                     private DataOutput out = resultStorage.getDataOutput();
 
@@ -156,7 +160,6 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
 
                         vp0.set(argPtr0);
                         vp1.set(argPtr1);
-
 
                         ARecordVisitablePointable recordPointable = (ARecordVisitablePointable) vp0;
                         AListVisitablePointable listPointable = (AListVisitablePointable) vp1;
@@ -203,14 +206,14 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
 
                             // Get the fields from a list of records
                             for (int i = 0; i < inputFields.size(); i++) {
-                                if (!PointableHelper.sameType(ATypeTag.RECORD, inputFields.get(i))) {
+                                if (!PointableHelper.sameType(ATypeTag.OBJECT, inputFields.get(i))) {
                                     throw new AsterixException("Expected list of record, got "
                                             + PointableHelper.getTypeTag(inputFields.get(i)));
                                 }
-                                List<IVisitablePointable> names = ((ARecordVisitablePointable) inputFields.get(i))
-                                        .getFieldNames();
-                                List<IVisitablePointable> values = ((ARecordVisitablePointable) inputFields.get(i))
-                                        .getFieldValues();
+                                List<IVisitablePointable> names =
+                                        ((ARecordVisitablePointable) inputFields.get(i)).getFieldNames();
+                                List<IVisitablePointable> values =
+                                        ((ARecordVisitablePointable) inputFields.get(i)).getFieldValues();
 
                                 // Get name and value of the field to be added
                                 // Use loop to account for the cases where users switches the order of the fields
@@ -241,8 +244,7 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
                                     tempValReference.set(entry.getBuf(), entry.getOffset(), entry.getLength());
                                     // If value is not equal throw conflicting duplicate field, otherwise ignore
                                     if (!PointableHelper.byteArrayEqual(valuePointable, tempValReference)) {
-                                        throw new RuntimeDataException(ErrorCode.DUPLICATE_FIELD_NAME,
-                                                getIdentifier());
+                                        throw new RuntimeDataException(ErrorCode.DUPLICATE_FIELD_NAME, getIdentifier());
                                     }
                                 } else {
                                     if (pos > -1) {
@@ -256,7 +258,7 @@ public class RecordAddFieldsDescriptor extends AbstractScalarFunctionDynamicDesc
                                 }
                             }
                         } catch (AsterixException e) {
-                            throw new HyracksDataException(e);
+                            throw HyracksDataException.create(e);
                         }
                     }
                 };

@@ -20,48 +20,51 @@
 package org.apache.hyracks.storage.am.rtree.impls;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.IPageManager;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
+import org.apache.hyracks.storage.am.common.api.IPageManager;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexMetadataFrame;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
+import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
 import org.apache.hyracks.storage.am.rtree.api.IRTreeInteriorFrame;
 import org.apache.hyracks.storage.am.rtree.api.IRTreeLeafFrame;
+import org.apache.hyracks.storage.common.IModificationOperationCallback;
+import org.apache.hyracks.storage.common.MultiComparator;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
 import org.apache.hyracks.storage.common.buffercache.IExtraPageBlockHelper;
 
 public class RTreeOpContext implements IIndexOperationContext, IExtraPageBlockHelper {
     private static final int INITIAL_TRAVERSE_LIST_SIZE = 100;
     private static final int INITIAL_HEIGHT = 8;
-    public final MultiComparator cmp;
-    public final IRTreeInteriorFrame interiorFrame;
-    public final IRTreeLeafFrame leafFrame;
-    public IndexOperation op;
-    public ITreeIndexCursor cursor;
-    public RTreeCursorInitialState cursorInitialState;
-    public final IPageManager freePageManager;
-    public final ITreeIndexMetadataFrame metaFrame;
-    public RTreeSplitKey splitKey;
-    public ITupleReference tuple;
+    private final MultiComparator cmp;
+    private final IRTreeInteriorFrame interiorFrame;
+    private final IRTreeLeafFrame leafFrame;
+    private IndexOperation op;
+    private ITreeIndexCursor cursor;
+    private RTreeCursorInitialState cursorInitialState;
+    private final IPageManager freePageManager;
+    private final ITreeIndexMetadataFrame metaFrame;
+    private RTreeSplitKey splitKey;
+    private ITupleReference tuple;
     // Used to record the pageIds and pageLsns of the visited pages.
-    public PathList pathList;
+    private PathList pathList;
     // Used for traversing the tree.
-    public PathList traverseList;
+    private PathList traverseList;
 
-    public ArrayList<ICachedPage> NSNUpdates;
-    public ArrayList<ICachedPage> LSNUpdates;
+    private ArrayList<ICachedPage> NSNUpdates;
+    private ArrayList<ICachedPage> LSNUpdates;
 
-    public IModificationOperationCallback modificationCallback;
+    private IModificationOperationCallback modificationCallback;
 
-    public RTreeOpContext(IRTreeLeafFrame leafFrame, IRTreeInteriorFrame interiorFrame,
-            IPageManager freePageManager, IBinaryComparatorFactory[] cmpFactories,
-                          IModificationOperationCallback modificationCallback) {
+    private PermutingTupleReference tupleWithNonIndexFields;
+
+    public RTreeOpContext(IRTreeLeafFrame leafFrame, IRTreeInteriorFrame interiorFrame, IPageManager freePageManager,
+            IBinaryComparatorFactory[] cmpFactories, IModificationOperationCallback modificationCallback) {
 
         if (cmpFactories[0] != null) {
             this.cmp = MultiComparator.create(cmpFactories);
@@ -77,6 +80,13 @@ public class RTreeOpContext implements IIndexOperationContext, IExtraPageBlockHe
         pathList = new PathList(INITIAL_HEIGHT, INITIAL_HEIGHT);
         NSNUpdates = new ArrayList<>();
         LSNUpdates = new ArrayList<>();
+    }
+
+    public RTreeOpContext(IRTreeLeafFrame leafFrame, IRTreeInteriorFrame interiorFrame, IPageManager freePageManager,
+            IBinaryComparatorFactory[] cmpFactories, IModificationOperationCallback modificationCallback,
+            int[] nonIndexFields) {
+        this(leafFrame, interiorFrame, freePageManager, cmpFactories, modificationCallback);
+        tupleWithNonIndexFields = new PermutingTupleReference(nonIndexFields);
     }
 
     public ITupleReference getTuple() {
@@ -106,8 +116,8 @@ public class RTreeOpContext implements IIndexOperationContext, IExtraPageBlockHe
         }
         if (op != IndexOperation.SEARCH && op != IndexOperation.DISKORDERSCAN) {
             if (splitKey == null) {
-                splitKey = new RTreeSplitKey(interiorFrame.getTupleWriter().createTupleReference(), interiorFrame
-                        .getTupleWriter().createTupleReference());
+                splitKey = new RTreeSplitKey(interiorFrame.getTupleWriter().createTupleReference(),
+                        interiorFrame.getTupleWriter().createTupleReference());
             }
             if (traverseList == null) {
                 traverseList = new PathList(INITIAL_TRAVERSE_LIST_SIZE, INITIAL_TRAVERSE_LIST_SIZE);
@@ -136,5 +146,65 @@ public class RTreeOpContext implements IIndexOperationContext, IExtraPageBlockHe
     @Override
     public void returnFreePageBlock(int blockPageId, int size) throws HyracksDataException {
         freePageManager.releaseBlock(metaFrame, blockPageId, size);
+    }
+
+    public IRTreeInteriorFrame getInteriorFrame() {
+        return interiorFrame;
+    }
+
+    public PathList getPathList() {
+        return pathList;
+    }
+
+    public MultiComparator getCmp() {
+        return cmp;
+    }
+
+    public IRTreeLeafFrame getLeafFrame() {
+        return leafFrame;
+    }
+
+    public IModificationOperationCallback getModificationCallback() {
+        return modificationCallback;
+    }
+
+    public List<ICachedPage> getLSNUpdates() {
+        return LSNUpdates;
+    }
+
+    public RTreeSplitKey getSplitKey() {
+        return splitKey;
+    }
+
+    public ITreeIndexMetadataFrame getMetaFrame() {
+        return metaFrame;
+    }
+
+    public List<ICachedPage> getNSNUpdates() {
+        return NSNUpdates;
+    }
+
+    public PathList getTraverseList() {
+        return traverseList;
+    }
+
+    public ITreeIndexCursor getCursor() {
+        return cursor;
+    }
+
+    public void setCursor(ITreeIndexCursor cursor) {
+        this.cursor = cursor;
+    }
+
+    public RTreeCursorInitialState getCursorInitialState() {
+        return cursorInitialState;
+    }
+
+    public ITupleReference getTupleWithNonIndexFields() {
+        return tupleWithNonIndexFields;
+    }
+
+    public void resetNonIndexFieldsTuple(ITupleReference newValue) {
+        tupleWithNonIndexFields.reset(newValue);
     }
 }

@@ -10,7 +10,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [count]
     :
-    FunctionCall test.sql-count@1[
+    FunctionCall asterix.sql-count@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -36,8 +36,8 @@ FROM [  (
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [TweetMessages]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.TweetMessages]
       ]
       AS Variable [ Name=$tweet ]
 ,

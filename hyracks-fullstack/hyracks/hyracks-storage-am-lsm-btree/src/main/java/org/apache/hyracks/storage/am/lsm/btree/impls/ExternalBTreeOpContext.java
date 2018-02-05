@@ -18,50 +18,35 @@
  */
 package org.apache.hyracks.storage.am.lsm.btree.impls;
 
-import java.util.LinkedList;
-import java.util.List;
-
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.storage.am.btree.api.IBTreeLeafFrame;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrameFactory;
-import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMHarness;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
 import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndexOperationContext;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.MultiComparator;
+import org.apache.hyracks.util.trace.ITracer;
 
 public class ExternalBTreeOpContext extends AbstractLSMIndexOperationContext {
-    public ITreeIndexFrameFactory insertLeafFrameFactory;
-    public ITreeIndexFrameFactory deleteLeafFrameFactory;
-    public IBTreeLeafFrame insertLeafFrame;
-    public IBTreeLeafFrame deleteLeafFrame;
-    public IndexOperation op;
-    public final MultiComparator cmp;
-    public final MultiComparator bloomFilterCmp;
-    public final ISearchOperationCallback searchCallback;
-    private final List<ILSMComponent> componentHolder;
-    private final List<ILSMDiskComponent> componentsToBeMerged;
-    private final List<ILSMDiskComponent> componentsToBeReplicated;
+    private IBTreeLeafFrame insertLeafFrame;
+    private IBTreeLeafFrame deleteLeafFrame;
+    private final MultiComparator cmp;
+    private final MultiComparator bloomFilterCmp;
     private final int targetIndexVersion;
-    public ISearchPredicate searchPredicate;
-    public LSMBTreeCursorInitialState searchInitialState;
+    private LSMBTreeCursorInitialState searchInitialState;
 
-    public ExternalBTreeOpContext(ITreeIndexFrameFactory insertLeafFrameFactory,
+    public ExternalBTreeOpContext(ILSMIndex index, ITreeIndexFrameFactory insertLeafFrameFactory,
             ITreeIndexFrameFactory deleteLeafFrameFactory, ISearchOperationCallback searchCallback,
             int numBloomFilterKeyFields, IBinaryComparatorFactory[] cmpFactories, int targetIndexVersion,
-            ILSMHarness lsmHarness) {
+            ILSMHarness lsmHarness, ITracer tracer) {
+        super(index, null, null, null, searchCallback, null, tracer);
         if (cmpFactories != null) {
             this.cmp = MultiComparator.create(cmpFactories);
         } else {
             this.cmp = null;
         }
         bloomFilterCmp = MultiComparator.create(cmpFactories, 0, numBloomFilterKeyFields);
-        this.insertLeafFrameFactory = insertLeafFrameFactory;
-        this.deleteLeafFrameFactory = deleteLeafFrameFactory;
         this.insertLeafFrame = (IBTreeLeafFrame) insertLeafFrameFactory.createFrame();
         this.deleteLeafFrame = (IBTreeLeafFrame) deleteLeafFrameFactory.createFrame();
         if (insertLeafFrame != null && this.cmp != null) {
@@ -70,48 +55,9 @@ public class ExternalBTreeOpContext extends AbstractLSMIndexOperationContext {
         if (deleteLeafFrame != null && this.cmp != null) {
             deleteLeafFrame.setMultiComparator(cmp);
         }
-        this.componentHolder = new LinkedList<>();
-        this.componentsToBeMerged = new LinkedList<>();
-        this.componentsToBeReplicated = new LinkedList<>();
-        this.searchCallback = searchCallback;
         this.targetIndexVersion = targetIndexVersion;
         searchInitialState = new LSMBTreeCursorInitialState(insertLeafFrameFactory, cmp, bloomFilterCmp, lsmHarness,
                 null, searchCallback, null);
-    }
-
-    @Override
-    public void setOperation(IndexOperation newOp) {
-        reset();
-        this.op = newOp;
-    }
-
-    @Override
-    public void reset() {
-        super.reset();
-        componentHolder.clear();
-        componentsToBeMerged.clear();
-        componentsToBeReplicated.clear();
-    }
-
-    @Override
-    public IndexOperation getOperation() {
-        return op;
-    }
-
-    @Override
-    public List<ILSMComponent> getComponentHolder() {
-        return componentHolder;
-    }
-
-    @Override
-    public ISearchOperationCallback getSearchOperationCallback() {
-        return searchCallback;
-    }
-
-    // Disk only index should never needs a modification callback
-    @Override
-    public IModificationOperationCallback getModificationCallback() {
-        return null;
     }
 
     @Override
@@ -119,29 +65,12 @@ public class ExternalBTreeOpContext extends AbstractLSMIndexOperationContext {
         // Do nothing: this method should never be called for this class
     }
 
-    @Override
-    public List<ILSMDiskComponent> getComponentsToBeMerged() {
-        return componentsToBeMerged;
-    }
-
     // Used by indexes with global transaction
     public int getTargetIndexVersion() {
         return targetIndexVersion;
     }
 
-    @Override
-    public void setSearchPredicate(ISearchPredicate searchPredicate) {
-        this.searchPredicate = searchPredicate;
+    public LSMBTreeCursorInitialState getSearchInitialState() {
+        return searchInitialState;
     }
-
-    @Override
-    public ISearchPredicate getSearchPredicate() {
-        return searchPredicate;
-    }
-
-    @Override
-    public List<ILSMDiskComponent> getComponentsToBeReplicated() {
-        return componentsToBeReplicated;
-    }
-
 }

@@ -152,22 +152,22 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
 
                             typeTag = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(bytes[offset]);
                             switch (typeTag) {
-                                case INT8:
+                                case TINYINT:
                                     currentType = typeInt8;
                                     operandsInteger[i] = AInt8SerializerDeserializer.getByte(bytes, offset + 1);
                                     operandsFloating[i] = operandsInteger[i];
                                     break;
-                                case INT16:
+                                case SMALLINT:
                                     currentType = typeInt16;
                                     operandsInteger[i] = AInt16SerializerDeserializer.getShort(bytes, offset + 1);
                                     operandsFloating[i] = operandsInteger[i];
                                     break;
-                                case INT32:
+                                case INTEGER:
                                     currentType = typeInt32;
                                     operandsInteger[i] = AInt32SerializerDeserializer.getInt(bytes, offset + 1);
                                     operandsFloating[i] = operandsInteger[i];
                                     break;
-                                case INT64:
+                                case BIGINT:
                                     currentType = typeInt64;
                                     operandsInteger[i] = AInt64SerializerDeserializer.getLong(bytes, offset + 1);
                                     operandsFloating[i] = operandsInteger[i];
@@ -279,8 +279,7 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                     }
 
                     @SuppressWarnings("unchecked")
-                    private void evaluateTemporalArthmeticOperation(ATypeTag leftType)
-                            throws HyracksDataException {
+                    private void evaluateTemporalArthmeticOperation(ATypeTag leftType) throws HyracksDataException {
                         byte[] bytes1 = argPtr1.getByteArray();
                         int offset1 = argPtr1.getStartOffset();
                         ATypeTag rightType = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(bytes1[offset1]);
@@ -318,10 +317,10 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                                             AYearMonthDurationSerializerDeserializer.getYearMonth(bytes1, offset1 + 1));
                                     break;
                                 case DAYTIMEDURATION:
-                                    leftChronon = ADayTimeDurationSerializerDeserializer.getDayTime(bytes0,
-                                            offset0 + 1);
-                                    rightChronon = ADayTimeDurationSerializerDeserializer.getDayTime(bytes1,
-                                            offset1 + 1);
+                                    leftChronon =
+                                            ADayTimeDurationSerializerDeserializer.getDayTime(bytes0, offset0 + 1);
+                                    rightChronon =
+                                            ADayTimeDurationSerializerDeserializer.getDayTime(bytes1, offset1 + 1);
                                     break;
                                 default:
                                     throw new UnsupportedTypeException(getIdentifier(), bytes1[offset1]);
@@ -354,8 +353,8 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                                             break;
                                         case DURATION:
                                             dayTime = ADurationSerializerDeserializer.getDayTime(bytes1, offset1 + 1);
-                                            yearMonth = ADurationSerializerDeserializer.getYearMonth(bytes1,
-                                                    offset1 + 1);
+                                            yearMonth =
+                                                    ADurationSerializerDeserializer.getYearMonth(bytes1, offset1 + 1);
                                             break;
                                         default:
                                             throw new IncompatibleTypeException(getIdentifier(), bytes0[offset0],
@@ -377,8 +376,8 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                                     }
                                     switch (rightType) {
                                         case DURATION:
-                                            yearMonth = ADurationSerializerDeserializer.getYearMonth(bytes1,
-                                                    offset1 + 1);
+                                            yearMonth =
+                                                    ADurationSerializerDeserializer.getYearMonth(bytes1, offset1 + 1);
                                             dayTime = ADurationSerializerDeserializer.getDayTime(bytes1, offset1 + 1);
                                             break;
                                         case YEARMONTHDURATION:
@@ -395,8 +394,8 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                                     }
                                     break;
                                 case YEARMONTHDURATION:
-                                    yearMonth = AYearMonthDurationSerializerDeserializer.getYearMonth(bytes0,
-                                            offset0 + 1);
+                                    yearMonth =
+                                            AYearMonthDurationSerializerDeserializer.getYearMonth(bytes0, offset0 + 1);
                                     switch (rightType) {
                                         case DATETIME:
                                             serde = SerializerDeserializerProvider.INSTANCE
@@ -421,8 +420,8 @@ public abstract class AbstractNumericArithmeticEval extends AbstractScalarFuncti
                                     dayTime = ADurationSerializerDeserializer.getDayTime(bytes0, offset0 + 1);
                                 case DAYTIMEDURATION:
                                     if (leftType == ATypeTag.DAYTIMEDURATION) {
-                                        dayTime = ADayTimeDurationSerializerDeserializer.getDayTime(bytes0,
-                                                offset0 + 1);
+                                        dayTime =
+                                                ADayTimeDurationSerializerDeserializer.getDayTime(bytes0, offset0 + 1);
                                     }
                                     switch (rightType) {
                                         case DATETIME:

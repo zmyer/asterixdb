@@ -3,16 +3,13 @@ Query:
 SELECT [
 Variable [ Name=$h ]
 hour
-FunctionCall TinySocial.sql-count@1[
+FunctionCall asterix.sql-count@1[
   (
     SELECT ELEMENT [
-    FieldAccessor [
-      Variable [ Name=#4 ]
-      Field=t
+    LiteralExpr [LONG] [1]
     ]
-    ]
-    FROM [      Variable [ Name=#1 ]
-      AS Variable [ Name=#4 ]
+    FROM [      Variable [ Name=$g ]
+      AS Variable [ Name=#3 ]
     ]
   )
 ]
@@ -21,22 +18,19 @@ count
   SELECT [
   Variable [ Name=$min ]
   minute
-  FunctionCall TinySocial.sql-count@1[
+  FunctionCall asterix.sql-count@1[
     (
       SELECT ELEMENT [
-      FieldAccessor [
-        Variable [ Name=#3 ]
-        Field=k
+      LiteralExpr [LONG] [1]
       ]
-      ]
-      FROM [        Variable [ Name=#2 ]
-        AS Variable [ Name=#3 ]
+      FROM [        Variable [ Name=#1 ]
+        AS Variable [ Name=#2 ]
       ]
     )
   ]
   sum
   ]
-  FROM [    Variable [ Name=$t ]
+  FROM [    Variable [ Name=$g ]
     AS Variable [ Name=$k ]
   ]
   Groupby
@@ -44,11 +38,14 @@ count
     :=
     FunctionCall TinySocial.get-minute@1[
       FieldAccessor [
-        Variable [ Name=$k ]
+        FieldAccessor [
+          Variable [ Name=$k ]
+          Field=t
+        ]
         Field=send-time
       ]
     ]
-    GROUP AS Variable [ Name=#2 ]
+    GROUP AS Variable [ Name=#1 ]
     (
       k:=Variable [ Name=$k ]
     )
@@ -60,8 +57,8 @@ count
 )
 finer
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [TweetMessages]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [TinySocial.TweetMessages]
   ]
   AS Variable [ Name=$t ]
 ]
@@ -74,7 +71,7 @@ Groupby
       Field=send-time
     ]
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     t:=Variable [ Name=$t ]
   )

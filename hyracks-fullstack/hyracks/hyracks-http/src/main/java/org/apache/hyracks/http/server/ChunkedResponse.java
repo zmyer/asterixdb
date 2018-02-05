@@ -23,6 +23,9 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 
 import org.apache.hyracks.http.api.IServletResponse;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -50,7 +53,6 @@ import io.netty.handler.codec.http.LastHttpContent;
  * with headers, followed by the buffered bytes as the first chunk.
  * When chunking, an output buffer is allocated only when the previous buffer has been sent
  * If an error occurs after sending the first chunk, the connection will close abruptly.
- *
  * Here is a breakdown of the possible cases.
  * 1. smaller than chunkSize, no error -> full response
  * 2. smaller than chunkSize, error -> full response
@@ -58,6 +60,8 @@ import io.netty.handler.codec.http.LastHttpContent;
  * 4. larger than chunkSize, no error. -> header, data, empty response
  */
 public class ChunkedResponse implements IServletResponse {
+
+    private static final Logger LOGGER = LogManager.getLogger();
     private final ChannelHandlerContext ctx;
     private final ChunkedNettyOutputStream outputStream;
     private final PrintWriter writer;
@@ -66,6 +70,7 @@ public class ChunkedResponse implements IServletResponse {
     private ByteBuf error;
     private ChannelFuture future;
     private boolean done;
+    private final boolean keepAlive;
 
     public ChunkedResponse(ChannelHandlerContext ctx, FullHttpRequest request, int chunkSize) {
         this.ctx = ctx;
@@ -73,7 +78,8 @@ public class ChunkedResponse implements IServletResponse {
         writer = new PrintWriter(outputStream);
         response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
         response.headers().set(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
-        if (HttpUtil.isKeepAlive(request)) {
+        keepAlive = HttpUtil.isKeepAlive(request);
+        if (keepAlive) {
             response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
         }
     }
@@ -107,18 +113,23 @@ public class ChunkedResponse implements IServletResponse {
         } else {
             // There was an error
             if (headerSent) {
+                LOGGER.log(Level.WARN, "Error after header write of chunked response");
                 if (error != null) {
                     error.release();
                 }
                 future = ctx.channel().close();
             } else {
+                if (keepAlive && response.status() != HttpResponseStatus.UNAUTHORIZED) {
+                    response.headers().remove(HttpHeaderNames.CONNECTION);
+                }
                 // we didn't send anything to the user, we need to send an unchunked error response
                 fullResponse(response.protocolVersion(), response.status(),
                         error == null ? ctx.alloc().buffer(0, 0) : error, response.headers());
             }
-
-            // since the request failed, we need to close the channel on complete
-            future.addListener(ChannelFutureListener.CLOSE);
+            if (response.status() != HttpResponseStatus.UNAUTHORIZED) {
+                // since the request failed, we need to close the channel on complete
+                future.addListener(ChannelFutureListener.CLOSE);
+            }
         }
         done = true;
     }
@@ -164,6 +175,8 @@ public class ChunkedResponse implements IServletResponse {
     private void fullResponse(HttpVersion version, HttpResponseStatus status, ByteBuf buffer, HttpHeaders headers) {
         DefaultFullHttpResponse fullResponse = new DefaultFullHttpResponse(version, status, buffer);
         fullResponse.headers().set(headers);
+        // for a full response remove chunked transfer-encoding and set the content length instead
+        fullResponse.headers().remove(HttpHeaderNames.TRANSFER_ENCODING);
         fullResponse.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
         future = ctx.writeAndFlush(fullResponse);
         headerSent = true;

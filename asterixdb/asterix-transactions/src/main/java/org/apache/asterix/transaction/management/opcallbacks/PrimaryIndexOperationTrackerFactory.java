@@ -19,27 +19,32 @@
 
 package org.apache.asterix.transaction.management.opcallbacks;
 
-import org.apache.asterix.common.api.IAppRuntimeContext;
 import org.apache.asterix.common.api.IDatasetLifecycleManager;
-import org.apache.hyracks.api.application.INCApplicationContext;
+import org.apache.asterix.common.api.INcApplicationContext;
+import org.apache.asterix.common.utils.StoragePathUtil;
+import org.apache.hyracks.api.application.INCServiceContext;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTrackerFactory;
+import org.apache.hyracks.storage.common.IResource;
 
 public class PrimaryIndexOperationTrackerFactory implements ILSMOperationTrackerFactory {
 
     private static final long serialVersionUID = 1L;
 
-    private final int datasetID;
+    private final int datasetId;
 
-    public PrimaryIndexOperationTrackerFactory(int datasetID) {
-        this.datasetID = datasetID;
+    public PrimaryIndexOperationTrackerFactory(int datasetId) {
+        this.datasetId = datasetId;
     }
 
     @Override
-    public ILSMOperationTracker getOperationTracker(INCApplicationContext ctx) {
-        IDatasetLifecycleManager dslcManager = ((IAppRuntimeContext) ctx.getApplicationObject())
-                .getDatasetLifecycleManager();
-        return dslcManager.getOperationTracker(datasetID);
+    public ILSMOperationTracker getOperationTracker(INCServiceContext ctx, IResource resource)
+            throws HyracksDataException {
+        IDatasetLifecycleManager dslcManager =
+                ((INcApplicationContext) ctx.getApplicationContext()).getDatasetLifecycleManager();
+        int partition = StoragePathUtil.getPartitionNumFromRelativePath(resource.getPath());
+        return dslcManager.getOperationTracker(datasetId, partition);
     }
 
 }

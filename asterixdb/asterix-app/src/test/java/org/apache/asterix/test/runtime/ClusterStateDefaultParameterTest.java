@@ -25,6 +25,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collection;
 
+import org.apache.asterix.test.common.TestExecutor;
 import org.apache.asterix.testframework.context.TestCaseContext;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -39,11 +40,11 @@ import org.junit.runners.Parameterized.Parameters;
  */
 @RunWith(Parameterized.class)
 public class ClusterStateDefaultParameterTest {
-    protected static final String TEST_CONFIG_FILE_NAME = "asterix-build-configuration4.xml";
+    protected static final String TEST_CONFIG_FILE_NAME = "src/main/resources/cc4.conf";
 
     @BeforeClass
     public static void setUp() throws Exception {
-        LangExecutionUtil.setUp(TEST_CONFIG_FILE_NAME);
+        LangExecutionUtil.setUp(TEST_CONFIG_FILE_NAME, new TestExecutor());
     }
 
     @AfterClass
@@ -65,7 +66,7 @@ public class ClusterStateDefaultParameterTest {
     @Test
     public void test() throws Exception {
         StringBuilder result = new StringBuilder();
-        URL url = new URL("http://localhost:19002/admin/cluster");
+        URL url = new URL("http://localhost:19002/admin/cluster/node/asterix_nc1/config");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
         BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));

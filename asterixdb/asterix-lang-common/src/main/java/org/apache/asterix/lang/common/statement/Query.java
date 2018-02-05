@@ -18,37 +18,38 @@
  */
 package org.apache.asterix.lang.common.statement;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.IReturningStatement;
 import org.apache.asterix.lang.common.base.Statement;
+import org.apache.asterix.lang.common.struct.VarIdentifier;
 import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
-import org.apache.commons.lang3.ObjectUtils;
 
 public class Query implements IReturningStatement {
     private final boolean explain;
     private boolean topLevel = true;
     private Expression body;
+    private List<VarIdentifier> externalVars;
     private int varCounter;
-    private List<String> dataverses = new ArrayList<>();
-    private List<String> datasets = new ArrayList<>();
 
     public Query(boolean explain) {
         this.explain = explain;
     }
 
-    public Query(boolean explain, boolean topLevel, Expression body, int varCounter, List<String> dataverses,
-            List<String> datasets) {
+    public Query(boolean explain, boolean topLevel, Expression body, int varCounter) {
+        this(explain, topLevel, body, varCounter, null);
+    }
+
+    public Query(boolean explain, boolean topLevel, Expression body, int varCounter, List<VarIdentifier> externalVars) {
         this.explain = explain;
         this.topLevel = topLevel;
         this.body = body;
         this.varCounter = varCounter;
-        this.dataverses.addAll(dataverses);
-        this.datasets.addAll(datasets);
+        this.externalVars = externalVars;
     }
 
     @Override
@@ -85,6 +86,16 @@ public class Query implements IReturningStatement {
         return topLevel;
     }
 
+    @Override
+    public List<VarIdentifier> getExternalVars() {
+        return externalVars;
+    }
+
+    @Override
+    public void setExternalVars(List<VarIdentifier> externalVars) {
+        this.externalVars = externalVars;
+    }
+
     public boolean isExplain() {
         return explain;
     }
@@ -99,25 +110,9 @@ public class Query implements IReturningStatement {
         return visitor.visit(this, arg);
     }
 
-    public void setDataverses(List<String> dataverses) {
-        this.dataverses = dataverses;
-    }
-
-    public void setDatasets(List<String> datasets) {
-        this.datasets = datasets;
-    }
-
-    public List<String> getDataverses() {
-        return dataverses;
-    }
-
-    public List<String> getDatasets() {
-        return datasets;
-    }
-
     @Override
     public int hashCode() {
-        return ObjectUtils.hashCodeMulti(body, datasets, dataverses, topLevel, explain);
+        return Objects.hash(body, topLevel, explain, varCounter);
     }
 
     @Override
@@ -129,9 +124,8 @@ public class Query implements IReturningStatement {
             return false;
         }
         Query target = (Query) object;
-        return explain == target.explain && ObjectUtils.equals(body, target.body)
-                && ObjectUtils.equals(datasets, target.datasets) && ObjectUtils.equals(dataverses, target.dataverses)
-                && topLevel == target.topLevel;
+        return explain == target.explain && Objects.equals(body, target.body) && topLevel == target.topLevel
+                && varCounter == target.varCounter;
     }
 
     @Override

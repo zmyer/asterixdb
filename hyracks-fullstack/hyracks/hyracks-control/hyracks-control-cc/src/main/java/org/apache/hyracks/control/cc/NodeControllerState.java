@@ -28,12 +28,12 @@ import java.util.Set;
 import org.apache.hyracks.api.comm.NetworkAddress;
 import org.apache.hyracks.api.job.JobId;
 import org.apache.hyracks.api.job.resource.NodeCapacity;
-import org.apache.hyracks.control.common.base.INodeController;
 import org.apache.hyracks.control.common.controllers.NCConfig;
 import org.apache.hyracks.control.common.controllers.NodeRegistration;
 import org.apache.hyracks.control.common.heartbeat.HeartbeatData;
 import org.apache.hyracks.control.common.heartbeat.HeartbeatSchema;
 import org.apache.hyracks.control.common.heartbeat.HeartbeatSchema.GarbageCollectorInfo;
+import org.apache.hyracks.control.common.ipc.NodeControllerRemoteProxy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,7 +41,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class NodeControllerState {
     private static final int RRD_SIZE = 720;
 
-    private final INodeController nodeController;
+    private final NodeControllerRemoteProxy nodeController;
 
     private final NCConfig ncConfig;
 
@@ -141,11 +141,11 @@ public class NodeControllerState {
 
     private int rrdPtr;
 
-    private int lastHeartbeatDuration;
+    private long lastHeartbeatNanoTime;
 
     private NodeCapacity capacity;
 
-    public NodeControllerState(INodeController nodeController, NodeRegistration reg) {
+    public NodeControllerState(NodeControllerRemoteProxy nodeController, NodeRegistration reg) {
         this.nodeController = nodeController;
         ncConfig = reg.getNCConfig();
         dataPort = reg.getDataPort();
@@ -207,51 +207,58 @@ public class NodeControllerState {
 
         rrdPtr = 0;
         capacity = reg.getCapacity();
+        touchHeartbeat();
     }
 
     public synchronized void notifyHeartbeat(HeartbeatData hbData) {
-        lastHeartbeatDuration = 0;
+        touchHeartbeat();
         hbTime[rrdPtr] = System.currentTimeMillis();
-        if (hbData != null) {
-            heapInitSize[rrdPtr] = hbData.heapInitSize;
-            heapUsedSize[rrdPtr] = hbData.heapUsedSize;
-            heapCommittedSize[rrdPtr] = hbData.heapCommittedSize;
-            heapMaxSize[rrdPtr] = hbData.heapMaxSize;
-            nonheapInitSize[rrdPtr] = hbData.nonheapInitSize;
-            nonheapUsedSize[rrdPtr] = hbData.nonheapUsedSize;
-            nonheapCommittedSize[rrdPtr] = hbData.nonheapCommittedSize;
-            nonheapMaxSize[rrdPtr] = hbData.nonheapMaxSize;
-            threadCount[rrdPtr] = hbData.threadCount;
-            peakThreadCount[rrdPtr] = hbData.peakThreadCount;
-            systemLoadAverage[rrdPtr] = hbData.systemLoadAverage;
-            int gcN = hbSchema.getGarbageCollectorInfos().length;
-            for (int i = 0; i < gcN; ++i) {
-                gcCollectionCounts[i][rrdPtr] = hbData.gcCollectionCounts[i];
-                gcCollectionTimes[i][rrdPtr] = hbData.gcCollectionTimes[i];
-            }
-            netPayloadBytesRead[rrdPtr] = hbData.netPayloadBytesRead;
-            netPayloadBytesWritten[rrdPtr] = hbData.netPayloadBytesWritten;
-            netSignalingBytesRead[rrdPtr] = hbData.netSignalingBytesRead;
-            netSignalingBytesWritten[rrdPtr] = hbData.netSignalingBytesWritten;
-            datasetNetPayloadBytesRead[rrdPtr] = hbData.datasetNetPayloadBytesRead;
-            datasetNetPayloadBytesWritten[rrdPtr] = hbData.datasetNetPayloadBytesWritten;
-            datasetNetSignalingBytesRead[rrdPtr] = hbData.datasetNetSignalingBytesRead;
-            datasetNetSignalingBytesWritten[rrdPtr] = hbData.datasetNetSignalingBytesWritten;
-            ipcMessagesSent[rrdPtr] = hbData.ipcMessagesSent;
-            ipcMessageBytesSent[rrdPtr] = hbData.ipcMessageBytesSent;
-            ipcMessagesReceived[rrdPtr] = hbData.ipcMessagesReceived;
-            ipcMessageBytesReceived[rrdPtr] = hbData.ipcMessageBytesReceived;
-            diskReads[rrdPtr] = hbData.diskReads;
-            diskWrites[rrdPtr] = hbData.diskWrites;
-            rrdPtr = (rrdPtr + 1) % RRD_SIZE;
+        heapInitSize[rrdPtr] = hbData.heapInitSize;
+        heapUsedSize[rrdPtr] = hbData.heapUsedSize;
+        heapCommittedSize[rrdPtr] = hbData.heapCommittedSize;
+        heapMaxSize[rrdPtr] = hbData.heapMaxSize;
+        nonheapInitSize[rrdPtr] = hbData.nonheapInitSize;
+        nonheapUsedSize[rrdPtr] = hbData.nonheapUsedSize;
+        nonheapCommittedSize[rrdPtr] = hbData.nonheapCommittedSize;
+        nonheapMaxSize[rrdPtr] = hbData.nonheapMaxSize;
+        threadCount[rrdPtr] = hbData.threadCount;
+        peakThreadCount[rrdPtr] = hbData.peakThreadCount;
+        systemLoadAverage[rrdPtr] = hbData.systemLoadAverage;
+        int gcN = hbSchema.getGarbageCollectorInfos().length;
+        for (int i = 0; i < gcN; ++i) {
+            gcCollectionCounts[i][rrdPtr] = hbData.gcCollectionCounts[i];
+            gcCollectionTimes[i][rrdPtr] = hbData.gcCollectionTimes[i];
         }
+        netPayloadBytesRead[rrdPtr] = hbData.netPayloadBytesRead;
+        netPayloadBytesWritten[rrdPtr] = hbData.netPayloadBytesWritten;
+        netSignalingBytesRead[rrdPtr] = hbData.netSignalingBytesRead;
+        netSignalingBytesWritten[rrdPtr] = hbData.netSignalingBytesWritten;
+        datasetNetPayloadBytesRead[rrdPtr] = hbData.datasetNetPayloadBytesRead;
+        datasetNetPayloadBytesWritten[rrdPtr] = hbData.datasetNetPayloadBytesWritten;
+        datasetNetSignalingBytesRead[rrdPtr] = hbData.datasetNetSignalingBytesRead;
+        datasetNetSignalingBytesWritten[rrdPtr] = hbData.datasetNetSignalingBytesWritten;
+        ipcMessagesSent[rrdPtr] = hbData.ipcMessagesSent;
+        ipcMessageBytesSent[rrdPtr] = hbData.ipcMessageBytesSent;
+        ipcMessagesReceived[rrdPtr] = hbData.ipcMessagesReceived;
+        ipcMessageBytesReceived[rrdPtr] = hbData.ipcMessageBytesReceived;
+        diskReads[rrdPtr] = hbData.diskReads;
+        diskWrites[rrdPtr] = hbData.diskWrites;
+        rrdPtr = (rrdPtr + 1) % RRD_SIZE;
     }
 
-    public int incrementLastHeartbeatDuration() {
-        return lastHeartbeatDuration++;
+    public void touchHeartbeat() {
+        lastHeartbeatNanoTime = System.nanoTime();
     }
 
-    public INodeController getNodeController() {
+    public long nanosSinceLastHeartbeat() {
+        return System.nanoTime() - lastHeartbeatNanoTime;
+    }
+
+    public long getLastHeartbeatNanoTime() {
+        return lastHeartbeatNanoTime;
+    }
+
+    public NodeControllerRemoteProxy getNodeController() {
         return nodeController;
     }
 
@@ -279,21 +286,21 @@ public class NodeControllerState {
         return capacity;
     }
 
-    public synchronized ObjectNode toSummaryJSON()  {
+    public synchronized ObjectNode toSummaryJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode o = om.createObjectNode();
-        o.put("node-id", ncConfig.nodeId);
+        o.put("node-id", ncConfig.getNodeId());
         o.put("heap-used", heapUsedSize[(rrdPtr + RRD_SIZE - 1) % RRD_SIZE]);
         o.put("system-load-average", systemLoadAverage[(rrdPtr + RRD_SIZE - 1) % RRD_SIZE]);
 
         return o;
     }
 
-    public synchronized ObjectNode toDetailedJSON(boolean includeStats, boolean includeConfig)  {
+    public synchronized ObjectNode toDetailedJSON(boolean includeStats, boolean includeConfig) {
         ObjectMapper om = new ObjectMapper();
         ObjectNode o = om.createObjectNode();
 
-        o.put("node-id", ncConfig.nodeId);
+        o.put("node-id", ncConfig.getNodeId());
 
         if (includeConfig) {
             o.put("os-name", osName);

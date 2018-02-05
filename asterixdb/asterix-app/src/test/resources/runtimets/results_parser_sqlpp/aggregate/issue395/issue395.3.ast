@@ -1,7 +1,7 @@
 DataverseUse test
 Query:
 SELECT ELEMENT [
-FunctionCall test.count@1[
+FunctionCall asterix.count@1[
   (
     SELECT ELEMENT [
     FieldAccessor [
@@ -9,8 +9,8 @@ FunctionCall test.count@1[
       Field=name
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Employee]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.Employee]
       ]
       AS Variable [ Name=$l ]
     ]

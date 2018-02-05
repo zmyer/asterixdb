@@ -59,30 +59,30 @@ public class RecordFieldsUtil {
     private final static AString nestedName = new AString("nested");
     private final static AString listName = new AString("list");
 
-    private IObjectPool<IARecordBuilder, ATypeTag> recordBuilderPool = new ListObjectPool<IARecordBuilder, ATypeTag>(
-            new RecordBuilderFactory());
-    private IObjectPool<IAsterixListBuilder, ATypeTag> listBuilderPool = new ListObjectPool<IAsterixListBuilder, ATypeTag>(
-            new ListBuilderFactory());
-    private IObjectPool<IMutableValueStorage, ATypeTag> abvsBuilderPool = new ListObjectPool<IMutableValueStorage, ATypeTag>(
-            new AbvsBuilderFactory());
-    private IObjectPool<IPointable, ATypeTag> recordPointablePool = new ListObjectPool<IPointable, ATypeTag>(
-            ARecordPointable.ALLOCATOR);
-    private IObjectPool<IPointable, ATypeTag> listPointablePool = new ListObjectPool<IPointable, ATypeTag>(
-            AListPointable.ALLOCATOR);
+    private IObjectPool<IARecordBuilder, ATypeTag> recordBuilderPool =
+            new ListObjectPool<IARecordBuilder, ATypeTag>(new RecordBuilderFactory());
+    private IObjectPool<IAsterixListBuilder, ATypeTag> listBuilderPool =
+            new ListObjectPool<IAsterixListBuilder, ATypeTag>(new ListBuilderFactory());
+    private IObjectPool<IMutableValueStorage, ATypeTag> abvsBuilderPool =
+            new ListObjectPool<IMutableValueStorage, ATypeTag>(new AbvsBuilderFactory());
+    private IObjectPool<IPointable, ATypeTag> recordPointablePool =
+            new ListObjectPool<IPointable, ATypeTag>(ARecordPointable.ALLOCATOR);
+    private IObjectPool<IPointable, ATypeTag> listPointablePool =
+            new ListObjectPool<IPointable, ATypeTag>(AListPointable.ALLOCATOR);
 
     private final static AOrderedListType listType = new AOrderedListType(BuiltinType.ANY, "fields");
     //Better not be a static object.
     @SuppressWarnings("unchecked")
-    protected final ISerializerDeserializer<AString> stringSerde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.ASTRING);
+    protected final ISerializerDeserializer<AString> stringSerde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ASTRING);
     @SuppressWarnings("unchecked")
-    protected final ISerializerDeserializer<ABoolean> booleanSerde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.ABOOLEAN);
+    protected final ISerializerDeserializer<ABoolean> booleanSerde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ABOOLEAN);
 
     private final static ARecordType openType = DefaultOpenFieldType.NESTED_OPEN_RECORD_TYPE;
 
     public void processRecord(ARecordPointable recordAccessor, ARecordType recType, DataOutput out, int level)
-            throws IOException, AsterixException {
+            throws IOException {
         if (level == 0) {
             // Resets pools for recycling objects before processing a top-level record.
             resetPools();
@@ -175,8 +175,7 @@ public class RecordFieldsUtil {
         orderedListBuilder.write(out, true);
     }
 
-    public void addNameField(IValueReference nameArg, IARecordBuilder fieldRecordBuilder)
-            throws HyracksDataException, AsterixException {
+    public void addNameField(IValueReference nameArg, IARecordBuilder fieldRecordBuilder) throws HyracksDataException {
         ArrayBackedValueStorage fieldAbvs = getTempBuffer();
 
         fieldAbvs.reset();
@@ -184,8 +183,7 @@ public class RecordFieldsUtil {
         fieldRecordBuilder.addField(fieldAbvs, nameArg);
     }
 
-    public void addFieldType(byte tagId, IARecordBuilder fieldRecordBuilder)
-            throws HyracksDataException, AsterixException {
+    public void addFieldType(byte tagId, IARecordBuilder fieldRecordBuilder) throws HyracksDataException {
         ArrayBackedValueStorage fieldAbvs = getTempBuffer();
         ArrayBackedValueStorage valueAbvs = getTempBuffer();
 
@@ -201,8 +199,7 @@ public class RecordFieldsUtil {
         fieldRecordBuilder.addField(fieldAbvs, valueAbvs);
     }
 
-    public void addIsOpenField(boolean isOpen, IARecordBuilder fieldRecordBuilder)
-            throws HyracksDataException, AsterixException {
+    public void addIsOpenField(boolean isOpen, IARecordBuilder fieldRecordBuilder) throws HyracksDataException {
         ArrayBackedValueStorage fieldAbvs = getTempBuffer();
         ArrayBackedValueStorage valueAbvs = getTempBuffer();
 
@@ -220,7 +217,7 @@ public class RecordFieldsUtil {
     }
 
     public void addListField(IValueReference listArg, IAType fieldType, IARecordBuilder fieldRecordBuilder, int level)
-            throws AsterixException, IOException {
+            throws IOException {
         ArrayBackedValueStorage fieldAbvs = getTempBuffer();
         ArrayBackedValueStorage valueAbvs = getTempBuffer();
 
@@ -234,7 +231,7 @@ public class RecordFieldsUtil {
     }
 
     public void addNestedField(IValueReference recordArg, IAType fieldType, IARecordBuilder fieldRecordBuilder,
-            int level) throws IOException, AsterixException {
+            int level) throws IOException {
         ArrayBackedValueStorage fieldAbvs = getTempBuffer();
         ArrayBackedValueStorage valueAbvs = getTempBuffer();
 
@@ -256,7 +253,7 @@ public class RecordFieldsUtil {
     }
 
     public void processListValue(IValueReference listArg, IAType fieldType, DataOutput out, int level)
-            throws AsterixException, IOException {
+            throws IOException {
         ArrayBackedValueStorage itemValue = getTempBuffer();
         IARecordBuilder listRecordBuilder = getRecordBuilder();
 
@@ -289,19 +286,19 @@ public class RecordFieldsUtil {
     }
 
     private ARecordPointable getRecordPointable() {
-        return (ARecordPointable) recordPointablePool.allocate(ATypeTag.RECORD);
+        return (ARecordPointable) recordPointablePool.allocate(ATypeTag.OBJECT);
     }
 
     private AListPointable getListPointable() {
-        return (AListPointable) listPointablePool.allocate(ATypeTag.ORDEREDLIST);
+        return (AListPointable) listPointablePool.allocate(ATypeTag.ARRAY);
     }
 
     private IARecordBuilder getRecordBuilder() {
-        return recordBuilderPool.allocate(ATypeTag.RECORD);
+        return recordBuilderPool.allocate(ATypeTag.OBJECT);
     }
 
     private OrderedListBuilder getOrderedListBuilder() {
-        return (OrderedListBuilder) listBuilderPool.allocate(ATypeTag.ORDEREDLIST);
+        return (OrderedListBuilder) listBuilderPool.allocate(ATypeTag.ARRAY);
     }
 
     private ArrayBackedValueStorage getTempBuffer() {

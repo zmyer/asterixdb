@@ -22,13 +22,13 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
-    private static final Logger LOGGER = Logger.getLogger(ClockPageReplacementStrategy.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private static final int MAX_UNSUCCESSFUL_CYCLE_COUNT = 3;
 
     private IBufferCacheInternal bufferCache;
@@ -130,8 +130,8 @@ public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
             }
             if (looped && clockPtr >= startClockPtr) {
                 cycleCount++;
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("completed " + cycleCount + "/" + MAX_UNSUCCESSFUL_CYCLE_COUNT
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("completed " + cycleCount + "/" + MAX_UNSUCCESSFUL_CYCLE_COUNT
                             + " clock cycle(s) without finding victim");
                 }
                 if (cycleCount >= MAX_UNSUCCESSFUL_CYCLE_COUNT) {
@@ -170,7 +170,7 @@ public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
             return;
         }
         final int newSize = pageSize * multiplier;
-        ByteBuffer oldBuffer = ((CachedPage)cPage).buffer;
+        ByteBuffer oldBuffer = ((CachedPage) cPage).buffer;
         oldBuffer.position(0);
         final int delta = multiplier - origMultiplier;
         if (multiplier < origMultiplier) {
@@ -194,8 +194,7 @@ public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
     }
 
     @Override
-    public void fixupCapacityOnLargeRead(ICachedPageInternal cPage)
-            throws HyracksDataException {
+    public void fixupCapacityOnLargeRead(ICachedPageInternal cPage) throws HyracksDataException {
         ByteBuffer oldBuffer = ((CachedPage) cPage).buffer;
         final int multiplier = cPage.getFrameSizeMultiplier();
         final int newSize = pageSize * multiplier;
@@ -209,7 +208,7 @@ public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
     }
 
     private void ensureBudgetForLargePages(int delta) {
-        while (numPages.get() + delta >= maxAllowedNumPages) {
+        while (numPages.get() + delta > maxAllowedNumPages) {
             ICachedPageInternal victim = findVictimByEviction();
             if (victim != null) {
                 final int victimMultiplier = victim.getFrameSizeMultiplier();
@@ -219,8 +218,8 @@ public class ClockPageReplacementStrategy implements IPageReplacementStrategy {
                 }
             } else {
                 // we don't have the budget to resize- proceed anyway, but log
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning("Exceeding buffer cache budget of " + maxAllowedNumPages + " by "
+                if (LOGGER.isWarnEnabled()) {
+                    LOGGER.warn("Exceeding buffer cache budget of " + maxAllowedNumPages + " by "
                             + (numPages.get() + delta - maxAllowedNumPages)
                             + " pages in order to satisfy large page read");
                 }

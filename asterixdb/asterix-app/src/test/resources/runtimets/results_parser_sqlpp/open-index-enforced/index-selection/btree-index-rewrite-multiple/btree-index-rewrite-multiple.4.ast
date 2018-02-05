@@ -52,13 +52,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [OrdersOpen]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.OrdersOpen]
   ]
   AS Variable [ Name=$o ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [OrdersOpen]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.OrdersOpen]
   ]
   AS Variable [ Name=$o2 ]
 ]

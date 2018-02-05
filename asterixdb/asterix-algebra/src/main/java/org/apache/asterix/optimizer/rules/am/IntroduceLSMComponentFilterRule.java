@@ -19,11 +19,15 @@
 package org.apache.asterix.optimizer.rules.am;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
+import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.metadata.declared.DataSource;
 import org.apache.asterix.metadata.declared.DatasetDataSource;
 import org.apache.asterix.metadata.declared.MetadataProvider;
@@ -56,6 +60,7 @@ import org.apache.hyracks.algebricks.core.algebra.functions.FunctionIdentifier;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AbstractLogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.AssignOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.DataSourceScanOperator;
+import org.apache.hyracks.algebricks.core.algebra.operators.logical.IntersectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.SelectOperator;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestMapOperator;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorPropertiesUtil;
@@ -80,12 +85,6 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
         }
 
         AbstractLogicalOperator op = (AbstractLogicalOperator) opRef.getValue();
-        typeEnvironment = context.getOutputTypeEnvironment(op);
-        ILogicalExpression condExpr = ((SelectOperator) op).getCondition().getValue();
-        AccessMethodAnalysisContext analysisCtx = analyzeCondition(condExpr, context, typeEnvironment);
-        if (analysisCtx.matchedFuncExprs.isEmpty()) {
-            return false;
-        }
 
         Dataset dataset = getDataset(op, context);
         List<String> filterFieldName = null;
@@ -94,29 +93,40 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
             filterFieldName = DatasetUtil.getFilterField(dataset);
             IAType itemType = ((MetadataProvider) context.getMetadataProvider())
                     .findType(dataset.getItemTypeDataverseName(), dataset.getItemTypeName());
-            if (itemType.getTypeTag() == ATypeTag.RECORD) {
+            if (itemType.getTypeTag() == ATypeTag.OBJECT) {
                 recType = (ARecordType) itemType;
             }
         }
         if (filterFieldName == null || recType == null) {
             return false;
         }
-        List<Index> datasetIndexes = ((MetadataProvider) context.getMetadataProvider())
-                .getDatasetIndexes(dataset.getDataverseName(), dataset.getDatasetName());
+
+        IAType filterType = recType.getSubFieldType(filterFieldName);
+
+        typeEnvironment = context.getOutputTypeEnvironment(op);
+        ILogicalExpression condExpr = ((SelectOperator) op).getCondition().getValue();
+        AccessMethodAnalysisContext analysisCtx = analyzeCondition(condExpr, context, typeEnvironment);
 
         List<IOptimizableFuncExpr> optFuncExprs = new ArrayList<>();
 
-        for (int i = 0; i < analysisCtx.matchedFuncExprs.size(); i++) {
-            IOptimizableFuncExpr optFuncExpr = analysisCtx.matchedFuncExprs.get(i);
-            boolean found = findMacthedExprFieldName(optFuncExpr, op, dataset, recType, datasetIndexes, context);
-            if (found && optFuncExpr.getFieldName(0).equals(filterFieldName)) {
-                optFuncExprs.add(optFuncExpr);
+        if (!analysisCtx.getMatchedFuncExprs().isEmpty()) {
+            List<Index> datasetIndexes = ((MetadataProvider) context.getMetadataProvider())
+                    .getDatasetIndexes(dataset.getDataverseName(), dataset.getDatasetName());
+
+            for (int i = 0; i < analysisCtx.getMatchedFuncExprs().size(); i++) {
+                IOptimizableFuncExpr optFuncExpr = analysisCtx.getMatchedFuncExpr(i);
+                boolean found = findMacthedExprFieldName(optFuncExpr, op, dataset, recType, datasetIndexes, context);
+                if (found && optFuncExpr.getFieldName(0).equals(filterFieldName)) {
+                    optFuncExprs.add(optFuncExpr);
+                }
             }
         }
+
         if (optFuncExprs.isEmpty()) {
-            return false;
+            assignFilterFromSecondaryUnnestMap(op, dataset, context, filterType);
+        } else {
+            assignFilterFromQuery(optFuncExprs, op, dataset, context, filterType);
         }
-        changePlan(optFuncExprs, op, dataset, context);
 
         OperatorPropertiesUtil.typeOpRec(opRef, context);
         context.addToDontApplySet(this, op);
@@ -129,11 +139,11 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
         List<Mutable<ILogicalExpression>> assignKeyExprList = new ArrayList<>();
 
         for (IOptimizableFuncExpr optFuncExpr : optFuncExprs) {
-            ComparisonKind ck = AlgebricksBuiltinFunctions
-                    .getComparisonType(optFuncExpr.getFuncExpr().getFunctionIdentifier());
+            ComparisonKind ck =
+                    AlgebricksBuiltinFunctions.getComparisonType(optFuncExpr.getFuncExpr().getFunctionIdentifier());
             ILogicalExpression searchKeyExpr = optFuncExpr.getConstantExpr(0);
             LogicalVariable var = context.newVar();
-            assignKeyExprList.add(new MutableObject<ILogicalExpression>(searchKeyExpr));
+            assignKeyExprList.add(new MutableObject<>(searchKeyExpr));
             assignKeyVarList.add(var);
             if (ck == ComparisonKind.GE || ck == ComparisonKind.GT) {
                 minFilterVars.add(var);
@@ -147,9 +157,11 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
         return new AssignOperator(assignKeyVarList, assignKeyExprList);
     }
 
-    private void changePlan(List<IOptimizableFuncExpr> optFuncExprs, AbstractLogicalOperator op, Dataset dataset,
-            IOptimizationContext context) throws AlgebricksException {
+    private void assignFilterFromQuery(List<IOptimizableFuncExpr> optFuncExprs, AbstractLogicalOperator op,
+            Dataset dataset, IOptimizationContext context, IAType filterType) throws AlgebricksException {
 
+        List<UnnestMapOperator> primaryUnnestMapOps = new ArrayList<>();
+        boolean hasSecondaryIndexMap = false;
         Queue<Mutable<ILogicalOperator>> queue = new LinkedList<>(op.getInputs());
         while (!queue.isEmpty()) {
             AbstractLogicalOperator descendantOp = (AbstractLogicalOperator) queue.poll().getValue();
@@ -176,8 +188,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
 
                     dataSourceScanOp.setAdditionalFilteringExpressions(additionalFilteringExpressions);
 
-                    assignOp.getInputs()
-                            .add(new MutableObject<ILogicalOperator>(dataSourceScanOp.getInputs().get(0).getValue()));
+                    assignOp.getInputs().add(new MutableObject<>(dataSourceScanOp.getInputs().get(0).getValue()));
                     dataSourceScanOp.getInputs().get(0).setValue(assignOp);
                 }
             } else if (descendantOp.getOperatorTag() == LogicalOperatorTag.UNNEST_MAP) {
@@ -195,8 +206,8 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                         List<LogicalVariable> minFilterVars = new ArrayList<>();
                         List<LogicalVariable> maxFilterVars = new ArrayList<>();
 
-                        AssignOperator assignOp = createAssignOperator(optFuncExprs, minFilterVars, maxFilterVars,
-                                context);
+                        AssignOperator assignOp =
+                                createAssignOperator(optFuncExprs, minFilterVars, maxFilterVars, context);
 
                         unnestMapOp.setMinFilterVars(minFilterVars);
                         unnestMapOp.setMaxFilterVars(maxFilterVars);
@@ -207,13 +218,152 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                                     .add(new MutableObject<ILogicalExpression>(new VariableReferenceExpression(var)));
                         }
                         unnestMapOp.setAdditionalFilteringExpressions(additionalFilteringExpressions);
-                        assignOp.getInputs()
-                                .add(new MutableObject<ILogicalOperator>(unnestMapOp.getInputs().get(0).getValue()));
+                        assignOp.getInputs().add(new MutableObject<>(unnestMapOp.getInputs().get(0).getValue()));
                         unnestMapOp.getInputs().get(0).setValue(assignOp);
+
+                        if (jobGenParams.isPrimaryIndex) {
+                            primaryUnnestMapOps.add(unnestMapOp);
+                        } else {
+                            hasSecondaryIndexMap = true;
+                        }
                     }
                 }
             }
             queue.addAll(descendantOp.getInputs());
+        }
+        if (hasSecondaryIndexMap && !primaryUnnestMapOps.isEmpty()) {
+            propagateFilterToPrimaryIndex(primaryUnnestMapOps, filterType, context);
+        }
+    }
+
+    private void propagateFilterToPrimaryIndex(List<UnnestMapOperator> primaryUnnestMapOps, IAType filterType,
+            IOptimizationContext context) throws AlgebricksException {
+        for (UnnestMapOperator primaryOp : primaryUnnestMapOps) {
+            Mutable<ILogicalOperator> assignOrOrderOrIntersect = primaryOp.getInputs().get(0);
+            Mutable<ILogicalOperator> intersectOrSort = assignOrOrderOrIntersect;
+
+            if (assignOrOrderOrIntersect.getValue().getOperatorTag() == LogicalOperatorTag.ASSIGN) {
+                intersectOrSort = assignOrOrderOrIntersect.getValue().getInputs().get(0);
+            }
+
+            switch (intersectOrSort.getValue().getOperatorTag()) {
+                case INTERSECT:
+                    IntersectOperator intersect = (IntersectOperator) (intersectOrSort.getValue());
+                    List<List<LogicalVariable>> filterVars = new ArrayList<>(intersect.getInputs().size());
+                    for (Mutable<ILogicalOperator> mutableOp : intersect.getInputs()) {
+                        ILogicalOperator child = mutableOp.getValue();
+                        while (!child.getOperatorTag().equals(LogicalOperatorTag.UNNEST_MAP)) {
+                            child = child.getInputs().get(0).getValue();
+                        }
+                        UnnestMapOperator unnestMap = (UnnestMapOperator) child;
+                        propagateFilterInSecondaryUnnsetMap(unnestMap, filterType, context);
+
+                        List<LogicalVariable> extraVars = Arrays.asList(unnestMap.getPropagateIndexMinFilterVar(),
+                                unnestMap.getPropagateIndexMaxFilterVar());
+                        filterVars.add(extraVars);
+                    }
+                    if (!filterVars.isEmpty()) {
+                        List<LogicalVariable> outputFilterVars = new ArrayList<>(filterVars.get(0));
+                        IntersectOperator intersectWithFilter =
+                                createIntersectWithFilter(outputFilterVars, filterVars, intersect);
+
+                        intersectOrSort.setValue(intersectWithFilter);
+                        context.computeAndSetTypeEnvironmentForOperator(intersectWithFilter);
+                        setPrimaryFilterVar(primaryOp, outputFilterVars.get(0), outputFilterVars.get(1), context);
+                    }
+                    break;
+                case ORDER:
+                    ILogicalOperator child = intersectOrSort.getValue().getInputs().get(0).getValue();
+                    if (child.getOperatorTag().equals(LogicalOperatorTag.UNNEST_MAP)) {
+                        UnnestMapOperator secondaryMap = (UnnestMapOperator) child;
+
+                        propagateFilterInSecondaryUnnsetMap(secondaryMap, filterType, context);
+
+                        setPrimaryFilterVar(primaryOp, secondaryMap.getPropagateIndexMinFilterVar(),
+                                secondaryMap.getPropagateIndexMaxFilterVar(), context);
+                    }
+                    break;
+                default:
+                    throw new CompilationException(ErrorCode.COMPILATION_ILLEGAL_STATE,
+                            intersectOrSort.getValue().getOperatorTag().toString());
+            }
+        }
+    }
+
+    private IntersectOperator createIntersectWithFilter(List<LogicalVariable> outputFilterVars,
+            List<List<LogicalVariable>> filterVars, IntersectOperator intersect) throws AlgebricksException {
+        List<LogicalVariable> outputVars = new ArrayList<>();
+        outputVars.addAll(intersect.getOutputVars());
+        outputVars.addAll(outputFilterVars);
+
+        List<List<LogicalVariable>> compareVars = new ArrayList<>(intersect.getNumInput());
+        for (int i = 0; i < intersect.getNumInput(); i++) {
+            compareVars.add(new ArrayList<>(intersect.getCompareVariables(i)));
+        }
+
+        IntersectOperator intersectWithFilter = new IntersectOperator(outputVars, compareVars, filterVars);
+        intersectWithFilter.getInputs().addAll(intersect.getInputs());
+        return intersectWithFilter;
+    }
+
+    private void propagateFilterInSecondaryUnnsetMap(UnnestMapOperator secondaryUnnest, IAType filterType,
+            IOptimizationContext context) throws AlgebricksException {
+
+        LogicalVariable minIndexFilterVar = context.newVar();
+        LogicalVariable maxIndexFilterVar = context.newVar();
+        secondaryUnnest.markPropagageIndexFilter();
+        secondaryUnnest.getVariables().add(minIndexFilterVar);
+        secondaryUnnest.getVariableTypes().add(filterType);
+        secondaryUnnest.getVariables().add(maxIndexFilterVar);
+        secondaryUnnest.getVariableTypes().add(filterType);
+
+        context.computeAndSetTypeEnvironmentForOperator(secondaryUnnest);
+    }
+
+    private void setPrimaryFilterVar(UnnestMapOperator primaryOp, LogicalVariable minFilterVar,
+            LogicalVariable maxFilterVar, IOptimizationContext context) throws AlgebricksException {
+        primaryOp.setMinFilterVars(Collections.singletonList(minFilterVar));
+        primaryOp.setMaxFilterVars(Collections.singletonList(maxFilterVar));
+
+        List<Mutable<ILogicalExpression>> indexFilterExpression =
+                Arrays.asList(new MutableObject<>(new VariableReferenceExpression(minFilterVar)),
+                        new MutableObject<>(new VariableReferenceExpression(maxFilterVar)));
+
+        primaryOp.setAdditionalFilteringExpressions(indexFilterExpression);
+        context.computeAndSetTypeEnvironmentForOperator(primaryOp);
+    }
+
+    private void assignFilterFromSecondaryUnnestMap(AbstractLogicalOperator op, Dataset dataset,
+            IOptimizationContext context, IAType filterType) throws AlgebricksException {
+        List<UnnestMapOperator> primaryUnnestMapOps = new ArrayList<>();
+        boolean hasSecondaryIndexMap = false;
+        Queue<Mutable<ILogicalOperator>> queue = new LinkedList<>(op.getInputs());
+        while (!queue.isEmpty()) {
+            ILogicalOperator descendantOp = queue.poll().getValue();
+            if (descendantOp.getOperatorTag() == LogicalOperatorTag.UNNEST_MAP) {
+                UnnestMapOperator unnestMapOp = (UnnestMapOperator) descendantOp;
+                ILogicalExpression unnestExpr = unnestMapOp.getExpressionRef().getValue();
+                if (unnestExpr.getExpressionTag() == LogicalExpressionTag.FUNCTION_CALL) {
+                    AbstractFunctionCallExpression f = (AbstractFunctionCallExpression) unnestExpr;
+                    FunctionIdentifier fid = f.getFunctionIdentifier();
+                    if (!fid.equals(BuiltinFunctions.INDEX_SEARCH)) {
+                        throw new CompilationException(ErrorCode.COMPILATION_ILLEGAL_STATE, fid.getName());
+                    }
+                    AccessMethodJobGenParams jobGenParams = new AccessMethodJobGenParams();
+                    jobGenParams.readFromFuncArgs(f.getArguments());
+                    if (dataset.getDatasetName().compareTo(jobGenParams.datasetName) == 0) {
+                        if (jobGenParams.isPrimaryIndex) {
+                            primaryUnnestMapOps.add(unnestMapOp);
+                        } else {
+                            hasSecondaryIndexMap = true;
+                        }
+                    }
+                }
+            }
+            queue.addAll(descendantOp.getInputs());
+        }
+        if (hasSecondaryIndexMap && !primaryUnnestMapOps.isEmpty()) {
+            propagateFilterToPrimaryIndex(primaryUnnestMapOps, filterType, context);
         }
     }
 
@@ -246,8 +396,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                     } else {
                         throw new AlgebricksException("Unexpected function for Unnest Map: " + fid);
                     }
-                    return ((MetadataProvider) context.getMetadataProvider()).findDataset(dataverseName,
-                            datasetName);
+                    return ((MetadataProvider) context.getMetadataProvider()).findDataset(dataverseName, datasetName);
                 }
             }
             if (descendantOp.getInputs().isEmpty()) {
@@ -299,7 +448,8 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
         if (funcIdent == AlgebricksBuiltinFunctions.LE || funcIdent == AlgebricksBuiltinFunctions.GE
                 || funcIdent == AlgebricksBuiltinFunctions.LT || funcIdent == AlgebricksBuiltinFunctions.GT
                 || funcIdent == AlgebricksBuiltinFunctions.EQ) {
-            AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVar(funcExpr, analysisCtx, context, typeEnvironment);
+            AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVarAndUpdateAnalysisCtx(funcExpr, analysisCtx, context,
+                    typeEnvironment);
         }
     }
 
@@ -317,8 +467,8 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                     if (funcVarIndex == -1) {
                         continue;
                     }
-                    List<String> fieldName = getFieldNameFromSubAssignTree(optFuncExpr, descendantOp, varIndex,
-                            recType).second;
+                    List<String> fieldName =
+                            getFieldNameFromSubAssignTree(optFuncExpr, descendantOp, varIndex, recType).second;
                     if (fieldName == null) {
                         return false;
                     }
@@ -335,7 +485,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                         continue;
                     }
                     // The variable value is one of the partitioning fields.
-                    List<String> fieldName = DatasetUtil.getPartitioningKeys(dataset).get(varIndex);
+                    List<String> fieldName = dataset.getPrimaryKeys().get(varIndex);
                     if (fieldName == null) {
                         return false;
                     }
@@ -378,7 +528,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                     int numSecondaryKeys = KeyFieldTypeUtil.getNumSecondaryKeys(index, recType, metaRecType);
                     List<String> fieldName;
                     if (varIndex >= numSecondaryKeys) {
-                        fieldName = DatasetUtil.getPartitioningKeys(dataset).get(varIndex - numSecondaryKeys);
+                        fieldName = dataset.getPrimaryKeys().get(varIndex - numSecondaryKeys);
                     } else {
                         fieldName = index.getKeyFieldNames().get(varIndex);
                     }
@@ -410,8 +560,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
         }
         AbstractFunctionCallExpression funcExpr = (AbstractFunctionCallExpression) expr;
         FunctionIdentifier funcIdent = funcExpr.getFunctionIdentifier();
-        if (funcIdent == BuiltinFunctions.FIELD_ACCESS_BY_NAME
-                || funcIdent == BuiltinFunctions.FIELD_ACCESS_BY_INDEX) {
+        if (funcIdent == BuiltinFunctions.FIELD_ACCESS_BY_NAME || funcIdent == BuiltinFunctions.FIELD_ACCESS_BY_INDEX) {
 
             //get the variable from here. Figure out which input it came from. Go to that input!!!
             ArrayList<LogicalVariable> usedVars = new ArrayList<>();
@@ -456,7 +605,7 @@ public class IntroduceLSMComponentFilterRule implements IAlgebraicRewriteRule {
                 }
                 returnList.add(recType.getFieldNames()[fieldIndex]);
                 IAType subType = recType.getFieldTypes()[fieldIndex];
-                if (subType.getTypeTag() == ATypeTag.RECORD) {
+                if (subType.getTypeTag() == ATypeTag.OBJECT) {
                     recType = (ARecordType) subType;
                 }
                 return new Pair<>(recType, returnList);

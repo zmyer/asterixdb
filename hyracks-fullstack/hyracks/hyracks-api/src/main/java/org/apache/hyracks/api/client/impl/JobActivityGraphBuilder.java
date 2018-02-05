@@ -19,17 +19,13 @@
 package org.apache.hyracks.api.client.impl;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.apache.hyracks.api.dataflow.ActivityId;
 import org.apache.hyracks.api.dataflow.ConnectorDescriptorId;
 import org.apache.hyracks.api.dataflow.IActivity;
@@ -39,9 +35,11 @@ import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.job.JobActivityGraph;
 import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobSpecification;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobActivityGraphBuilder implements IActivityGraphBuilder {
-    private static final Logger LOGGER = Logger.getLogger(JobActivityGraphBuilder.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final Map<ActivityId, IOperatorDescriptor> activityOperatorMap;
 
@@ -53,12 +51,12 @@ public class JobActivityGraphBuilder implements IActivityGraphBuilder {
 
     private final Map<ConnectorDescriptorId, Pair<IActivity, Integer>> connectorConsumerMap;
 
-    public JobActivityGraphBuilder(JobSpecification jobSpec, EnumSet<JobFlag> jobFlags) {
-        activityOperatorMap = new HashMap<ActivityId, IOperatorDescriptor>();
+    public JobActivityGraphBuilder(JobSpecification jobSpec, Set<JobFlag> jobFlags) {
+        activityOperatorMap = new HashMap<>();
         jag = new JobActivityGraph();
         this.jobSpec = jobSpec;
-        connectorProducerMap = new HashMap<ConnectorDescriptorId, Pair<IActivity, Integer>>();
-        connectorConsumerMap = new HashMap<ConnectorDescriptorId, Pair<IActivity, Integer>>();
+        connectorProducerMap = new HashMap<>();
+        connectorConsumerMap = new HashMap<>();
     }
 
     public void addConnector(IConnectorDescriptor conn) {
@@ -73,8 +71,8 @@ public class JobActivityGraphBuilder implements IActivityGraphBuilder {
 
     @Override
     public void addSourceEdge(int operatorInputIndex, IActivity task, int taskInputIndex) {
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.finest("Adding source edge: " + task.getActivityId() + ":" + operatorInputIndex + " -> "
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Adding source edge: " + task.getActivityId() + ":" + operatorInputIndex + " -> "
                     + task.getActivityId() + ":" + taskInputIndex);
         }
         IOperatorDescriptor op = activityOperatorMap.get(task.getActivityId());
@@ -85,8 +83,8 @@ public class JobActivityGraphBuilder implements IActivityGraphBuilder {
 
     @Override
     public void addTargetEdge(int operatorOutputIndex, IActivity task, int taskOutputIndex) {
-        if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.finest("Adding target edge: " + task.getActivityId() + ":" + operatorOutputIndex + " -> "
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("Adding target edge: " + task.getActivityId() + ":" + operatorOutputIndex + " -> "
                     + task.getActivityId() + ":" + taskOutputIndex);
         }
         IOperatorDescriptor op = activityOperatorMap.get(task.getActivityId());
@@ -103,20 +101,16 @@ public class JobActivityGraphBuilder implements IActivityGraphBuilder {
     }
 
     public void finish() {
-        Map<ConnectorDescriptorId, Pair<Pair<IActivity, Integer>, Pair<IActivity, Integer>>> caMap = jag
-                .getConnectorActivityMap();
-        for (Map.Entry<ConnectorDescriptorId, Pair<IActivity, Integer>> e : connectorProducerMap.entrySet()) {
-            ConnectorDescriptorId cdId = e.getKey();
-            Pair<IActivity, Integer> producer = e.getValue();
-            Pair<IActivity, Integer> consumer = connectorConsumerMap.get(cdId);
-            caMap.put(cdId, Pair.of(producer, consumer));
-        }
+        Map<ConnectorDescriptorId, Pair<Pair<IActivity, Integer>, Pair<IActivity, Integer>>> caMap =
+                jag.getConnectorActivityMap();
+        connectorProducerMap
+                .forEach((cdId, producer) -> caMap.put(cdId, Pair.of(producer, connectorConsumerMap.get(cdId))));
     }
 
     private <K, V> void addToValueSet(Map<K, Set<V>> map, K n1, V n2) {
         Set<V> targets = map.get(n1);
         if (targets == null) {
-            targets = new HashSet<V>();
+            targets = new HashSet<>();
             map.put(n1, targets);
         }
         targets.add(n2);
@@ -132,7 +126,7 @@ public class JobActivityGraphBuilder implements IActivityGraphBuilder {
     private <K, V> void insertIntoIndexedMap(Map<K, List<V>> map, K key, int index, V value) {
         List<V> vList = map.get(key);
         if (vList == null) {
-            vList = new ArrayList<V>();
+            vList = new ArrayList<>();
             map.put(key, vList);
         }
         extend(vList, index);

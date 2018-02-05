@@ -69,15 +69,15 @@ import org.junit.Test;
 
 public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
 
-    final IFileSplitProvider splitProvider = new ConstantFileSplitProvider(
-            new FileSplit[] { new ManagedFileSplit(ASTERIX_IDS[0], "data" + File.separator + "tpch0.001"
-                    + File.separator + "lineitem.tbl"),
-                    new ManagedFileSplit(ASTERIX_IDS[1], "data" + File.separator + "tpch0.001" + File.separator
-                            + "lineitem.tbl"),
-                    new ManagedFileSplit(ASTERIX_IDS[2], "data" + File.separator + "tpch0.001" + File.separator
-                            + "lineitem.tbl"),
-                    new ManagedFileSplit(ASTERIX_IDS[3], "data" + File.separator + "tpch0.001" + File.separator
-                            + "lineitem.tbl") });
+    final IFileSplitProvider splitProvider = new ConstantFileSplitProvider(new FileSplit[] {
+            new ManagedFileSplit(ASTERIX_IDS[0],
+                    "data" + File.separator + "tpch0.001" + File.separator + "lineitem.tbl"),
+            new ManagedFileSplit(ASTERIX_IDS[1],
+                    "data" + File.separator + "tpch0.001" + File.separator + "lineitem.tbl"),
+            new ManagedFileSplit(ASTERIX_IDS[2],
+                    "data" + File.separator + "tpch0.001" + File.separator + "lineitem.tbl"),
+            new ManagedFileSplit(ASTERIX_IDS[3],
+                    "data" + File.separator + "tpch0.001" + File.separator + "lineitem.tbl") });
 
     final int fileSize = 800 * 1024 * 4;
 
@@ -112,8 +112,8 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
 
         JobSpecification spec = new JobSpecification();
 
-        FileScanOperatorDescriptor csvScanner = new FileScanOperatorDescriptor(spec, splitProvider, tupleParserFactory,
-                desc);
+        FileScanOperatorDescriptor csvScanner =
+                new FileScanOperatorDescriptor(spec, splitProvider, tupleParserFactory, desc);
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, csvScanner, "asterix-001", "asterix-002",
                 "asterix-003", "asterix-004");
@@ -125,18 +125,20 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         int[] keyFields = new int[] { 0 };
         int tableSize = 8;
 
-        ExternalGroupOperatorDescriptor grouper = new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize,
-                keyFields, fileSize / spec.getFrameSize() + 1,
-                new IBinaryComparatorFactory[] { PointableBinaryComparatorFactory.of(UTF8StringPointable.FACTORY) },
-                new UTF8StringNormalizedKeyComputerFactory(),
-                new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
-                        new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(3, false),
-                        new FloatSumFieldAggregatorFactory(5, false) }),
-                new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
-                        new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(2, false),
-                        new FloatSumFieldAggregatorFactory(3, false) }),
-                outputRec, outputRec, new HashSpillableTableFactory(
-                        new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE }));
+        ExternalGroupOperatorDescriptor grouper =
+                new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize, keyFields,
+                        fileSize / spec.getFrameSize() + 1,
+                        new IBinaryComparatorFactory[] {
+                                PointableBinaryComparatorFactory.of(UTF8StringPointable.FACTORY) },
+                        new UTF8StringNormalizedKeyComputerFactory(),
+                        new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
+                                new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(3, false),
+                                new FloatSumFieldAggregatorFactory(5, false) }),
+                        new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
+                                new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(2, false),
+                                new FloatSumFieldAggregatorFactory(3, false) }),
+                        outputRec, outputRec, new HashSpillableTableFactory(
+                                new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE }));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, "asterix-005", "asterix-006");
 
@@ -163,7 +165,7 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         spec.connect(conn2, grouper, 0, printer, 0);
 
         spec.addRoot(printer);
-        runTest(spec);
+        runTest(spec, null);
     }
 
     /**
@@ -177,8 +179,8 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
 
         JobSpecification spec = new JobSpecification();
 
-        FileScanOperatorDescriptor csvScanner = new FileScanOperatorDescriptor(spec, splitProvider, tupleParserFactory,
-                desc);
+        FileScanOperatorDescriptor csvScanner =
+                new FileScanOperatorDescriptor(spec, splitProvider, tupleParserFactory, desc);
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, csvScanner, "asterix-001", "asterix-002",
                 "asterix-003", "asterix-004");
@@ -190,18 +192,20 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         int[] keyFields = new int[] { 0 };
         int tableSize = 8;
 
-        ExternalGroupOperatorDescriptor grouper = new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize,
-                keyFields, fileSize / spec.getFrameSize() + 1,
-                new IBinaryComparatorFactory[] { PointableBinaryComparatorFactory.of(UTF8StringPointable.FACTORY) },
-                new UTF8StringNormalizedKeyComputerFactory(),
-                new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
-                        new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(3, false),
-                        new FloatSumFieldAggregatorFactory(5, false) }),
-                new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
-                        new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(2, false),
-                        new FloatSumFieldAggregatorFactory(3, false) }),
-                outputRec, outputRec, new HashSpillableTableFactory(
-                        new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE }));
+        ExternalGroupOperatorDescriptor grouper =
+                new ExternalGroupOperatorDescriptor(spec, tableSize, fileSize, keyFields,
+                        fileSize / spec.getFrameSize() + 1,
+                        new IBinaryComparatorFactory[] {
+                                PointableBinaryComparatorFactory.of(UTF8StringPointable.FACTORY) },
+                        new UTF8StringNormalizedKeyComputerFactory(),
+                        new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
+                                new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(3, false),
+                                new FloatSumFieldAggregatorFactory(5, false) }),
+                        new MultiFieldsAggregatorFactory(new IFieldAggregateDescriptorFactory[] {
+                                new IntSumFieldAggregatorFactory(1, false), new IntSumFieldAggregatorFactory(2, false),
+                                new FloatSumFieldAggregatorFactory(3, false) }),
+                        outputRec, outputRec, new HashSpillableTableFactory(
+                                new IBinaryHashFunctionFamily[] { UTF8StringBinaryHashFunctionFamily.INSTANCE }));
 
         PartitionConstraintHelper.addAbsoluteLocationConstraint(spec, grouper, "asterix-005", "asterix-006");
 
@@ -221,7 +225,7 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
         spec.connect(conn2, grouper, 0, printer, 0);
 
         spec.addRoot(printer);
-        runTest(spec);
+        runTest(spec, null);
     }
 
     private AbstractSingleActivityOperatorDescriptor getPrinter(JobSpecification spec, String prefix)
@@ -229,7 +233,7 @@ public class LocalityAwareConnectorTest extends AbstractMultiNCIntegrationTest {
 
         ResultSetId rsId = new ResultSetId(1);
         AbstractSingleActivityOperatorDescriptor printer = new ResultWriterOperatorDescriptor(spec, rsId, true, false,
-                ResultSerializerFactoryProvider.INSTANCE.getResultSerializerFactoryProvider());
+                ResultSerializerFactoryProvider.INSTANCE.getResultSerializerFactoryProvider(), 1);
         spec.addResultSetId(rsId);
 
         return printer;

@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.IHyracksJobBuilder;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
+import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalOperatorTag;
 import org.apache.hyracks.algebricks.core.algebra.base.LogicalVariable;
 import org.apache.hyracks.algebricks.core.algebra.base.PhysicalOperatorTag;
@@ -43,10 +44,12 @@ import org.apache.hyracks.dataflow.std.group.preclustered.PreclusteredGroupOpera
 public class PreclusteredGroupByPOperator extends AbstractPreclusteredGroupByPOperator {
 
     private final boolean groupAll;
+    private final int framesLimit;
 
-    public PreclusteredGroupByPOperator(List<LogicalVariable> columnList, boolean groupAll) {
+    public PreclusteredGroupByPOperator(List<LogicalVariable> columnList, boolean groupAll, int framesLimit) {
         super(columnList);
         this.groupAll = groupAll;
+        this.framesLimit = framesLimit;
     }
 
     @Override
@@ -70,7 +73,8 @@ public class PreclusteredGroupByPOperator extends AbstractPreclusteredGroupByPOp
         AlgebricksPipeline[] subplans = compileSubplans(inputSchemas[0], gby, opSchema, context);
         IAggregatorDescriptorFactory aggregatorFactory;
 
-        if (gby.getNestedPlans().get(0).getRoots().get(0).getValue()
+        List<ILogicalPlan> nestedPlans = gby.getNestedPlans();
+        if (!nestedPlans.isEmpty() && nestedPlans.get(0).getRoots().get(0).getValue()
                 .getOperatorTag() == LogicalOperatorTag.RUNNINGAGGREGATE) {
             aggregatorFactory = new NestedPlansRunningAggregatorFactory(subplans, keys, fdColumns);
         } else {
@@ -78,13 +82,13 @@ public class PreclusteredGroupByPOperator extends AbstractPreclusteredGroupByPOp
         }
 
         IOperatorDescriptorRegistry spec = builder.getJobSpec();
-        IBinaryComparatorFactory[] comparatorFactories = JobGenHelper.variablesToAscBinaryComparatorFactories(
-                columnList, context.getTypeEnvironment(op), context);
-        RecordDescriptor recordDescriptor = JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema,
-                context);
+        IBinaryComparatorFactory[] comparatorFactories = JobGenHelper
+                .variablesToAscBinaryComparatorFactories(columnList, context.getTypeEnvironment(op), context);
+        RecordDescriptor recordDescriptor =
+                JobGenHelper.mkRecordDescriptor(context.getTypeEnvironment(op), opSchema, context);
 
         PreclusteredGroupOperatorDescriptor opDesc = new PreclusteredGroupOperatorDescriptor(spec, keys,
-                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll);
+                comparatorFactories, aggregatorFactory, recordDescriptor, groupAll, framesLimit);
 
         contributeOpDesc(builder, (AbstractLogicalOperator) op, opDesc);
 

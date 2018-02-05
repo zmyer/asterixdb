@@ -19,14 +19,20 @@
 
 - name: Copy cluster config to CC
   synchronize:
-    src: /tmp/asterixdb/cc.conf
-    dest: "{{ basedir }}/cc.conf"
+    src: ../conf/instance/cc.conf
+    dest: "{{ binarydir }}/cc.conf"
+
+- name: Populate debug option to the cluster configuration file "{{ binarydir }}/cc.conf"
+  shell: printf "\n[nc]\njvm.args=-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address={{ debug_port }} -agentpath:{{ binarydir }}/yjp-2016.02/bin/linux-x86-64/libyjpagent.so=port={{ profiler_port }}\n" >> "{{ binarydir }}/cc.conf"
+  when: debug and ansible_distribution != "MacOSX"
 
 - name: Update cluster config
-  shell: find -P "{{ basedir }}/cc.conf" | xargs perl -pi -e 's|command=asterixnc|command={{ ncbin }}|g'
+  shell: find -P "{{ binarydir }}/cc.conf" | xargs perl -pi -e 's|command=asterixnc|command={{ ncbin }}|g'
 
 - name: Start CC
-  shell: nohup "{{ cc }}" -config-file "{{ basedir }}/cc.conf" &> "{{ binarydir }}/logs/cc.log" &
+  shell: |
+    nohup "{{ cc }}" -config-file "{{ binarydir }}/cc.conf" >> "{{ binarydir }}/logs/cc.log" 2>&1 &
+    sleep 1
   args:
     chdir: "{{ binarydir }}"
   async: 10

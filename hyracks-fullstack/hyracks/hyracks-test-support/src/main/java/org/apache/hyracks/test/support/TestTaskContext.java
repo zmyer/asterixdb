@@ -20,8 +20,10 @@ package org.apache.hyracks.test.support;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.hyracks.api.context.IHyracksJobletContext;
@@ -33,9 +35,11 @@ import org.apache.hyracks.api.deployment.DeploymentId;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IIOManager;
+import org.apache.hyracks.api.job.JobFlag;
+import org.apache.hyracks.api.job.profiling.IStatsCollector;
 import org.apache.hyracks.api.job.profiling.counters.ICounterContext;
 import org.apache.hyracks.api.resources.IDeallocatable;
-import org.apache.hyracks.control.nc.io.IOManager;
+import org.apache.hyracks.control.common.job.profiling.StatsCollector;
 import org.apache.hyracks.control.nc.io.WorkspaceFileFactory;
 
 public class TestTaskContext implements IHyracksTaskContext {
@@ -44,11 +48,12 @@ public class TestTaskContext implements IHyracksTaskContext {
     private WorkspaceFileFactory fileFactory;
     private Map<Object, IStateObject> stateObjectMap = new HashMap<>();
     private Object sharedObject;
+    private final IStatsCollector statsCollector = new StatsCollector();
 
     public TestTaskContext(TestJobletContext jobletContext, TaskAttemptId taskId) {
         this.jobletContext = jobletContext;
         this.taskId = taskId;
-        fileFactory = new WorkspaceFileFactory(this, (IIOManager) getIOManager());
+        fileFactory = new WorkspaceFileFactory(this, getIoManager());
     }
 
     @Override
@@ -79,7 +84,7 @@ public class TestTaskContext implements IHyracksTaskContext {
     }
 
     @Override
-    public IIOManager getIOManager() {
+    public IIOManager getIoManager() {
         return jobletContext.getIOManager();
     }
 
@@ -155,5 +160,19 @@ public class TestTaskContext implements IHyracksTaskContext {
     @Override
     public Object getSharedObject() {
         return sharedObject;
+    }
+
+    @Override
+    public byte[] getJobParameter(byte[] name, int start, int length) {
+        return new byte[0];
+    }
+
+    public Set<JobFlag> getJobFlags() {
+        return EnumSet.noneOf(JobFlag.class);
+    }
+
+    @Override
+    public IStatsCollector getStatsCollector() {
+        return statsCollector;
     }
 }

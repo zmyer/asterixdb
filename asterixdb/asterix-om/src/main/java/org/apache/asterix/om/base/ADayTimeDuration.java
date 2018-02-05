@@ -22,10 +22,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
 
 public class ADayTimeDuration implements IAObject {
 
@@ -43,7 +41,7 @@ public class ADayTimeDuration implements IAObject {
      * @see org.apache.hyracks.api.dataflow.value.JSONSerializable#toJSON()
      */
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 
@@ -60,14 +58,6 @@ public class ADayTimeDuration implements IAObject {
     @Override
     public IAType getType() {
         return BuiltinType.ADAYTIMEDURATION;
-    }
-
-    /* (non-Javadoc)
-     * @see org.apache.asterix.om.base.IAObject#accept(org.apache.asterix.om.visitors.IOMVisitor)
-     */
-    @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitADayTimeDuration(this);
     }
 
     /* (non-Javadoc)

@@ -21,8 +21,6 @@ package org.apache.hyracks.dataflow.std.sort;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
@@ -45,10 +43,12 @@ import org.apache.hyracks.dataflow.std.base.AbstractOperatorDescriptor;
 import org.apache.hyracks.dataflow.std.base.AbstractStateObject;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputSinkOperatorNodePushable;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryOutputSourceOperatorNodePushable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorDescriptor {
 
-    private static final Logger LOGGER = Logger.getLogger(AbstractSorterOperatorDescriptor.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final long serialVersionUID = 1L;
 
@@ -56,19 +56,19 @@ public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorD
     protected static final int MERGE_ACTIVITY_ID = 1;
 
     protected final int[] sortFields;
-    protected final INormalizedKeyComputerFactory firstKeyNormalizerFactory;
+    protected final INormalizedKeyComputerFactory[] keyNormalizerFactories;
     protected final IBinaryComparatorFactory[] comparatorFactories;
     protected final int framesLimit;
 
     public AbstractSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int[] sortFields,
-            INormalizedKeyComputerFactory firstKeyNormalizerFactory, IBinaryComparatorFactory[] comparatorFactories,
+            INormalizedKeyComputerFactory[] keyNormalizerFactories, IBinaryComparatorFactory[] comparatorFactories,
             RecordDescriptor recordDescriptor) {
         super(spec, 1, 1);
         this.framesLimit = framesLimit;
         this.sortFields = sortFields;
-        this.firstKeyNormalizerFactory = firstKeyNormalizerFactory;
+        this.keyNormalizerFactories = keyNormalizerFactories;
         this.comparatorFactories = comparatorFactories;
-        recordDescriptors[0] = recordDescriptor;
+        outRecDescs[0] = recordDescriptor;
     }
 
     public abstract SortActivity getSortActivity(ActivityId id);
@@ -132,7 +132,7 @@ public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorD
                     runGen.close();
                     state.generatedRunFileReaders = runGen.getRuns();
                     state.sorter = runGen.getSorter();
-                    if (LOGGER.isLoggable(Level.INFO)) {
+                    if (LOGGER.isInfoEnabled()) {
                         LOGGER.info("InitialNumberOfRuns:" + runGen.getRuns().size());
                     }
                     ctx.setStateObject(state);
@@ -174,8 +174,8 @@ public abstract class AbstractSorterOperatorDescriptor extends AbstractOperatorD
                     for (int i = 0; i < comparatorFactories.length; ++i) {
                         comparators[i] = comparatorFactories[i].createBinaryComparator();
                     }
-                    INormalizedKeyComputer nmkComputer = firstKeyNormalizerFactory == null ? null
-                            : firstKeyNormalizerFactory.createNormalizedKeyComputer();
+                    INormalizedKeyComputer nmkComputer = keyNormalizerFactories == null ? null
+                            : keyNormalizerFactories[0].createNormalizedKeyComputer();
                     AbstractExternalSortRunMerger merger = getSortRunMerger(ctx, recordDescProvider, writer, sorter,
                             runs, comparators, nmkComputer, framesLimit);
                     merger.process();

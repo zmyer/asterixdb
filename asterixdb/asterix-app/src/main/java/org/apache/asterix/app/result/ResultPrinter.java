@@ -24,14 +24,12 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.utils.JSONUtil;
+import org.apache.asterix.api.http.server.ResultUtil;
+import org.apache.asterix.common.api.IApplicationContext;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.translator.IStatementExecutor.Stats;
 import org.apache.asterix.translator.SessionConfig;
+import org.apache.asterix.translator.SessionOutput;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.prettyprint.AlgebricksAppendable;
 import org.apache.hyracks.api.comm.IFrame;
@@ -39,12 +37,19 @@ import org.apache.hyracks.api.comm.IFrameTupleAccessor;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.control.nc.resources.memory.FrameManager;
+import org.apache.hyracks.util.JSONUtil;
+
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.PrettyPrinter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 
 public class ResultPrinter {
 
-    // TODO(tillw): Should this be static?
-    private static FrameManager resultDisplayFrameMgr = new FrameManager(ResultReader.FRAME_SIZE);
+    private final FrameManager resultDisplayFrameMgr;
 
+    private final SessionOutput output;
     private final SessionConfig conf;
     private final Stats stats;
     private final ARecordType recordType;
@@ -57,12 +62,37 @@ public class ResultPrinter {
     // Whether this is the first instance being output
     private boolean notFirst = false;
 
-    public ResultPrinter(SessionConfig conf, Stats stats, ARecordType recordType) {
-        this.conf = conf;
+    private ObjectMapper om;
+    private ObjectWriter ow;
+
+    public ResultPrinter(IApplicationContext appCtx, SessionOutput output, Stats stats, ARecordType recordType) {
+        this.output = output;
+        this.conf = output.config();
         this.stats = stats;
         this.recordType = recordType;
         this.indentJSON = conf.is(SessionConfig.FORMAT_INDENT_JSON);
         this.quoteRecord = conf.is(SessionConfig.FORMAT_QUOTE_RECORD);
+        this.resultDisplayFrameMgr = new FrameManager(appCtx.getCompilerProperties().getFrameSize());
+        if (indentJSON) {
+            this.om = new ObjectMapper();
+            DefaultPrettyPrinter.Indenter i = new DefaultPrettyPrinter.Indenter() {
+
+                @Override
+                public void writeIndentation(JsonGenerator jsonGenerator, int i) throws IOException {
+                    jsonGenerator.writeRaw('\n');
+                    for (int j = 0; j < i + 1; ++j) {
+                        jsonGenerator.writeRaw('\t');
+                    }
+                }
+
+                @Override
+                public boolean isInline() {
+                    return false;
+                }
+            };
+            PrettyPrinter pp = new DefaultPrettyPrinter().withObjectIndenter(i).withArrayIndenter(i);
+            this.ow = om.writer(pp);
+        }
     }
 
     private static void appendCSVHeader(Appendable app, ARecordType recordType) throws HyracksDataException {
@@ -78,7 +108,7 @@ public class ResultPrinter {
             }
             app.append("\r\n");
         } catch (IOException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
@@ -86,18 +116,18 @@ public class ResultPrinter {
         // If we're outputting CSV with a header, the HTML header was already
         // output by displayCSVHeader(), so skip it here
         if (conf.is(SessionConfig.FORMAT_HTML)) {
-            conf.out().println("<h4>Results:</h4>");
-            conf.out().println("<pre>");
+            output.out().println("<h4>Results:</h4>");
+            output.out().println("<pre class=\"result-content\">");
         }
 
         try {
-            conf.resultPrefix(new AlgebricksAppendable(conf.out()));
+            output.resultPrefix(new AlgebricksAppendable(output.out()));
         } catch (AlgebricksException e) {
             throw new HyracksDataException(e);
         }
 
         if (conf.is(SessionConfig.FORMAT_WRAPPER_ARRAY)) {
-            conf.out().print("[ ");
+            output.out().print("[ ");
             wrapArray = true;
         }
 
@@ -108,41 +138,39 @@ public class ResultPrinter {
             if (quoteRecord) {
                 StringWriter sw = new StringWriter();
                 appendCSVHeader(sw, recordType);
-                conf.out().print(JSONUtil.quoteAndEscape(sw.toString()));
-                conf.out().print("\n");
+                output.out().print(JSONUtil.quoteAndEscape(sw.toString()));
+                output.out().print("\n");
                 notFirst = true;
             } else {
-                appendCSVHeader(conf.out(), recordType);
+                appendCSVHeader(output.out(), recordType);
             }
         }
     }
 
     private void printPostfix() throws HyracksDataException {
-        conf.out().flush();
+        output.out().flush();
         if (wrapArray) {
-            conf.out().println(" ]");
+            output.out().println(" ]");
         }
         try {
-            conf.resultPostfix(new AlgebricksAppendable(conf.out()));
+            output.resultPostfix(new AlgebricksAppendable(output.out()));
         } catch (AlgebricksException e) {
             throw new HyracksDataException(e);
         }
         if (conf.is(SessionConfig.FORMAT_HTML)) {
-            conf.out().println("</pre>");
+            output.out().println("</pre>");
         }
-        conf.out().flush();
+        output.out().flush();
     }
 
     private void displayRecord(String result) throws HyracksDataException {
-        ObjectMapper om = new ObjectMapper();
-        om.enable(SerializationFeature.INDENT_OUTPUT);
         String record = result;
         if (indentJSON) {
             // TODO(tillw): this is inefficient - do this during record generation
             try {
-                record = om.writerWithDefaultPrettyPrinter().writeValueAsString(om.readValue(result, Object.class));
-            } catch (IOException e) {
-                throw new HyracksDataException(e);
+                record = ow.writeValueAsString(om.readValue(result, Object.class));
+            } catch (IOException e) { // NOSONAR if JSON parsing fails, just use the original string
+                record = result;
             }
         }
         if (conf.fmt() == SessionConfig.OutputFormat.CSV) {
@@ -153,7 +181,10 @@ public class ResultPrinter {
             // TODO(tillw): this is inefficient as well
             record = JSONUtil.quoteAndEscape(record);
         }
-        conf.out().print(record);
+        if (conf.is(SessionConfig.FORMAT_HTML)) {
+            record = ResultUtil.escapeHTML(record);
+        }
+        output.out().print(record);
         stats.setCount(stats.getCount() + 1);
         // TODO(tillw) fix this approximation
         stats.setSize(stats.getSize() + record.length());
@@ -169,36 +200,33 @@ public class ResultPrinter {
 
     public void print(ResultReader resultReader) throws HyracksDataException {
         printPrefix();
+        try {
+            final IFrameTupleAccessor fta = resultReader.getFrameTupleAccessor();
+            final IFrame frame = new VSizeFrame(resultDisplayFrameMgr);
 
-        final IFrameTupleAccessor fta = resultReader.getFrameTupleAccessor();
-        final IFrame frame = new VSizeFrame(resultDisplayFrameMgr);
-
-        while (resultReader.read(frame) > 0) {
-            final ByteBuffer frameBuffer = frame.getBuffer();
-            final byte[] frameBytes = frameBuffer.array();
-            fta.reset(frameBuffer);
-            final int last = fta.getTupleCount();
-            for (int tIndex = 0; tIndex < last; tIndex++) {
-                final int start = fta.getTupleStartOffset(tIndex);
-                int length = fta.getTupleEndOffset(tIndex) - start;
-                if (conf.fmt() == SessionConfig.OutputFormat.CSV
-                        && ((length > 0) && (frameBytes[start + length - 1] == '\n'))) {
-                    length--;
-                }
-                String result = new String(frameBytes, start, length, UTF_8);
-                if (wrapArray && notFirst) {
-                    conf.out().print(", ");
-                }
-                notFirst = true;
-                try {
+            while (resultReader.read(frame) > 0) {
+                final ByteBuffer frameBuffer = frame.getBuffer();
+                final byte[] frameBytes = frameBuffer.array();
+                fta.reset(frameBuffer);
+                final int last = fta.getTupleCount();
+                for (int tIndex = 0; tIndex < last; tIndex++) {
+                    final int start = fta.getTupleStartOffset(tIndex);
+                    int length = fta.getTupleEndOffset(tIndex) - start;
+                    if (conf.fmt() == SessionConfig.OutputFormat.CSV
+                            && ((length > 0) && (frameBytes[start + length - 1] == '\n'))) {
+                        length--;
+                    }
+                    String result = new String(frameBytes, start, length, UTF_8);
+                    if (wrapArray && notFirst) {
+                        output.out().print(", ");
+                    }
+                    notFirst = true;
                     displayRecord(result);
-                } catch (IOException e) {
-                    throw new HyracksDataException(e);
                 }
+                frameBuffer.clear();
             }
-            frameBuffer.clear();
+        } finally {
+            printPostfix();
         }
-
-        printPostfix();
     }
 }

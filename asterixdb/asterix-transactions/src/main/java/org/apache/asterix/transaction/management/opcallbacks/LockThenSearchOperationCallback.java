@@ -20,6 +20,7 @@ package org.apache.asterix.transaction.management.opcallbacks;
 
 import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.transactions.AbstractOperationCallback;
+import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.asterix.common.transactions.ILogManager;
 import org.apache.asterix.common.transactions.ILogRecord;
 import org.apache.asterix.common.transactions.ITransactionContext;
@@ -31,8 +32,8 @@ import org.apache.asterix.transaction.management.service.transaction.Transaction
 import org.apache.hyracks.api.dataflow.IOperatorNodePushable;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
 import org.apache.hyracks.storage.am.lsm.common.dataflow.LSMIndexInsertUpdateDeleteOperatorNodePushable;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
 
 public class LockThenSearchOperationCallback extends AbstractOperationCallback implements ISearchOperationCallback {
 
@@ -44,16 +45,17 @@ public class LockThenSearchOperationCallback extends AbstractOperationCallback i
     private final ILogRecord logRecord;
     private int pkHash;
 
-    public LockThenSearchOperationCallback(int datasetId, int[] entityIdFields, ITransactionSubsystem txnSubsystem,
-            ITransactionContext txnCtx, IOperatorNodePushable operatorNodePushable) {
-        super(datasetId, entityIdFields, txnCtx, txnSubsystem.getLockManager());
+    public LockThenSearchOperationCallback(DatasetId datasetId, long resourceId, int[] entityIdFields,
+            ITransactionSubsystem txnSubsystem, ITransactionContext txnCtx,
+            IOperatorNodePushable operatorNodePushable) {
+        super(datasetId, resourceId, entityIdFields, txnCtx, txnSubsystem.getLockManager());
         this.operatorNodePushable = (LSMIndexInsertUpdateDeleteOperatorNodePushable) operatorNodePushable;
         this.logManager = txnSubsystem.getLogManager();
         this.logRecord = new LogRecord();
         logRecord.setTxnCtx(txnCtx);
         logRecord.setLogSource(LogSource.LOCAL);
         logRecord.setLogType(LogType.WAIT);
-        logRecord.setJobId(txnCtx.getJobId().getId());
+        logRecord.setTxnId(txnCtx.getTxnId().getId());
         logRecord.computeAndSetLogSize();
     }
 
@@ -116,7 +118,7 @@ public class LockThenSearchOperationCallback extends AbstractOperationCallback i
                 lockManager.lock(datasetId, pkHash, LockMode.X, txnCtx);
             }
         } catch (ACIDException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 

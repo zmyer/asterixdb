@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
@@ -38,7 +37,8 @@ import org.apache.hyracks.api.job.JobSpecification;
 
 public class PlanCompiler {
     private JobGenContext context;
-    private Map<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> operatorVisitedToParents = new HashMap<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>>();
+    private Map<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> operatorVisitedToParents =
+            new HashMap<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>>();
 
     public PlanCompiler(JobGenContext context) {
         this.context = context;
@@ -48,14 +48,24 @@ public class PlanCompiler {
         return context;
     }
 
-    public JobSpecification compilePlan(ILogicalPlan plan, IOperatorSchema outerPlanSchema,
+    public JobSpecification compilePlan(ILogicalPlan plan, IJobletEventListenerFactory jobEventListenerFactory)
+            throws AlgebricksException {
+        return compilePlanImpl(plan, false, null, jobEventListenerFactory);
+    }
+
+    public JobSpecification compileNestedPlan(ILogicalPlan plan, IOperatorSchema outerPlanSchema)
+            throws AlgebricksException {
+        return compilePlanImpl(plan, true, outerPlanSchema, null);
+    }
+
+    private JobSpecification compilePlanImpl(ILogicalPlan plan, boolean isNestedPlan, IOperatorSchema outerPlanSchema,
             IJobletEventListenerFactory jobEventListenerFactory) throws AlgebricksException {
         JobSpecification spec = new JobSpecification(context.getFrameSize());
         if (jobEventListenerFactory != null) {
             spec.setJobletEventListenerFactory(jobEventListenerFactory);
         }
-        List<ILogicalOperator> rootOps = new ArrayList<ILogicalOperator>();
-        IHyracksJobBuilder builder = new JobBuilder(spec, context.getClusterLocations());
+        List<ILogicalOperator> rootOps = new ArrayList<>();
+        JobBuilder builder = new JobBuilder(spec, context.getClusterLocations());
         for (Mutable<ILogicalOperator> opRef : plan.getRoots()) {
             compileOpRef(opRef, spec, builder, outerPlanSchema);
             rootOps.add(opRef.getValue());
@@ -66,6 +76,9 @@ public class PlanCompiler {
         spec.setConnectorPolicyAssignmentPolicy(new ConnectorPolicyAssignmentPolicy());
         // Do not do activity cluster planning because it is slow on large clusters
         spec.setUseConnectorPolicyForScheduling(false);
+        if (isNestedPlan) {
+            spec.setMetaOps(builder.getGeneratedMetaOps());
+        }
         return spec;
     }
 
@@ -98,13 +111,10 @@ public class PlanCompiler {
     }
 
     private void reviseEdges(IHyracksJobBuilder builder) {
-        /**
+        /*
          * revise the edges for the case of replicate operator
          */
-        for (Entry<Mutable<ILogicalOperator>, List<Mutable<ILogicalOperator>>> entry : operatorVisitedToParents
-                .entrySet()) {
-            Mutable<ILogicalOperator> child = entry.getKey();
-            List<Mutable<ILogicalOperator>> parents = entry.getValue();
+        operatorVisitedToParents.forEach((child, parents) -> {
             if (parents.size() > 1) {
                 if (child.getValue().getOperatorTag() == LogicalOperatorTag.REPLICATE
                         || child.getValue().getOperatorTag() == LogicalOperatorTag.SPLIT) {
@@ -113,7 +123,8 @@ public class PlanCompiler {
                         // make the order of the graph edges consistent with the order of rop's outputs
                         List<Mutable<ILogicalOperator>> outputs = rop.getOutputs();
                         for (Mutable<ILogicalOperator> parent : parents) {
-                            builder.contributeGraphEdge(child.getValue(), outputs.indexOf(parent), parent.getValue(), 0);
+                            builder.contributeGraphEdge(child.getValue(), outputs.indexOf(parent), parent.getValue(),
+                                    0);
                         }
                     } else {
                         int i = 0;
@@ -124,6 +135,6 @@ public class PlanCompiler {
                     }
                 }
             }
-        }
+        });
     }
 }

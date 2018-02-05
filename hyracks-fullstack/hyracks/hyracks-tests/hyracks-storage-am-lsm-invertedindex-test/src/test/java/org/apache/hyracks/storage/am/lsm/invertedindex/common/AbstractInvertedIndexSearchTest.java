@@ -22,11 +22,7 @@ package org.apache.hyracks.storage.am.lsm.invertedindex.common;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.common.datagen.TupleGenerator;
 import org.apache.hyracks.storage.am.config.AccessMethodTestsConfig;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearchModifier;
@@ -35,12 +31,15 @@ import org.apache.hyracks.storage.am.lsm.invertedindex.search.EditDistanceSearch
 import org.apache.hyracks.storage.am.lsm.invertedindex.search.JaccardSearchModifier;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestContext;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestContext.InvertedIndexType;
+import org.apache.hyracks.storage.common.IIndex;
 import org.apache.hyracks.storage.am.lsm.invertedindex.util.LSMInvertedIndexTestUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIndexTest {
 
-    protected final Logger LOGGER = Logger.getLogger(AbstractInvertedIndexSearchTest.class.getName());
+    protected final Logger LOGGER = LogManager.getLogger();
 
     protected int NUM_DOC_QUERIES = AccessMethodTestsConfig.LSM_INVINDEX_NUM_DOC_QUERIES;
     protected int NUM_RANDOM_QUERIES = AccessMethodTestsConfig.LSM_INVINDEX_NUM_RANDOM_QUERIES;
@@ -52,9 +51,10 @@ public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIn
     }
 
     protected void runTest(LSMInvertedIndexTestContext testCtx, TupleGenerator tupleGen,
-            List<IInvertedIndexSearchModifier> searchModifiers) throws IOException, IndexException {
+            List<IInvertedIndexSearchModifier> searchModifiers) throws IOException {
         IIndex invIndex = testCtx.getIndex();
-        if ((invIndexType != InvertedIndexType.LSM) && (invIndexType != InvertedIndexType.PARTITIONED_LSM) || !bulkLoad) {
+        if ((invIndexType != InvertedIndexType.LSM) && (invIndexType != InvertedIndexType.PARTITIONED_LSM)
+                || !bulkLoad) {
             invIndex.create();
             invIndex.activate();
         }
@@ -70,7 +70,7 @@ public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIn
         invIndex.validate();
 
         for (IInvertedIndexSearchModifier searchModifier : searchModifiers) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Running searches with: " + searchModifier.toString());
             }
             LSMInvertedIndexTestUtils.testIndexSearch(testCtx, tupleGen, harness.getRandom(), NUM_DOC_QUERIES,
@@ -81,9 +81,9 @@ public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIn
         invIndex.destroy();
     }
 
-    private void testWordInvIndexIndex(LSMInvertedIndexTestContext testCtx) throws IOException, IndexException {
+    private void testWordInvIndexIndex(LSMInvertedIndexTestContext testCtx) throws IOException {
         TupleGenerator tupleGen = LSMInvertedIndexTestUtils.createStringDocumentTupleGen(harness.getRandom());
-        List<IInvertedIndexSearchModifier> searchModifiers = new ArrayList<IInvertedIndexSearchModifier>();
+        List<IInvertedIndexSearchModifier> searchModifiers = new ArrayList<>();
         searchModifiers.add(new ConjunctiveSearchModifier());
         searchModifiers.add(new JaccardSearchModifier(1.0f));
         searchModifiers.add(new JaccardSearchModifier(0.8f));
@@ -91,9 +91,9 @@ public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIn
         runTest(testCtx, tupleGen, searchModifiers);
     }
 
-    private void testNGramInvIndexIndex(LSMInvertedIndexTestContext testCtx) throws IOException, IndexException {
+    private void testNGramInvIndexIndex(LSMInvertedIndexTestContext testCtx) throws IOException {
         TupleGenerator tupleGen = LSMInvertedIndexTestUtils.createPersonNamesTupleGen(harness.getRandom());
-        List<IInvertedIndexSearchModifier> searchModifiers = new ArrayList<IInvertedIndexSearchModifier>();
+        List<IInvertedIndexSearchModifier> searchModifiers = new ArrayList<>();
         searchModifiers.add(new ConjunctiveSearchModifier());
         searchModifiers.add(new JaccardSearchModifier(1.0f));
         searchModifiers.add(new JaccardSearchModifier(0.8f));
@@ -106,30 +106,30 @@ public abstract class AbstractInvertedIndexSearchTest extends AbstractInvertedIn
     }
 
     @Test
-    public void wordTokensInvIndexTest() throws IOException, IndexException {
-        LSMInvertedIndexTestContext testCtx = LSMInvertedIndexTestUtils.createWordInvIndexTestContext(harness,
-                invIndexType);
+    public void wordTokensInvIndexTest() throws IOException {
+        LSMInvertedIndexTestContext testCtx =
+                LSMInvertedIndexTestUtils.createWordInvIndexTestContext(harness, invIndexType);
         testWordInvIndexIndex(testCtx);
     }
 
     @Test
-    public void hashedWordTokensInvIndexTest() throws IOException, IndexException {
-        LSMInvertedIndexTestContext testCtx = LSMInvertedIndexTestUtils.createHashedWordInvIndexTestContext(harness,
-                invIndexType);
+    public void hashedWordTokensInvIndexTest() throws IOException {
+        LSMInvertedIndexTestContext testCtx =
+                LSMInvertedIndexTestUtils.createHashedWordInvIndexTestContext(harness, invIndexType);
         testWordInvIndexIndex(testCtx);
     }
 
     @Test
-    public void ngramTokensInvIndexTest() throws IOException, IndexException {
-        LSMInvertedIndexTestContext testCtx = LSMInvertedIndexTestUtils.createNGramInvIndexTestContext(harness,
-                invIndexType);
+    public void ngramTokensInvIndexTest() throws IOException {
+        LSMInvertedIndexTestContext testCtx =
+                LSMInvertedIndexTestUtils.createNGramInvIndexTestContext(harness, invIndexType);
         testNGramInvIndexIndex(testCtx);
     }
 
     @Test
-    public void hashedNGramTokensInvIndexTest() throws IOException, IndexException {
-        LSMInvertedIndexTestContext testCtx = LSMInvertedIndexTestUtils.createHashedNGramInvIndexTestContext(harness,
-                invIndexType);
+    public void hashedNGramTokensInvIndexTest() throws IOException {
+        LSMInvertedIndexTestContext testCtx =
+                LSMInvertedIndexTestUtils.createHashedNGramInvIndexTestContext(harness, invIndexType);
         testNGramInvIndexIndex(testCtx);
     }
 

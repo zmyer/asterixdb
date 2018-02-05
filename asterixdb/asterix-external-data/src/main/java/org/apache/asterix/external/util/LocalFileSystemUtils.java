@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.asterix.common.exceptions.ErrorCode;
@@ -34,12 +35,11 @@ import org.apache.asterix.common.exceptions.RuntimeDataException;
 
 public class LocalFileSystemUtils {
 
-    public static void traverse(final LinkedList<File> files, File root, final String expression,
-            final LinkedList<Path> dirs) throws IOException {
+    public static void traverse(final List<File> files, File root, final String expression, final LinkedList<Path> dirs)
+            throws IOException {
         final Path path = root.toPath();
         if (!Files.exists(path)) {
-            throw new RuntimeDataException(ErrorCode.UTIL_LOCAL_FILE_SYSTEM_UTILS_PATH_NOT_FOUND,
-                    path.toString());
+            throw new RuntimeDataException(ErrorCode.UTIL_LOCAL_FILE_SYSTEM_UTILS_PATH_NOT_FOUND, path.toString());
         }
         if (!Files.isDirectory(path)) {
             validateAndAdd(path, expression, files);
@@ -70,8 +70,17 @@ public class LocalFileSystemUtils {
         });
     }
 
-    public static void validateAndAdd(Path path, String expression, LinkedList<File> files) {
-        if (expression == null || Pattern.matches(expression, path.toString())) {
+    private static boolean fileNotExistsInList(List<File> files, Path path) {
+        for (File file : files) {
+            if (file.getPath().equals(path.toString())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void validateAndAdd(Path path, String expression, List<File> files) {
+        if ((expression == null || Pattern.matches(expression, path.toString())) && fileNotExistsInList(files, path)) {
             files.add(new File(path.toString()));
         }
     }

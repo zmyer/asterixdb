@@ -1,4 +1,0 @@
-use dataverse SocialNetworkData;
-
-let $count := count(for $t in dataset GleambookMessages return $t.id)
-return $count;

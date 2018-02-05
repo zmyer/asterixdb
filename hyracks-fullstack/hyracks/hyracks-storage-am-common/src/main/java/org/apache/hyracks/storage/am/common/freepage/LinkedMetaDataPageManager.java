@@ -195,7 +195,7 @@ public class LinkedMetaDataPageManager implements IMetadataPageManager {
             metaFrame.setMaxPage(1);
         } finally {
             metaNode.releaseWriteLatch(true);
-            bufferCache.flushDirtyPage(metaNode);
+            bufferCache.flush(metaNode);
             bufferCache.unpin(metaNode);
         }
         int rootPage = getRootPageId();
@@ -207,7 +207,7 @@ public class LinkedMetaDataPageManager implements IMetadataPageManager {
             leafFrame.initBuffer((byte) 0);
         } finally {
             rootNode.releaseWriteLatch(true);
-            bufferCache.flushDirtyPage(rootNode);
+            bufferCache.flush(rootNode);
             bufferCache.unpin(rootNode);
         }
     }
@@ -240,8 +240,8 @@ public class LinkedMetaDataPageManager implements IMetadataPageManager {
     @Override
     public void close() throws HyracksDataException {
         if (ready) {
-            ICachedPage metaNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, getMetadataPageId()),
-                    false);
+            ICachedPage metaNode =
+                    bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, getMetadataPageId()), false);
             ITreeIndexMetadataFrame metaFrame = frameFactory.createFrame();
             metaNode.acquireWriteLatch();
             try {
@@ -249,7 +249,7 @@ public class LinkedMetaDataPageManager implements IMetadataPageManager {
                 metaFrame.setValid(true);
             } finally {
                 metaNode.releaseWriteLatch(true);
-                bufferCache.flushDirtyPage(metaNode);
+                bufferCache.flush(metaNode);
                 bufferCache.unpin(metaNode);
                 ready = true;
             }
@@ -319,8 +319,8 @@ public class LinkedMetaDataPageManager implements IMetadataPageManager {
     public long getFileOffset(ITreeIndexMetadataFrame frame, IValueReference key) throws HyracksDataException {
         int metadataPageNum = getMetadataPageId();
         if (metadataPageNum != IBufferCache.INVALID_PAGEID) {
-            ICachedPage metaNode = bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, getMetadataPageId()),
-                    false);
+            ICachedPage metaNode =
+                    bufferCache.pin(BufferedFileHandle.getDiskPageId(fileId, getMetadataPageId()), false);
             metaNode.acquireReadLatch();
             try {
                 frame.setPage(metaNode);

@@ -23,8 +23,6 @@ import java.io.DataOutput;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.builders.IARecordBuilder;
 import org.apache.asterix.builders.OrderedListBuilder;
@@ -44,6 +42,9 @@ import org.apache.asterix.om.types.BuiltinType;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.util.ArrayBackedValueStorage;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,10 +52,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class ExternalDatasetDetails implements IDatasetDetails {
 
     private static final long serialVersionUID = 1L;
-    private static final Logger LOGGER = Logger.getLogger(ExternalDatasetDetails.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private final String adapter;
     private final Map<String, String> properties;
-    private final long addToCacheTime;
     private Date lastRefreshTime;
     private TransactionState state;
 
@@ -62,7 +62,6 @@ public class ExternalDatasetDetails implements IDatasetDetails {
             TransactionState state) {
         this.properties = properties;
         this.adapter = adapter;
-        this.addToCacheTime = System.currentTimeMillis();
         this.lastRefreshTime = lastRefreshTime;
         this.state = state;
     }
@@ -90,12 +89,12 @@ public class ExternalDatasetDetails implements IDatasetDetails {
         externalRecordBuilder.reset(MetadataRecordTypes.EXTERNAL_DETAILS_RECORDTYPE);
         AMutableString aString = new AMutableString("");
 
-        ISerializerDeserializer<AString> stringSerde = SerializerDeserializerProvider.INSTANCE
-                .getSerializerDeserializer(BuiltinType.ASTRING);
-        ISerializerDeserializer<ADateTime> dateTimeSerde = SerializerDeserializerProvider.INSTANCE
-                .getSerializerDeserializer(BuiltinType.ADATETIME);
-        ISerializerDeserializer<AInt32> intSerde = SerializerDeserializerProvider.INSTANCE
-                .getSerializerDeserializer(BuiltinType.AINT32);
+        ISerializerDeserializer<AString> stringSerde =
+                SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ASTRING);
+        ISerializerDeserializer<ADateTime> dateTimeSerde =
+                SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.ADATETIME);
+        ISerializerDeserializer<AInt32> intSerde =
+                SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.AINT32);
 
         // write field 0
         fieldValue.reset();
@@ -132,16 +131,6 @@ public class ExternalDatasetDetails implements IDatasetDetails {
         externalRecordBuilder.write(out, true);
     }
 
-    @Override
-    public boolean isTemp() {
-        return false;
-    }
-
-    @Override
-    public long getLastAccessTime() {
-        return addToCacheTime;
-    }
-
     public Date getTimestamp() {
         return lastRefreshTime;
     }
@@ -164,7 +153,7 @@ public class ExternalDatasetDetails implements IDatasetDetails {
         try {
             return mapper.writeValueAsString(toMap());
         } catch (JsonProcessingException e) {
-            LOGGER.log(Level.WARNING, "Unable to convert map to json String", e);
+            LOGGER.log(Level.WARN, "Unable to convert map to json String", e);
             return getClass().getSimpleName();
         }
     }

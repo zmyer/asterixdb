@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.asterix.common.config.DatasetConfig.DatasetType;
-import org.apache.asterix.common.config.DatasetConfig.IndexType;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.metadata.api.IMetadataEntity;
 import org.apache.asterix.metadata.entities.CompactionPolicy;
@@ -39,9 +38,9 @@ import org.apache.asterix.metadata.entities.FeedConnection;
 import org.apache.asterix.metadata.entities.FeedPolicyEntity;
 import org.apache.asterix.metadata.entities.Function;
 import org.apache.asterix.metadata.entities.Index;
-import org.apache.asterix.metadata.entities.InternalDatasetDetails;
 import org.apache.asterix.metadata.entities.Library;
 import org.apache.asterix.metadata.entities.NodeGroup;
+import org.apache.asterix.metadata.utils.IndexUtil;
 
 /**
  * Caches metadata entities such that the MetadataManager does not have to
@@ -51,15 +50,12 @@ import org.apache.asterix.metadata.entities.NodeGroup;
  */
 public class MetadataCache {
 
-    // Default life time period of a temp dataset. It is 30 days.
-    private final static long TEMP_DATASET_INACTIVE_TIME_THRESHOLD = 3600 * 24 * 30 * 1000L;
     // Key is dataverse name.
     protected final Map<String, Dataverse> dataverses = new HashMap<>();
     // Key is dataverse name. Key of value map is dataset name.
     protected final Map<String, Map<String, Dataset>> datasets = new HashMap<>();
     // Key is dataverse name. Key of value map is dataset name. Key of value map of value map is index name.
-    protected final Map<String, Map<String, Map<String, Index>>> indexes =
-            new HashMap<>();
+    protected final Map<String, Map<String, Map<String, Index>>> indexes = new HashMap<>();
     // Key is dataverse name. Key of value map is datatype name.
     protected final Map<String, Map<String, Datatype>> datatypes = new HashMap<>();
     // Key is dataverse name.
@@ -67,19 +63,16 @@ public class MetadataCache {
     // Key is function Identifier . Key of value map is function name.
     protected final Map<FunctionSignature, Function> functions = new HashMap<>();
     // Key is adapter dataverse. Key of value map is the adapter name
-    protected final Map<String, Map<String, DatasourceAdapter>> adapters =
-            new HashMap<>();
+    protected final Map<String, Map<String, DatasourceAdapter>> adapters = new HashMap<>();
 
     // Key is DataverseName, Key of the value map is the Policy name
-    protected final Map<String, Map<String, FeedPolicyEntity>> feedPolicies =
-            new HashMap<>();
+    protected final Map<String, Map<String, FeedPolicyEntity>> feedPolicies = new HashMap<>();
     // Key is library dataverse. Key of value map is the library name
     protected final Map<String, Map<String, Library>> libraries = new HashMap<>();
     // Key is library dataverse. Key of value map is the feed name
     protected final Map<String, Map<String, Feed>> feeds = new HashMap<>();
     // Key is DataverseName, Key of the value map is the Policy name
-    protected final Map<String, Map<String, CompactionPolicy>> compactionPolicies =
-            new HashMap<>();
+    protected final Map<String, Map<String, CompactionPolicy>> compactionPolicies = new HashMap<>();
     // Key is DataverseName, Key of value map is feedConnectionId
     protected final Map<String, Map<String, FeedConnection>> feedConnections = new HashMap<>();
 
@@ -161,10 +154,7 @@ public class MetadataCache {
                 // Add the primary index associated with the dataset, if the dataset is an
                 // internal dataset.
                 if (dataset.getDatasetType() == DatasetType.INTERNAL) {
-                    InternalDatasetDetails id = (InternalDatasetDetails) dataset.getDatasetDetails();
-                    Index index = new Index(dataset.getDataverseName(), dataset.getDatasetName(),
-                            dataset.getDatasetName(), IndexType.BTREE, id.getPartitioningKey(),
-                            id.getKeySourceIndicator(), id.getPrimaryKeyType(), false, true, dataset.getPendingOp());
+                    Index index = IndexUtil.getPrimaryIndex(dataset);
                     addIndexIfNotExistsInternal(index);
                 }
 
@@ -251,8 +241,7 @@ public class MetadataCache {
                                             datatypes.remove(dataverse.getDataverseName());
                                             adapters.remove(dataverse.getDataverseName());
                                             compactionPolicies.remove(dataverse.getDataverseName());
-                                            List<FunctionSignature> markedFunctionsForRemoval =
-                                                    new ArrayList<>();
+                                            List<FunctionSignature> markedFunctionsForRemoval = new ArrayList<>();
                                             for (FunctionSignature signature : functions.keySet()) {
                                                 if (signature.getNamespace().equals(dataverse.getDataverseName())) {
                                                     markedFunctionsForRemoval.add(signature);
@@ -385,9 +374,7 @@ public class MetadataCache {
             if (m == null) {
                 return retDatasets;
             }
-            for (Map.Entry<String, Dataset> entry : m.entrySet()) {
-                retDatasets.add(entry.getValue());
-            }
+            m.forEach((key, value) -> retDatasets.add(value));
             return retDatasets;
         }
     }
@@ -488,7 +475,7 @@ public class MetadataCache {
         }
     }
 
-    public DatasourceAdapter dropAdapter(DatasourceAdapter adapter) {
+    public DatasourceAdapter dropAdapterIfExists(DatasourceAdapter adapter) {
         synchronized (adapters) {
             Map<String, DatasourceAdapter> adaptersInDataverse =
                     adapters.get(adapter.getAdapterIdentifier().getNamespace());
@@ -557,7 +544,7 @@ public class MetadataCache {
         }
     }
 
-    public Feed dropFeed(Feed feed) {
+    public Feed dropFeedIfExists(Feed feed) {
         synchronized (feeds) {
             Map<String, Feed> feedsInDataverse = feeds.get(feed.getDataverseName());
             if (feedsInDataverse != null) {
@@ -582,28 +569,6 @@ public class MetadataCache {
             return indexMap.put(index.getIndexName(), index);
         }
         return null;
-    }
-
-    /**
-     * Clean up temp datasets that are expired.
-     * The garbage collection will pause other dataset operations.
-     */
-    public void cleanupTempDatasets() {
-        synchronized (datasets) {
-            for (Map<String, Dataset> map : datasets.values()) {
-                Iterator<Dataset> datasetIterator = map.values().iterator();
-                while (datasetIterator.hasNext()) {
-                    Dataset dataset = datasetIterator.next();
-                    if (dataset.getDatasetDetails().isTemp()) {
-                        long currentTime = System.currentTimeMillis();
-                        long duration = currentTime - dataset.getDatasetDetails().getLastAccessTime();
-                        if (duration > TEMP_DATASET_INACTIVE_TIME_THRESHOLD) {
-                            datasetIterator.remove();
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /**

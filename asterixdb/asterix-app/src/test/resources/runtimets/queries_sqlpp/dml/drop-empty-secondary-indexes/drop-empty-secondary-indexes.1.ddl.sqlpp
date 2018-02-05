@@ -33,12 +33,12 @@ create type test.Name as
 {
   first : string,
   last : string
-}
+};
 
 create type test.Person as
 {
   name : Name
-}
+};
 
 create type test.TestType as
 {
@@ -47,7 +47,7 @@ create type test.TestType as
   locn : point,
   zip : string,
   person : Person
-}
+};
 
 create  dataset t1(TestType) primary key id;
 
@@ -65,6 +65,8 @@ create  index nested  on t1 (person.name.first) type btree;
 
 create  index secndIndx_open  on t1 (address:string?) type btree enforced;
 
+create  primary index sec_primary_idx on t1;
+
 drop index t1.rtree_index_point;
 drop index t1.rtree_index_point_open;
 drop index t1.keyWD_indx;
@@ -72,3 +74,4 @@ drop index t1.keyWD_indx_open;
 drop index t1.secndIndx;
 drop index t1.nested;
 drop index t1.secndIndx_open;
+drop index t1.sec_primary_idx;

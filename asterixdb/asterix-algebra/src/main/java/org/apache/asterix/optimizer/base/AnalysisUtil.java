@@ -84,14 +84,6 @@ public class AnalysisUtil {
         return fieldAccessFunctions.contains(fid);
     }
 
-    public static boolean isDataSetCall(ILogicalExpression e) {
-        if (((AbstractLogicalExpression) e).getExpressionTag() != LogicalExpressionTag.FUNCTION_CALL) {
-            return false;
-        }
-        AbstractFunctionCallExpression fe = (AbstractFunctionCallExpression) e;
-        return BuiltinFunctions.isDatasetFunction(fe.getFunctionIdentifier());
-    }
-
     public static boolean isRunnableAccessToFieldRecord(ILogicalExpression expr) {
         if (expr.getExpressionTag() == LogicalExpressionTag.FUNCTION_CALL) {
             AbstractFunctionCallExpression fc = (AbstractFunctionCallExpression) expr;
@@ -118,8 +110,7 @@ public class AnalysisUtil {
         if (expr.getExpressionTag() == LogicalExpressionTag.FUNCTION_CALL) {
             AbstractFunctionCallExpression fc = (AbstractFunctionCallExpression) expr;
             FunctionIdentifier fid = fc.getFunctionIdentifier();
-            if (fid.equals(BuiltinFunctions.FIELD_ACCESS_BY_INDEX)
-                    || fid.equals(BuiltinFunctions.FIELD_ACCESS_BY_NAME)
+            if (fid.equals(BuiltinFunctions.FIELD_ACCESS_BY_INDEX) || fid.equals(BuiltinFunctions.FIELD_ACCESS_BY_NAME)
                     || fid.equals(BuiltinFunctions.FIELD_ACCESS_NESTED)) {
                 return true;
             }
@@ -129,17 +120,17 @@ public class AnalysisUtil {
 
     public static Pair<String, String> getDatasetInfo(AbstractDataSourceOperator op) throws AlgebricksException {
         DataSourceId srcId = (DataSourceId) op.getDataSource().getId();
-        return new Pair<String, String>(srcId.getDataverseName(), srcId.getDatasourceName());
+        return new Pair<>(srcId.getDataverseName(), srcId.getDatasourceName());
     }
 
     public static Pair<String, String> getExternalDatasetInfo(UnnestMapOperator op) throws AlgebricksException {
         AbstractFunctionCallExpression unnestExpr = (AbstractFunctionCallExpression) op.getExpressionRef().getValue();
         String dataverseName = AccessMethodUtils.getStringConstant(unnestExpr.getArguments().get(0));
         String datasetName = AccessMethodUtils.getStringConstant(unnestExpr.getArguments().get(1));
-        return new Pair<String, String>(dataverseName, datasetName);
+        return new Pair<>(dataverseName, datasetName);
     }
 
-    private static List<FunctionIdentifier> fieldAccessFunctions = new ArrayList<FunctionIdentifier>();
+    private static List<FunctionIdentifier> fieldAccessFunctions = new ArrayList<>();
 
     static {
         fieldAccessFunctions.add(BuiltinFunctions.GET_DATA);

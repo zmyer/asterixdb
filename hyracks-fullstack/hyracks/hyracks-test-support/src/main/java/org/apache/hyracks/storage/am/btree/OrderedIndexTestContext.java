@@ -26,15 +26,16 @@ import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.common.CheckTuple;
 import org.apache.hyracks.storage.am.common.IndexTestContext;
-import org.apache.hyracks.storage.am.common.api.IIndex;
+import org.apache.hyracks.storage.common.IIndex;
 
 @SuppressWarnings("rawtypes")
 public abstract class OrderedIndexTestContext extends IndexTestContext<CheckTuple> {
 
     protected final TreeSet<CheckTuple> checkTuples = new TreeSet<CheckTuple>();
 
-    public OrderedIndexTestContext(ISerializerDeserializer[] fieldSerdes, IIndex index) throws HyracksDataException {
-        super(fieldSerdes, index);
+    public OrderedIndexTestContext(ISerializerDeserializer[] fieldSerdes, IIndex index, boolean filtered)
+            throws HyracksDataException {
+        super(fieldSerdes, index, filtered);
     }
 
     public void upsertCheckTuple(CheckTuple checkTuple, Collection<CheckTuple> checkTuples) {

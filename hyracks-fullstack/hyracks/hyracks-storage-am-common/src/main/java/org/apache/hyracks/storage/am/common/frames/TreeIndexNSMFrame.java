@@ -186,8 +186,8 @@ public abstract class TreeIndexNSMFrame implements ITreeIndexFrame {
 
         // maintain space information
         buf.putInt(Constants.TUPLE_COUNT_OFFSET, buf.getInt(Constants.TUPLE_COUNT_OFFSET) - 1);
-        buf.putInt(TOTAL_FREE_SPACE_OFFSET, buf.getInt(TOTAL_FREE_SPACE_OFFSET) + tupleSize + slotManager
-                .getSlotSize());
+        buf.putInt(TOTAL_FREE_SPACE_OFFSET,
+                buf.getInt(TOTAL_FREE_SPACE_OFFSET) + tupleSize + slotManager.getSlotSize());
     }
 
     @Override
@@ -243,8 +243,8 @@ public abstract class TreeIndexNSMFrame implements ITreeIndexFrame {
         int bytesWritten = tupleWriter.writeTuple(tuple, buf.array(), buf.getInt(Constants.FREE_SPACE_OFFSET));
         buf.putInt(Constants.TUPLE_COUNT_OFFSET, buf.getInt(Constants.TUPLE_COUNT_OFFSET) + 1);
         buf.putInt(Constants.FREE_SPACE_OFFSET, buf.getInt(Constants.FREE_SPACE_OFFSET) + bytesWritten);
-        buf.putInt(TOTAL_FREE_SPACE_OFFSET, buf.getInt(TOTAL_FREE_SPACE_OFFSET) - bytesWritten - slotManager
-                .getSlotSize());
+        buf.putInt(TOTAL_FREE_SPACE_OFFSET,
+                buf.getInt(TOTAL_FREE_SPACE_OFFSET) - bytesWritten - slotManager.getSlotSize());
     }
 
     @Override
@@ -335,4 +335,23 @@ public abstract class TreeIndexNSMFrame implements ITreeIndexFrame {
         return buf.capacity() - getFreeSpaceOff() - (getTupleCount() * slotManager.getSlotSize());
     }
 
+    public ITupleReference getLeftmostTuple() {
+        int tupleCount = getTupleCount();
+        if (tupleCount == 0) {
+            return null;
+        } else {
+            frameTuple.resetByTupleIndex(this, 0);
+            return frameTuple;
+        }
+    }
+
+    public ITupleReference getRightmostTuple() {
+        int tupleCount = getTupleCount();
+        if (tupleCount == 0) {
+            return null;
+        } else {
+            frameTuple.resetByTupleIndex(this, tupleCount - 1);
+            return frameTuple;
+        }
+    }
 }

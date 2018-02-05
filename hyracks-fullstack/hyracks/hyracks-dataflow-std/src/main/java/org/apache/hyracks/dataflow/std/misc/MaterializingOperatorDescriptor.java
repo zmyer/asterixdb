@@ -52,15 +52,15 @@ public class MaterializingOperatorDescriptor extends AbstractOperatorDescriptor 
     public MaterializingOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor recordDescriptor,
             boolean isSingleActivity) {
         super(spec, 1, 1);
-        recordDescriptors[0] = recordDescriptor;
+        outRecDescs[0] = recordDescriptor;
         this.isSingleActivity = isSingleActivity;
     }
 
     @Override
     public void contributeActivities(IActivityGraphBuilder builder) {
         if (isSingleActivity) {
-            MaterializerReaderActivityNode mra = new MaterializerReaderActivityNode(
-                    new ActivityId(odId, MATERIALIZER_READER_ACTIVITY_ID));
+            MaterializerReaderActivityNode mra =
+                    new MaterializerReaderActivityNode(new ActivityId(odId, MATERIALIZER_READER_ACTIVITY_ID));
 
             builder.addActivity(this, mra);
             builder.addSourceEdge(0, mra, 0);
@@ -92,6 +92,7 @@ public class MaterializingOperatorDescriptor extends AbstractOperatorDescriptor 
                 IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions) {
             return new AbstractUnaryInputUnaryOutputOperatorNodePushable() {
                 private MaterializerTaskState state;
+                private boolean failed = false;
 
                 @Override
                 public void open() throws HyracksDataException {
@@ -107,12 +108,13 @@ public class MaterializingOperatorDescriptor extends AbstractOperatorDescriptor 
 
                 @Override
                 public void fail() throws HyracksDataException {
+                    failed = true;
                 }
 
                 @Override
                 public void close() throws HyracksDataException {
                     state.close();
-                    state.writeOut(writer, new VSizeFrame(ctx));
+                    state.writeOut(writer, new VSizeFrame(ctx), failed);
                 }
             };
         }
@@ -171,7 +173,7 @@ public class MaterializingOperatorDescriptor extends AbstractOperatorDescriptor 
                 public void initialize() throws HyracksDataException {
                     MaterializerTaskState state = (MaterializerTaskState) ctx.getStateObject(
                             new TaskId(new ActivityId(getOperatorId(), MATERIALIZER_ACTIVITY_ID), partition));
-                    state.writeOut(writer, new VSizeFrame(ctx));
+                    state.writeOut(writer, new VSizeFrame(ctx), false);
                 }
 
                 @Override

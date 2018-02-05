@@ -24,14 +24,12 @@ import java.util.List;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.replication.IReplicationJob.ReplicationOperation;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMHarness;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IIndexAccessParameters;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 
 /**
  * Methods to be implemented by an LSM index, which are called from {@link LSMHarness}.
@@ -43,11 +41,10 @@ import org.apache.hyracks.storage.am.lsm.common.impls.LSMHarness;
  */
 public interface ILSMIndex extends IIndex {
 
-    void deactivate(boolean flushOnExit) throws HyracksDataException;
+    void deactivate(boolean flush) throws HyracksDataException;
 
     @Override
-    ILSMIndexAccessor createAccessor(IModificationOperationCallback modificationCallback,
-            ISearchOperationCallback searchCallback) throws HyracksDataException;
+    ILSMIndexAccessor createAccessor(IIndexAccessParameters iap) throws HyracksDataException;
 
     ILSMOperationTracker getOperationTracker();
 
@@ -58,23 +55,23 @@ public interface ILSMIndex extends IIndex {
     /**
      * components with lower indexes are newer than components with higher index
      */
-    List<ILSMDiskComponent> getImmutableComponents();
+    List<ILSMDiskComponent> getDiskComponents();
 
     boolean isPrimaryIndex();
 
-    void modify(IIndexOperationContext ictx, ITupleReference tuple) throws HyracksDataException, IndexException;
+    void modify(IIndexOperationContext ictx, ITupleReference tuple) throws HyracksDataException;
 
-    void search(ILSMIndexOperationContext ictx, IIndexCursor cursor, ISearchPredicate pred)
-            throws HyracksDataException, IndexException;
+    void search(ILSMIndexOperationContext ictx, IIndexCursor cursor, ISearchPredicate pred) throws HyracksDataException;
+
+    public void scanDiskComponents(ILSMIndexOperationContext ctx, IIndexCursor cursor) throws HyracksDataException;
 
     void scheduleFlush(ILSMIndexOperationContext ctx, ILSMIOOperationCallback callback) throws HyracksDataException;
 
-    ILSMDiskComponent flush(ILSMIOOperation operation) throws HyracksDataException, IndexException;
+    ILSMDiskComponent flush(ILSMIOOperation operation) throws HyracksDataException;
 
-    void scheduleMerge(ILSMIndexOperationContext ctx, ILSMIOOperationCallback callback)
-            throws HyracksDataException, IndexException;
+    void scheduleMerge(ILSMIndexOperationContext ctx, ILSMIOOperationCallback callback) throws HyracksDataException;
 
-    ILSMDiskComponent merge(ILSMIOOperation operation) throws HyracksDataException, IndexException;
+    ILSMDiskComponent merge(ILSMIOOperation operation) throws HyracksDataException;
 
     void addDiskComponent(ILSMDiskComponent index) throws HyracksDataException;
 
@@ -100,15 +97,6 @@ public interface ILSMIndex extends IIndex {
 
     void addInactiveDiskComponent(ILSMDiskComponent diskComponent);
 
-    /**
-     * Persist the LSM component
-     *
-     * @param lsmComponent
-     *            , the component to be persistent
-     * @throws HyracksDataException
-     */
-    void markAsValid(ILSMDiskComponent lsmComponent) throws HyracksDataException;
-
     boolean isCurrentMutableComponentEmpty() throws HyracksDataException;
 
     void scheduleReplication(ILSMIndexOperationContext ctx, List<ILSMDiskComponent> diskComponents, boolean bulkload,
@@ -133,4 +121,31 @@ public interface ILSMIndex extends IIndex {
      * @return true if the index is durable. Otherwise false.
      */
     boolean isDurable();
+
+    /**
+     * Update the filter with the passed tuple
+     *
+     * @param ictx
+     * @param tuple
+     * @throws HyracksDataException
+     */
+    void updateFilter(ILSMIndexOperationContext ictx, ITupleReference tuple) throws HyracksDataException;
+
+    /**
+     * Creates a disk component for the bulk load operation
+     *
+     * @return
+     * @throws HyracksDataException
+     */
+    ILSMDiskComponent createBulkLoadTarget() throws HyracksDataException;
+
+    /**
+     * @return The number of all memory components (active and inactive)
+     */
+    int getNumberOfAllMemoryComponents();
+
+    /**
+     * @return the {@link ILSMHarness} of the index
+     */
+    ILSMHarness getHarness();
 }

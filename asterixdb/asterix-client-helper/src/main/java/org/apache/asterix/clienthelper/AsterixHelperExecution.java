@@ -26,6 +26,7 @@ import org.apache.asterix.clienthelper.commands.ClientCommand.Command;
 import org.apache.asterix.clienthelper.commands.GetClusterStateCommand;
 import org.apache.asterix.clienthelper.commands.ShutdownAllCommand;
 import org.apache.asterix.clienthelper.commands.ShutdownCommand;
+import org.apache.asterix.clienthelper.commands.SleepCommand;
 import org.apache.asterix.clienthelper.commands.WaitForClusterCommand;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -39,11 +40,10 @@ public class AsterixHelperExecution {
     protected AsterixHelperExecution() {
     }
 
-    @SuppressWarnings({
-            "squid:S106", // use of System.err
+    @SuppressWarnings({ "squid:S106", // use of System.err
             "squid:S1166" // rethrow or log exception
     })
-    public int execute(String [] argArray) throws IOException {
+    public int execute(String[] argArray) throws IOException {
         Args args = createArgs();
         CmdLineParser parser = createParser(args);
         try {
@@ -58,15 +58,20 @@ public class AsterixHelperExecution {
                 return command.execute();
             }
         } catch (CmdLineException e) {
-            System.err.println("ERROR: " + e.getMessage() + "\n\n"
-                    + "Usage: " + getHelperCommandName() + " [options] <command>\n\n"
-                    + "Commands:");
-            printCommandsUsage(System.err);
-            System.err.println("Options:");
-            parser.printUsage(System.err);
-            System.err.flush();
+            System.err.println(
+                    "ERROR: " + e.getMessage() + "\n\n" + "Usage: " + getHelperCommandName() + " [options] <command>");
+
+            printUsageDetails(parser, System.err);
             return 99;
         }
+    }
+
+    protected void printUsageDetails(CmdLineParser parser, PrintStream ps) {
+        ps.println("\nCommands:");
+        printCommandsUsage(ps);
+        ps.println("\nOptions:");
+        parser.printUsage(ps);
+        ps.flush();
     }
 
     protected String getHelperCommandName() {
@@ -75,8 +80,12 @@ public class AsterixHelperExecution {
 
     protected void printCommandsUsage(PrintStream out) {
         for (Command command : Command.values()) {
-            printCommandUsage(out, command.name(), command.usage());
+            printCommandUsage(out, command);
         }
+    }
+
+    protected void printCommandUsage(PrintStream out, Command command) {
+        printCommandUsage(out, command.name(), command.usage());
     }
 
     protected void printCommandUsage(PrintStream out, String name, String usage) {
@@ -111,6 +120,8 @@ public class AsterixHelperExecution {
                 return new ShutdownCommand(args);
             case SHUTDOWN_CLUSTER_ALL:
                 return new ShutdownAllCommand(args);
+            case SLEEP:
+                return new SleepCommand(args);
             default:
                 throw new IllegalStateException("NYI: " + command);
         }

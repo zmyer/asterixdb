@@ -18,7 +18,6 @@
  */
 package org.apache.asterix.formats.nontagged;
 
-import org.apache.asterix.dataflow.data.nontagged.printers.adm.AUUIDPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.adm.ShortWithoutTypeInfoPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ABinaryHexPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ABooleanPrinterFactory;
@@ -36,8 +35,8 @@ import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AInt8Print
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AIntervalPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ALinePrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ANullPrinterFactory;
-import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AOptionalFieldPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AObjectPrinterFactory;
+import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AOptionalFieldPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AOrderedlistPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.APoint3DPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.APointPrinterFactory;
@@ -46,6 +45,7 @@ import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ARecordPri
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ARectanglePrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AStringPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.ATimePrinterFactory;
+import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AUUIDPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AUnionPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AUnorderedlistPrinterFactory;
 import org.apache.asterix.dataflow.data.nontagged.printers.json.clean.AYearMonthDurationPrinterFactory;
@@ -70,13 +70,13 @@ public class CleanJSONPrinterFactoryProvider implements IPrinterFactoryProvider 
 
         if (aqlType != null) {
             switch (aqlType.getTypeTag()) {
-                case INT8:
+                case TINYINT:
                     return AInt8PrinterFactory.INSTANCE;
-                case INT16:
+                case SMALLINT:
                     return AInt16PrinterFactory.INSTANCE;
-                case INT32:
+                case INTEGER:
                     return AInt32PrinterFactory.INSTANCE;
-                case INT64:
+                case BIGINT:
                     return AInt64PrinterFactory.INSTANCE;
                 case MISSING:
                 case NULL:
@@ -117,11 +117,11 @@ public class CleanJSONPrinterFactoryProvider implements IPrinterFactoryProvider 
                     return AStringPrinterFactory.INSTANCE;
                 case BINARY:
                     return ABinaryHexPrinterFactory.INSTANCE;
-                case RECORD:
+                case OBJECT:
                     return new ARecordPrinterFactory((ARecordType) aqlType);
-                case ORDEREDLIST:
+                case ARRAY:
                     return new AOrderedlistPrinterFactory((AOrderedListType) aqlType);
-                case UNORDEREDLIST:
+                case MULTISET:
                     return new AUnorderedlistPrinterFactory((AUnorderedListType) aqlType);
                 case UNION:
                     if (((AUnionType) aqlType).isUnknownableType()) {
@@ -136,7 +136,7 @@ public class CleanJSONPrinterFactoryProvider implements IPrinterFactoryProvider 
                 case ANY:
                 case BITARRAY:
                 case ENUM:
-                case SPARSERECORD:
+                case SPARSOBJECT:
                 case SYSTEM_NULL:
                 case TYPE:
                 case UINT16:

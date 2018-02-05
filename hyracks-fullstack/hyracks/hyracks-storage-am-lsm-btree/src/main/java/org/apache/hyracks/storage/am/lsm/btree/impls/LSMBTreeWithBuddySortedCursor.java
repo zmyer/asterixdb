@@ -19,14 +19,14 @@
 package org.apache.hyracks.storage.am.lsm.btree.impls;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilter;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
+import org.apache.hyracks.storage.common.ICursorInitialState;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 
-public class LSMBTreeWithBuddySortedCursor extends
-        LSMBTreeWithBuddyAbstractCursor {
+public class LSMBTreeWithBuddySortedCursor extends LSMBTreeWithBuddyAbstractCursor {
     // TODO: This class can be removed and instead use a search cursor that uses
     // a logic similar
     // to the one in LSMRTreeWithAntiMatterTuplesSearchCursor
@@ -35,11 +35,11 @@ public class LSMBTreeWithBuddySortedCursor extends
     private int foundIn = -1;
     private PermutingTupleReference buddyBtreeTuple;
 
-    public LSMBTreeWithBuddySortedCursor(ILSMIndexOperationContext opCtx,
-            int[] buddyBTreeFields) throws HyracksDataException {
+    public LSMBTreeWithBuddySortedCursor(ILSMIndexOperationContext opCtx, int[] buddyBTreeFields)
+            throws HyracksDataException {
         super(opCtx);
         this.buddyBtreeTuple = new PermutingTupleReference(buddyBTreeFields);
-        reset();
+        close();
     }
 
     public ILSMIndexOperationContext getOpCtx() {
@@ -47,18 +47,13 @@ public class LSMBTreeWithBuddySortedCursor extends
     }
 
     @Override
-    public void reset() throws HyracksDataException {
+    public void close() throws HyracksDataException {
         depletedBtreeCursors = new boolean[numberOfTrees];
         foundNext = false;
         try {
             for (int i = 0; i < numberOfTrees; i++) {
-                btreeCursors[i].reset();
-                try {
-                    btreeAccessors[i].search(btreeCursors[i],
-                            btreeRangePredicate);
-                } catch (IndexException e) {
-                    throw new HyracksDataException(e);
-                }
+                btreeCursors[i].close();
+                btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
                 if (btreeCursors[i].hasNext()) {
                     btreeCursors[i].next();
                 } else {
@@ -67,9 +62,7 @@ public class LSMBTreeWithBuddySortedCursor extends
             }
         } catch (Exception e) {
             e.printStackTrace();
-            throw new HyracksDataException(
-                    "error while reseting the btrees of the lsm btree with buddy btree",
-                    e);
+            throw new HyracksDataException("error while reseting the btrees of the lsm btree with buddy btree", e);
         } finally {
             if (open) {
                 lsmHarness.endSearch(opCtx);
@@ -78,7 +71,26 @@ public class LSMBTreeWithBuddySortedCursor extends
     }
 
     @Override
-    public boolean hasNext() throws HyracksDataException, IndexException {
+    public ITupleReference getFilterMinTuple() {
+        ILSMComponentFilter filter = getFilter();
+        return filter == null ? null : filter.getMinTuple();
+    }
+
+    @Override
+    public ITupleReference getFilterMaxTuple() {
+        ILSMComponentFilter filter = getFilter();
+        return filter == null ? null : filter.getMaxTuple();
+    }
+
+    private ILSMComponentFilter getFilter() {
+        if (foundIn < 0) {
+            return null;
+        }
+        return operationalComponents.get(foundIn).getLSMComponentFilter();
+    }
+
+    @Override
+    public boolean hasNext() throws HyracksDataException {
         while (!foundNext) {
             frameTuple = null;
 
@@ -92,8 +104,9 @@ public class LSMBTreeWithBuddySortedCursor extends
 
             foundIn = -1;
             for (int i = 0; i < numberOfTrees; i++) {
-                if (depletedBtreeCursors[i])
+                if (depletedBtreeCursors[i]) {
                     continue;
+                }
 
                 if (frameTuple == null) {
                     frameTuple = btreeCursors[i].getTuple();
@@ -107,28 +120,24 @@ public class LSMBTreeWithBuddySortedCursor extends
                 }
             }
 
-            if (foundIn == -1)
+            if (foundIn == -1) {
                 return false;
+            }
 
             boolean killed = false;
             buddyBtreeTuple.reset(frameTuple);
             for (int i = 0; i < foundIn; i++) {
-                try {
-                    buddyBtreeCursors[i].reset();
-                    buddyBtreeRangePredicate.setHighKey(buddyBtreeTuple, true);
-                    btreeRangePredicate.setLowKey(buddyBtreeTuple, true);
-                    btreeAccessors[i].search(btreeCursors[i],
-                            btreeRangePredicate);
-                } catch (IndexException e) {
-                    throw new HyracksDataException(e);
-                }
+                buddyBtreeCursors[i].close();
+                buddyBtreeRangePredicate.setHighKey(buddyBtreeTuple, true);
+                btreeRangePredicate.setLowKey(buddyBtreeTuple, true);
+                btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
                 try {
                     if (btreeCursors[i].hasNext()) {
                         killed = true;
                         break;
                     }
                 } finally {
-                    btreeCursors[i].close();
+                    btreeCursors[i].destroy();
                 }
             }
             if (!killed) {
@@ -145,20 +154,14 @@ public class LSMBTreeWithBuddySortedCursor extends
     }
 
     @Override
-    public void open(ICursorInitialState initialState,
-            ISearchPredicate searchPred) throws HyracksDataException,
-            IndexException {
+    public void open(ICursorInitialState initialState, ISearchPredicate searchPred) throws HyracksDataException {
         super.open(initialState, searchPred);
 
         depletedBtreeCursors = new boolean[numberOfTrees];
         foundNext = false;
         for (int i = 0; i < numberOfTrees; i++) {
-            btreeCursors[i].reset();
-            try {
-                btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
-            } catch (IndexException e) {
-                throw new HyracksDataException(e);
-            }
+            btreeCursors[i].close();
+            btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
             if (btreeCursors[i].hasNext()) {
                 btreeCursors[i].next();
             } else {

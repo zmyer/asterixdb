@@ -19,58 +19,14 @@
 
 package org.apache.asterix.common.ioopcallbacks;
 
-import java.util.List;
-
-import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.IMetadataPageManager;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
-import org.apache.hyracks.storage.am.lsm.common.api.LSMOperationType;
-import org.apache.hyracks.storage.am.lsm.rtree.impls.LSMRTreeDiskComponent;
-import org.apache.hyracks.storage.am.lsm.rtree.impls.LSMRTreeFileManager;
+import org.apache.asterix.common.storage.IIndexCheckpointManagerProvider;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentIdGenerator;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
 
 public class LSMRTreeIOOperationCallback extends AbstractLSMIOOperationCallback {
 
-    public LSMRTreeIOOperationCallback() {
-        super();
-    }
-
-    @Override
-    public void afterOperation(LSMOperationType opType, List<ILSMComponent> oldComponents,
-            ILSMDiskComponent newComponent) throws HyracksDataException {
-        if (newComponent != null) {
-            LSMRTreeDiskComponent rtreeComponent = (LSMRTreeDiskComponent) newComponent;
-            putLSNIntoMetadata(rtreeComponent, oldComponents);
-        }
-    }
-
-    @Override
-    public long getComponentLSN(List<? extends ILSMComponent> diskComponents) throws HyracksDataException {
-        if (diskComponents == null) {
-            // Implies a flush IO operation.
-            synchronized (this) {
-                long lsn = mutableLastLSNs[readIndex];
-                return lsn;
-            }
-        }
-        // Get max LSN from the diskComponents. Implies a merge IO operation or Recovery operation.
-        long maxLSN = INVALID;
-        for (Object o : diskComponents) {
-            LSMRTreeDiskComponent rtreeComponent = (LSMRTreeDiskComponent) o;
-            maxLSN = Math.max(AbstractLSMIOOperationCallback.getTreeIndexLSN(rtreeComponent.getRTree()), maxLSN);
-        }
-        return maxLSN;
-    }
-
-    @Override
-    public long getComponentFileLSNOffset(ILSMDiskComponent diskComponent, String diskComponentFilePath)
-            throws HyracksDataException {
-        if (diskComponentFilePath.endsWith(LSMRTreeFileManager.RTREE_STRING)) {
-            LSMRTreeDiskComponent rtreeComponent = (LSMRTreeDiskComponent) diskComponent;
-            IMetadataPageManager metadataPageManager =
-                    (IMetadataPageManager) rtreeComponent.getRTree().getPageManager();
-            return metadataPageManager.getFileOffset(metadataPageManager.createMetadataFrame(), LSN_KEY);
-        }
-        return INVALID;
+    public LSMRTreeIOOperationCallback(ILSMIndex index, ILSMComponentIdGenerator idGenerator,
+            IIndexCheckpointManagerProvider checkpointManagerProvodier) {
+        super(index, idGenerator, checkpointManagerProvodier);
     }
 }

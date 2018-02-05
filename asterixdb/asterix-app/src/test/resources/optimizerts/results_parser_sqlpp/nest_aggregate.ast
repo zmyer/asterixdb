@@ -117,13 +117,13 @@ RecordConstructor [
         )
       ]
       ]
-      FROM [        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [Orders]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [tpch.Orders]
         ]
         AS Variable [ Name=$orders ]
 ,
-        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [Customer]
+        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [tpch.Customer]
         ]
         AS Variable [ Name=$customer ]
       ]
@@ -168,7 +168,7 @@ RecordConstructor [
 
       Let Variable [ Name=$sum ]
         :=
-        FunctionCall tpch.sum@1[
+        FunctionCall asterix.sum@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -176,7 +176,9 @@ RecordConstructor [
               Field=o_totalprice
             ]
             ]
-            FROM [              Variable [ Name=$orders ]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.orders]
+              ]
               AS Variable [ Name=$o ]
             ]
           )
@@ -191,13 +193,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Nation]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.Nation]
   ]
   AS Variable [ Name=$nation ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [SelectedNation]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.SelectedNation]
   ]
   AS Variable [ Name=$sn ]
 ]

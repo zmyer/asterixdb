@@ -29,7 +29,7 @@ public abstract class AbstractOneInputPushRuntime implements IPushRuntime {
     protected boolean failed;
 
     @Override
-    public void setFrameWriter(int index, IFrameWriter writer, RecordDescriptor recordDesc) {
+    public void setOutputFrameWriter(int index, IFrameWriter writer, RecordDescriptor recordDesc) {
         this.writer = writer;
         this.outputRecordDesc = recordDesc;
     }

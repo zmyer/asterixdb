@@ -19,35 +19,33 @@
 
 package org.apache.hyracks.tests.am.lsm.btree;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
+import org.apache.hyracks.api.dataflow.value.ITypeTraits;
 import org.apache.hyracks.control.nc.io.IOManager;
-import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
-import org.apache.hyracks.storage.am.lsm.btree.dataflow.LSMBTreeDataflowHelperFactory;
-import org.apache.hyracks.storage.am.lsm.common.impls.ConstantMergePolicyFactory;
-import org.apache.hyracks.storage.am.lsm.common.impls.NoOpIOOperationCallback;
+import org.apache.hyracks.storage.am.common.api.IMetadataPageManagerFactory;
+import org.apache.hyracks.storage.am.lsm.btree.dataflow.LSMBTreeLocalResourceFactory;
+import org.apache.hyracks.storage.am.lsm.common.impls.NoOpIOOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.impls.SynchronousSchedulerProvider;
 import org.apache.hyracks.storage.am.lsm.common.impls.ThreadCountingOperationTrackerFactory;
+import org.apache.hyracks.storage.common.IResourceFactory;
+import org.apache.hyracks.storage.common.IStorageManager;
 import org.apache.hyracks.tests.am.common.LSMTreeOperatorTestHelper;
 
 public class LSMBTreeOperatorTestHelper extends LSMTreeOperatorTestHelper {
-
-    private static final Map<String, String> MERGE_POLICY_PROPERTIES;
-    static {
-        MERGE_POLICY_PROPERTIES = new HashMap<String, String>();
-        MERGE_POLICY_PROPERTIES.put("num-components", "3");
-    }
 
     public LSMBTreeOperatorTestHelper(IOManager ioManager) {
         super(ioManager);
     }
 
-    public IIndexDataflowHelperFactory createDataFlowHelperFactory() {
-        return new LSMBTreeDataflowHelperFactory(virtualBufferCacheProvider, new ConstantMergePolicyFactory(),
-                MERGE_POLICY_PROPERTIES, ThreadCountingOperationTrackerFactory.INSTANCE,
-                SynchronousSchedulerProvider.INSTANCE, NoOpIOOperationCallback.INSTANCE,
-                DEFAULT_BLOOM_FILTER_FALSE_POSITIVE_RATE, true, null, null, null, null, true);
+    public IResourceFactory getLocalResourceFactory(IStorageManager storageManager, ITypeTraits[] typeTraits,
+            IBinaryComparatorFactory[] comparatorFactories, IMetadataPageManagerFactory pageManagerFactory,
+            int[] bloomFilterKeyFields, int[] btreefields, int[] filterfields, ITypeTraits[] filtertypetraits,
+            IBinaryComparatorFactory[] filtercmpfactories) {
+        return new LSMBTreeLocalResourceFactory(storageManager, typeTraits, comparatorFactories, filtertypetraits,
+                filtercmpfactories, filterfields, ThreadCountingOperationTrackerFactory.INSTANCE,
+                NoOpIOOperationCallbackFactory.INSTANCE, pageManagerFactory, getVirtualBufferCacheProvider(),
+                SynchronousSchedulerProvider.INSTANCE, MERGE_POLICY_FACTORY, MERGE_POLICY_PROPERTIES, DURABLE,
+                bloomFilterKeyFields, LSMTreeOperatorTestHelper.DEFAULT_BLOOM_FILTER_FALSE_POSITIVE_RATE, true,
+                btreefields);
     }
-
 }

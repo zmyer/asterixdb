@@ -26,9 +26,9 @@ use test;
 create type test.testType as
 {
   id : integer
-}
+};
 
 create  dataset testDS(testType) primary key id;
 
-create  index testIdx  on testDS (`value`:string?) type btree;
+create  index testIdx  on testDS (`value`:point?) type rtree;
 

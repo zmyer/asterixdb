@@ -59,39 +59,53 @@ public class MaterializerTaskState extends AbstractStateObject {
     }
 
     public void open(IHyracksTaskContext ctx) throws HyracksDataException {
-        FileReference file = ctx.getJobletContext()
-                .createManagedWorkspaceFile(MaterializerTaskState.class.getSimpleName());
-        out = new RunFileWriter(file, ctx.getIOManager());
+        FileReference file =
+                ctx.getJobletContext().createManagedWorkspaceFile(MaterializerTaskState.class.getSimpleName());
+        out = new RunFileWriter(file, ctx.getIoManager());
         out.open();
     }
 
     public void close() throws HyracksDataException {
-        out.close();
+        if (out != null) {
+            out.close();
+        }
     }
 
     public void appendFrame(ByteBuffer buffer) throws HyracksDataException {
         out.nextFrame(buffer);
     }
 
-    public void writeOut(IFrameWriter writer, IFrame frame) throws HyracksDataException {
-        RunFileReader in = out.createReader();
+    public void writeOut(IFrameWriter writer, IFrame frame, boolean failed) throws HyracksDataException {
+        RunFileReader in = null;
+        if (out != null) {
+            in = out.createReader();
+        }
+        writer.open();
         try {
-            writer.open();
-            try {
+            if (failed) {
+                writer.fail();
+                return;
+            }
+            if (in != null) {
                 in.open();
-                while (in.nextFrame(frame)) {
-                    writer.nextFrame(frame.getBuffer());
+                try {
+                    while (in.nextFrame(frame)) {
+                        writer.nextFrame(frame.getBuffer());
+                    }
+                } finally {
+                    in.close();
                 }
-            } finally {
-                in.close();
             }
         } catch (Exception e) {
             writer.fail();
             throw e;
         } finally {
-            writer.close();
-            if (numConsumers.decrementAndGet() == 0) {
-                out.getFileReference().delete();
+            try {
+                writer.close();
+            } finally {
+                if (numConsumers.decrementAndGet() == 0 && out != null) {
+                    out.getFileReference().delete();
+                }
             }
         }
     }

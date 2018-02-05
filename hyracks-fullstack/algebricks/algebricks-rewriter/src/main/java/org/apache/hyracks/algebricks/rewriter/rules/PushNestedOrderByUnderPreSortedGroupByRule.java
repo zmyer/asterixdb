@@ -45,7 +45,8 @@ import org.apache.hyracks.algebricks.core.rewriter.base.IAlgebraicRewriteRule;
 public class PushNestedOrderByUnderPreSortedGroupByRule implements IAlgebraicRewriteRule {
 
     @Override
-    public boolean rewritePre(Mutable<ILogicalOperator> opRef, IOptimizationContext context) throws AlgebricksException {
+    public boolean rewritePre(Mutable<ILogicalOperator> opRef, IOptimizationContext context)
+            throws AlgebricksException {
         return false;
     }
 
@@ -64,6 +65,9 @@ public class PushNestedOrderByUnderPreSortedGroupByRule implements IAlgebraicRew
             return false;
         }
         GroupByOperator gby = (GroupByOperator) op;
+        if (gby.getNestedPlans().isEmpty()) {
+            return false;
+        }
         ILogicalPlan plan = gby.getNestedPlans().get(0);
         AbstractLogicalOperator op1 = (AbstractLogicalOperator) plan.getRoots().get(0).getValue();
         if (op1.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {

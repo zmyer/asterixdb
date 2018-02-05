@@ -18,40 +18,51 @@
  */
 package org.apache.hyracks.control.nc;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.io.IOException;
+import java.util.Arrays;
 
+import org.apache.hyracks.api.application.INCApplication;
+import org.apache.hyracks.control.common.config.ConfigManager;
+import org.apache.hyracks.control.common.config.ConfigUtils;
 import org.apache.hyracks.control.common.controllers.NCConfig;
-import org.kohsuke.args4j.CmdLineParser;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.kohsuke.args4j.CmdLineException;
 
+@SuppressWarnings("InfiniteLoopStatement")
 public class NCDriver {
-    private static final Logger LOGGER = Logger.getLogger(NCDriver.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
-    public static void main(String args[]) throws Exception {
+    private NCDriver() {
+    }
+
+    public static void main(String[] args) {
         try {
-            NCConfig ncConfig = new NCConfig();
-            CmdLineParser cp = new CmdLineParser(ncConfig);
-            try {
-                cp.parseArgument(args);
-            } catch (Exception e) {
-                e.printStackTrace();
-                cp.printUsage(System.err);
-                System.exit(1);
-            }
-            ncConfig.loadConfigAndApplyDefaults();
-            final NodeControllerService ncService = new NodeControllerService(ncConfig);
-            if (LOGGER.isLoggable(Level.SEVERE)) {
-                LOGGER.severe("Setting uncaught exception handler " + ncService.getLifeCycleComponentManager());
-            }
-            Thread.currentThread().setUncaughtExceptionHandler(ncService.getLifeCycleComponentManager());
+            final String nodeId = ConfigUtils.getOptionValue(args, NCConfig.Option.NODE_ID);
+            final ConfigManager configManager = new ConfigManager(args);
+            INCApplication application = getApplication(args);
+            application.registerConfig(configManager);
+            NCConfig ncConfig = new NCConfig(nodeId, configManager);
+            final NodeControllerService ncService = new NodeControllerService(ncConfig, application);
             ncService.start();
-            Runtime.getRuntime().addShutdownHook(new NCShutdownHook(ncService));
             while (true) {
                 Thread.sleep(10000);
             }
+        } catch (CmdLineException e) {
+            LOGGER.log(Level.DEBUG, "Exception parsing command line: " + Arrays.toString(args), e);
+            System.exit(2);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.DEBUG, "Exiting NCDriver due to exception", e);
             System.exit(1);
         }
+    }
+
+    private static INCApplication getApplication(String[] args)
+            throws ClassNotFoundException, InstantiationException, IllegalAccessException, IOException {
+        // determine app class so that we can use the correct implementation of the configuration...
+        String appClassName = ConfigUtils.getOptionValue(args, NCConfig.Option.APP_CLASS);
+        return appClassName != null ? (INCApplication) (Class.forName(appClassName)).newInstance()
+                : BaseNCApplication.INSTANCE;
     }
 }

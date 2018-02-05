@@ -4,7 +4,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [average]
     :
-    FunctionCall test.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -12,8 +12,8 @@ RecordConstructor [
           Field=floatField
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Numeric]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [test.Numeric]
           ]
           AS Variable [ Name=$x ]
         ]

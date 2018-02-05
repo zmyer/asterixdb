@@ -136,7 +136,7 @@ FunctionDecl q22_customer_tmp([]) {
 Query:
 Let Variable [ Name=$avg ]
   :=
-  FunctionCall tpch.avg@1[
+  FunctionCall asterix.avg@1[
     (
       SELECT ELEMENT [
       FieldAccessor [
@@ -144,8 +144,8 @@ Let Variable [ Name=$avg ]
         Field=c_acctbal
       ]
       ]
-      FROM [        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [Customer]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [tpch.Customer]
         ]
         AS Variable [ Name=$c ]
       ]
@@ -226,22 +226,25 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [numcust]
     :
-    FunctionCall tpch.count@1[
-      Variable [ Name=$ct ]
+    FunctionCall asterix.count@1[
+      Variable [ Name=$g ]
     ]
   )
   (
     LiteralExpr [STRING] [totacctbal]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
-          Variable [ Name=$i ]
+          FieldAccessor [
+            Variable [ Name=$i ]
+            Field=ct
+          ]
           Field=c_acctbal
         ]
         ]
-        FROM [          Variable [ Name=$ct ]
+        FROM [          Variable [ Name=$g ]
           AS Variable [ Name=$i ]
         ]
       )
@@ -255,13 +258,13 @@ FROM [  FunctionCall tpch.q22_customer_tmp@0[
 ]
 Where
   OperatorExpr [
-    FunctionCall tpch.count@1[
+    FunctionCall asterix.count@1[
       (
         SELECT ELEMENT [
         Variable [ Name=$o ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Orders]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Orders]
           ]
           AS Variable [ Name=$o ]
         ]
@@ -289,7 +292,7 @@ Groupby
     Variable [ Name=$ct ]
     Field=cntrycode
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     ct:=Variable [ Name=$ct ]
   )

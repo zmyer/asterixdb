@@ -17,8 +17,8 @@ Let Variable [ Name=$grid ]
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [MyData]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.MyData]
       ]
       AS Variable [ Name=$o ]
     ]
@@ -37,15 +37,25 @@ Let Variable [ Name=$grid ]
         LiteralExpr [DOUBLE] [5.0]
         LiteralExpr [DOUBLE] [5.0]
       ]
-      GROUP AS Variable [ Name=#1 ]
+      GROUP AS Variable [ Name=$g ]
       (
         o:=Variable [ Name=$o ]
       )
 
     Let Variable [ Name=$num ]
       :=
-      FunctionCall test.count@1[
-        Variable [ Name=$o ]
+      FunctionCall asterix.count@1[
+        (
+          SELECT ELEMENT [
+          FunctionCall asterix.field-access-by-name@2[
+            Variable [ Name=$g ]
+            LiteralExpr [STRING] [o]
+          ]
+          ]
+          FROM [            Variable [ Name=$g ]
+            AS Variable [ Name=$g ]
+          ]
+        )
       ]
     Orderby
       Variable [ Name=$num ]

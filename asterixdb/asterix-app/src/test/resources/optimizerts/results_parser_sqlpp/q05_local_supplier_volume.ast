@@ -92,8 +92,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customers]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [q5_local_supplier.Customers]
   ]
   AS Variable [ Name=$c ]
 ,
@@ -142,8 +142,8 @@ FROM [  FunctionCall Metadata.dataset@1[
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Orders]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [q5_local_supplier.Orders]
       ]
       AS Variable [ Name=$o ]
 ,
@@ -192,8 +192,8 @@ FROM [  FunctionCall Metadata.dataset@1[
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItems]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [q5_local_supplier.LineItems]
           ]
           AS Variable [ Name=$l ]
 ,
@@ -226,8 +226,8 @@ FROM [  FunctionCall Metadata.dataset@1[
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Suppliers]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [q5_local_supplier.Suppliers]
               ]
               AS Variable [ Name=$s ]
 ,
@@ -252,13 +252,13 @@ FROM [  FunctionCall Metadata.dataset@1[
                   )
                 ]
                 ]
-                FROM [                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [Nations]
+                FROM [                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [q5_local_supplier.Nations]
                   ]
                   AS Variable [ Name=$n ]
 ,
-                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [Regions]
+                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [q5_local_supplier.Regions]
                   ]
                   AS Variable [ Name=$r ]
                 ]
@@ -394,7 +394,7 @@ Groupby
 
 Let Variable [ Name=$revenue ]
   :=
-  FunctionCall q5_local_supplier.sum@1[
+  FunctionCall asterix.sum@1[
     (
       SELECT ELEMENT [
       OperatorExpr [
@@ -413,7 +413,9 @@ Let Variable [ Name=$revenue ]
         ]
       ]
       ]
-      FROM [        Variable [ Name=$o1 ]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [q5_local_supplier.o1]
+        ]
         AS Variable [ Name=$i ]
       ]
     )

@@ -48,7 +48,7 @@ public class FrameFileWriterOperatorDescriptor extends AbstractSingleActivityOpe
     public IOperatorNodePushable createPushRuntime(IHyracksTaskContext ctx,
             IRecordDescriptorProvider recordDescProvider, final int partition, int nPartitions) {
         final FileSplit[] splits = fileSplitProvider.getFileSplits();
-        final IIOManager ioManager = ctx.getIOManager();
+        final IIOManager ioManager = ctx.getIoManager();
         return new AbstractUnaryInputSinkOperatorNodePushable() {
             private OutputStream out;
 
@@ -66,7 +66,7 @@ public class FrameFileWriterOperatorDescriptor extends AbstractSingleActivityOpe
                 try {
                     out.write(buffer.array());
                 } catch (IOException e) {
-                    throw new HyracksDataException(e);
+                    throw HyracksDataException.create(e);
                 }
             }
 
@@ -79,7 +79,7 @@ public class FrameFileWriterOperatorDescriptor extends AbstractSingleActivityOpe
                 try {
                     out.close();
                 } catch (IOException e) {
-                    throw new HyracksDataException(e);
+                    throw HyracksDataException.create(e);
                 }
             }
         };

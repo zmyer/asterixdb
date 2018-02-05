@@ -20,26 +20,30 @@
 package org.apache.hyracks.storage.am.lsm.rtree.tuples;
 
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
-import org.apache.hyracks.storage.am.common.api.ITreeIndexTupleWriter;
-import org.apache.hyracks.storage.am.common.tuples.TypeAwareTupleWriterFactory;
+import org.apache.hyracks.storage.am.rtree.tuples.RTreeTypeAwareTupleWriter;
+import org.apache.hyracks.storage.am.rtree.tuples.RTreeTypeAwareTupleWriterFactory;
 
-public class LSMRTreeTupleWriterFactoryForPointMBR extends TypeAwareTupleWriterFactory {
+public class LSMRTreeTupleWriterFactoryForPointMBR extends RTreeTypeAwareTupleWriterFactory {
 
     private static final long serialVersionUID = 1L;
     private final int keyFieldCount;
     private final int valueFieldCount;
     private final boolean antimatterAware;
+    private final boolean isAntimatter;
 
     public LSMRTreeTupleWriterFactoryForPointMBR(ITypeTraits[] typeTraits, int keyFieldCount, int valueFieldCount,
-            boolean antimatterAware) {
+            boolean antimatterAware, boolean isDelete) {
         super(typeTraits);
         this.keyFieldCount = keyFieldCount;
         this.valueFieldCount = valueFieldCount;
         this.antimatterAware = antimatterAware;
+        this.isAntimatter = isDelete;
     }
 
     @Override
-    public ITreeIndexTupleWriter createTupleWriter() {
-        return new LSMRTreeTupleWriterForPointMBR(typeTraits, keyFieldCount, valueFieldCount, antimatterAware);
+    public RTreeTypeAwareTupleWriter createTupleWriter() {
+        return new LSMRTreeTupleWriterForPointMBR(typeTraits, keyFieldCount, valueFieldCount, antimatterAware,
+                isAntimatter);
     }
+
 }

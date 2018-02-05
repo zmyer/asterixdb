@@ -61,6 +61,7 @@ import org.apache.asterix.om.base.AFloat;
 import org.apache.asterix.om.base.AInt32;
 import org.apache.asterix.om.base.AInt64;
 import org.apache.asterix.om.base.AInt8;
+import org.apache.asterix.om.base.AMissing;
 import org.apache.asterix.om.base.AMutableCircle;
 import org.apache.asterix.om.base.AMutableDate;
 import org.apache.asterix.om.base.AMutableDateTime;
@@ -144,7 +145,7 @@ public class JObjects {
         public void serialize(DataOutput dataOutput, boolean writeTypeTag) throws HyracksDataException {
             if (writeTypeTag) {
                 try {
-                    dataOutput.writeByte(ATypeTag.SERIALIZED_MISSING_TYPE_TAG);
+                    dataOutput.writeByte(ATypeTag.SERIALIZED_NULL_TYPE_TAG);
                 } catch (IOException e) {
                     throw new HyracksDataException(e);
                 }
@@ -155,6 +156,36 @@ public class JObjects {
         public void reset() {
         }
 
+    }
+
+    public static class JMissing implements IJObject {
+        public final static JMissing INSTANCE = new JMissing();
+
+        @Override
+        public ATypeTag getTypeTag() {
+            return ATypeTag.MISSING;
+        }
+
+        @Override
+        public IAObject getIAObject() {
+            return AMissing.MISSING;
+        }
+
+        @Override
+        public void serialize(DataOutput dataOutput, boolean writeTypeTag) throws HyracksDataException {
+            if (writeTypeTag) {
+                try {
+                    dataOutput.writeByte(ATypeTag.SERIALIZED_MISSING_TYPE_TAG);
+                } catch (IOException e) {
+                    throw new HyracksDataException(e);
+                }
+            }
+        }
+
+        @Override
+        public void reset() throws HyracksDataException {
+            // no op
+        }
     }
 
     public static final class JByte extends JObject {
@@ -235,7 +266,7 @@ public class JObjects {
         }
 
         public int getValue() {
-            return ((AMutableInt32) value).getIntegerValue().intValue();
+            return ((AMutableInt32) value).getIntegerValue();
         }
 
         @Override
@@ -875,7 +906,7 @@ public class JObjects {
 
         @Override
         public ATypeTag getTypeTag() {
-            return ATypeTag.ORDEREDLIST;
+            return ATypeTag.ARRAY;
         }
 
         @Override
@@ -935,7 +966,7 @@ public class JObjects {
 
         @Override
         public ATypeTag getTypeTag() {
-            return ATypeTag.UNORDEREDLIST;
+            return ATypeTag.MULTISET;
         }
 
         @Override

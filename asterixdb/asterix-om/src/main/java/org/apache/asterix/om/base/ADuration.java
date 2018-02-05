@@ -18,15 +18,12 @@
  */
 package org.apache.asterix.om.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.base.temporal.GregorianCalendarSystem;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * ADuration type represents time duration (unanchored time length) values.
@@ -93,11 +90,6 @@ public class ADuration implements IAObject {
     }
 
     @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitADuration(this);
-    }
-
-    @Override
     public boolean deepEqual(IAObject obj) {
         return equals(obj);
     }
@@ -110,7 +102,7 @@ public class ADuration implements IAObject {
     @Override
     public String toString() {
         StringBuilder sbder = new StringBuilder();
-        sbder.append("ADuration: {");
+        sbder.append("duration: {");
         GregorianCalendarSystem.getInstance().getDurationExtendStringRepWithTimezoneUntilField(chrononInMillisecond,
                 chrononInMonth, sbder);
         sbder.append(" }");
@@ -118,7 +110,7 @@ public class ADuration implements IAObject {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

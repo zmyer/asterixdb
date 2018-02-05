@@ -41,15 +41,15 @@ public class TemplateHelper {
 
     private TemplateHelper() {
         registerReplacement(LoremIpsumReplacement.INSTANCE);
-        StringBuffer pattern = null;
-        for (Map.Entry<String, TemplateReplacement> entry : replacements.entrySet()) {
-            if (pattern == null) {
-                pattern = new StringBuffer("%(");
+        StringBuilder pattern = new StringBuilder();
+        replacements.forEach((key, value) -> {
+            if (pattern.length() == 0) {
+                pattern.append("%(");
             } else {
                 pattern.append("|");
             }
-            pattern.append(entry.getKey());
-        }
+            pattern.append(key);
+        });
         pattern.append(")[^%]*%");
         replacementPattern = Pattern.compile(pattern.toString());
     }
@@ -59,8 +59,8 @@ public class TemplateHelper {
     }
 
     public File resolveTemplateFile(File inputFile) throws IOException {
-        File outputFile = File.createTempFile("template.", "." +
-                inputFile.getName().substring(0, inputFile.getName().lastIndexOf(".template")));
+        File outputFile = File.createTempFile("template.",
+                "." + inputFile.getName().substring(0, inputFile.getName().lastIndexOf(".template")));
         outputFile.deleteOnExit();
         processFile(inputFile, outputFile);
         return outputFile;
@@ -71,7 +71,7 @@ public class TemplateHelper {
             outputFile.getParentFile().mkdirs();
         }
         try (BufferedReader reader = new BufferedReader(new FileReader(inputFile));
-             BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
+                BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 Matcher m = replacementPattern.matcher(line);

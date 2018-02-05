@@ -30,14 +30,16 @@ create type feeds_10.TweetType as
   location : string,
   text : string,
   timestamp : string
-}
+};
 
 create  dataset Tweets(TweetType) primary key id;
 
 create  index usernameIdx  on Tweets (username) type btree;
 
-create  feed TweetFeed using localfs
-((`path`=`asterix_nc1://data/twitter/obamatweets.adm`),
-(`format`=`adm`),
-(`type-name`=`TweetType`),
-(`tuple-interval`=`10`));
+create  feed TweetFeed with {
+  "adapter-name" : "localfs",
+  "path" : "asterix_nc1://data/twitter/obamatweets.adm",
+  "format" : "adm",
+  "type-name" : "TweetType",
+  "tuple-interval" : "10"
+};

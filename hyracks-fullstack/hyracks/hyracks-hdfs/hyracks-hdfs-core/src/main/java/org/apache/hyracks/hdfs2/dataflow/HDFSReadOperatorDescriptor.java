@@ -97,17 +97,17 @@ public class HDFSReadOperatorDescriptor extends AbstractSingleActivityOperatorDe
         this.executed = new boolean[scheduledLocations.length];
         Arrays.fill(executed, false);
         this.tupleParserFactory = tupleParserFactory;
-        this.recordDescriptors[0] = rd;
+        this.outRecDescs[0] = rd;
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             IRecordDescriptorProvider recordDescProvider, final int partition, final int nPartitions)
-                    throws HyracksDataException {
+            throws HyracksDataException {
         final List<FileSplit> inputSplits = splitsFactory.getSplits();
 
         return new AbstractUnaryOutputSourceOperatorNodePushable() {
-            private String nodeName = ctx.getJobletContext().getApplicationContext().getNodeId();
+            private String nodeName = ctx.getJobletContext().getServiceContext().getNodeId();
             private ContextFactory ctxFactory = new ContextFactory();
 
             @SuppressWarnings("unchecked")
@@ -120,8 +120,8 @@ public class HDFSReadOperatorDescriptor extends AbstractSingleActivityOperatorDe
                     Job job = confFactory.getConf();
                     job.getConfiguration().setClassLoader(ctx.getJobletContext().getClassLoader());
                     IKeyValueParser parser = tupleParserFactory.createKeyValueParser(ctx);
-                    InputFormat inputFormat = ReflectionUtils.newInstance(job.getInputFormatClass(),
-                            job.getConfiguration());
+                    InputFormat inputFormat =
+                            ReflectionUtils.newInstance(job.getInputFormatClass(), job.getConfiguration());
                     int size = inputSplits.size();
                     for (int i = 0; i < size; i++) {
                         /**

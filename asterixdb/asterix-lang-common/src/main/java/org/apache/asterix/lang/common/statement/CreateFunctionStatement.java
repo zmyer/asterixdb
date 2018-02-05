@@ -23,6 +23,7 @@ import java.util.List;
 
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.functions.FunctionSignature;
+import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.Statement;
 import org.apache.asterix.lang.common.struct.VarIdentifier;
 import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
@@ -31,21 +32,19 @@ public class CreateFunctionStatement implements Statement {
 
     private final FunctionSignature signature;
     private final String functionBody;
+    private final Expression functionBodyExpression;
     private final boolean ifNotExists;
     private final List<String> paramList;
-
-    public FunctionSignature getaAterixFunction() {
-        return signature;
-    }
 
     public String getFunctionBody() {
         return functionBody;
     }
 
     public CreateFunctionStatement(FunctionSignature signature, List<VarIdentifier> parameterList, String functionBody,
-            boolean ifNotExists) {
+            Expression functionBodyExpression, boolean ifNotExists) {
         this.signature = signature;
         this.functionBody = functionBody;
+        this.functionBodyExpression = functionBodyExpression;
         this.ifNotExists = ifNotExists;
         this.paramList = new ArrayList<String>();
         for (VarIdentifier varId : parameterList) {
@@ -66,8 +65,12 @@ public class CreateFunctionStatement implements Statement {
         return paramList;
     }
 
-    public FunctionSignature getSignature() {
+    public FunctionSignature getFunctionSignature() {
         return signature;
+    }
+
+    public Expression getFunctionBodyExpression() {
+        return functionBodyExpression;
     }
 
     @Override

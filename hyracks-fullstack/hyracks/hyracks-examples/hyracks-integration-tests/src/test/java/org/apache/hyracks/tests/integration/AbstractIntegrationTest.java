@@ -18,6 +18,8 @@
  */
 package org.apache.hyracks.tests.integration;
 
+import static org.apache.hyracks.util.file.FileUtil.joinPath;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -28,8 +30,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.hyracks.api.client.HyracksConnection;
@@ -53,12 +53,14 @@ import org.apache.hyracks.control.nc.NodeControllerService;
 import org.apache.hyracks.control.nc.resources.memory.FrameManager;
 import org.apache.hyracks.dataflow.common.comm.io.ResultFrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.util.ByteBufferInputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
 public abstract class AbstractIntegrationTest {
-    private static final Logger LOGGER = Logger.getLogger(AbstractIntegrationTest.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public static final String NC1_ID = "nc1";
     public static final String NC2_ID = "nc2";
@@ -82,48 +84,44 @@ public abstract class AbstractIntegrationTest {
     @BeforeClass
     public static void init() throws Exception {
         CCConfig ccConfig = new CCConfig();
-        ccConfig.clientNetIpAddress = "127.0.0.1";
-        ccConfig.clientNetPort = 39000;
-        ccConfig.clusterNetIpAddress = "127.0.0.1";
-        ccConfig.clusterNetPort = 39001;
-        ccConfig.profileDumpPeriod = 10000;
+        ccConfig.setClientListenAddress("127.0.0.1");
+        ccConfig.setClientListenPort(39000);
+        ccConfig.setClusterListenAddress("127.0.0.1");
+        ccConfig.setClusterListenPort(39001);
+        ccConfig.setProfileDumpPeriod(10000);
         FileUtils.deleteQuietly(new File("target" + File.separator + "data"));
-        FileUtils.copyDirectory(new File("data"), new File("target" + File.separator + "data"));
+        FileUtils.copyDirectory(new File("data"), new File(joinPath("target", "data")));
         File outDir = new File("target" + File.separator + "ClusterController");
         outDir.mkdirs();
         File ccRoot = File.createTempFile(AbstractIntegrationTest.class.getName(), ".data", outDir);
         ccRoot.delete();
         ccRoot.mkdir();
-        ccConfig.ccRoot = ccRoot.getAbsolutePath();
+        ccConfig.setRootDir(ccRoot.getAbsolutePath());
         cc = new ClusterControllerService(ccConfig);
         cc.start();
 
-        NCConfig ncConfig1 = new NCConfig();
-        ncConfig1.ccHost = "localhost";
-        ncConfig1.ccPort = 39001;
-        ncConfig1.clusterNetIPAddress = "127.0.0.1";
-        ncConfig1.dataIPAddress = "127.0.0.1";
-        ncConfig1.resultIPAddress = "127.0.0.1";
-        ncConfig1.nodeId = NC1_ID;
-        ncConfig1.ioDevices = System.getProperty("user.dir") + File.separator + "target" + File.separator + "data"
-                + File.separator + "device0";
+        NCConfig ncConfig1 = new NCConfig(NC1_ID);
+        ncConfig1.setClusterAddress("localhost");
+        ncConfig1.setClusterPort(39001);
+        ncConfig1.setClusterListenAddress("127.0.0.1");
+        ncConfig1.setDataListenAddress("127.0.0.1");
+        ncConfig1.setResultListenAddress("127.0.0.1");
+        ncConfig1.setIODevices(new String[] { joinPath(System.getProperty("user.dir"), "target", "data", "device0") });
         nc1 = new NodeControllerService(ncConfig1);
         nc1.start();
 
-        NCConfig ncConfig2 = new NCConfig();
-        ncConfig2.ccHost = "localhost";
-        ncConfig2.ccPort = 39001;
-        ncConfig2.clusterNetIPAddress = "127.0.0.1";
-        ncConfig2.dataIPAddress = "127.0.0.1";
-        ncConfig2.resultIPAddress = "127.0.0.1";
-        ncConfig2.nodeId = NC2_ID;
-        ncConfig2.ioDevices = System.getProperty("user.dir") + File.separator + "target" + File.separator + "data"
-                + File.separator + "device1";
+        NCConfig ncConfig2 = new NCConfig(NC2_ID);
+        ncConfig2.setClusterAddress("localhost");
+        ncConfig2.setClusterPort(39001);
+        ncConfig2.setClusterListenAddress("127.0.0.1");
+        ncConfig2.setDataListenAddress("127.0.0.1");
+        ncConfig2.setResultListenAddress("127.0.0.1");
+        ncConfig2.setIODevices(new String[] { joinPath(System.getProperty("user.dir"), "target", "data", "device1") });
         nc2 = new NodeControllerService(ncConfig2);
         nc2.start();
 
-        hcc = new HyracksConnection(ccConfig.clientNetIpAddress, ccConfig.clientNetPort);
-        if (LOGGER.isLoggable(Level.INFO)) {
+        hcc = new HyracksConnection(ccConfig.getClientListenAddress(), ccConfig.getClientListenPort());
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Starting CC in " + ccRoot.getAbsolutePath());
         }
     }
@@ -136,11 +134,11 @@ public abstract class AbstractIntegrationTest {
     }
 
     protected JobId executeTest(JobSpecification spec) throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info(spec.toJSON().asText());
         }
         JobId jobId = hcc.startJob(spec, EnumSet.of(JobFlag.PROFILE_RUNTIME));
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info(jobId.toString());
         }
         return jobId;

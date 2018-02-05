@@ -18,13 +18,24 @@
  */
 package org.apache.asterix.lang.common.expression;
 
-import org.apache.asterix.common.exceptions.CompilationException;
-import org.apache.asterix.lang.common.base.Expression;
-import org.apache.asterix.lang.common.base.Literal;
-import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
-import org.apache.commons.lang3.ObjectUtils;
+import java.util.Objects;
 
-public class LiteralExpr implements Expression {
+import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.exceptions.ErrorCode;
+import org.apache.asterix.lang.common.base.AbstractExpression;
+import org.apache.asterix.lang.common.base.Literal;
+import org.apache.asterix.lang.common.literal.DoubleLiteral;
+import org.apache.asterix.lang.common.literal.LongIntegerLiteral;
+import org.apache.asterix.lang.common.literal.StringLiteral;
+import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
+import org.apache.asterix.object.base.AdmBigIntNode;
+import org.apache.asterix.object.base.AdmBooleanNode;
+import org.apache.asterix.object.base.AdmDoubleNode;
+import org.apache.asterix.object.base.AdmNullNode;
+import org.apache.asterix.object.base.AdmStringNode;
+import org.apache.asterix.object.base.IAdmNode;
+
+public class LiteralExpr extends AbstractExpression {
     private Literal value;
 
     public LiteralExpr() {
@@ -55,7 +66,7 @@ public class LiteralExpr implements Expression {
 
     @Override
     public int hashCode() {
-        return ObjectUtils.hashCode(value);
+        return Objects.hashCode(value);
     }
 
     @Override
@@ -67,7 +78,6 @@ public class LiteralExpr implements Expression {
             return false;
         }
         LiteralExpr target = (LiteralExpr) object;
-        return ObjectUtils.equals(value, target.value);
+        return Objects.equals(value, target.value);
     }
-
 }

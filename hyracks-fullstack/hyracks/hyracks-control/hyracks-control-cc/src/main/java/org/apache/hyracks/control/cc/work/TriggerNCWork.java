@@ -24,12 +24,15 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.StringWriter;
 import java.net.Socket;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.hyracks.api.config.Section;
 import org.apache.hyracks.control.cc.ClusterControllerService;
+import org.apache.hyracks.control.common.controllers.NCConfig;
 import org.apache.hyracks.control.common.controllers.ServiceConstants.ServiceCommand;
 import org.apache.hyracks.control.common.work.AbstractWork;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.ini4j.Ini;
 
 /**
@@ -38,7 +41,7 @@ import org.ini4j.Ini;
  */
 public class TriggerNCWork extends AbstractWork {
 
-    private static final Logger LOGGER = Logger.getLogger(TriggerNCWork.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final ClusterControllerService ccs;
     private final String ncHost;
@@ -51,6 +54,7 @@ public class TriggerNCWork extends AbstractWork {
         this.ncPort = ncPort;
         this.ncId = ncId;
     }
+
     @Override
     public final void run() {
         ccs.getExecutor().execute(() -> {
@@ -65,8 +69,8 @@ public class TriggerNCWork extends AbstractWork {
                     return;
                     // QQQ Should probably have an ACK here
                 } catch (IOException e) {
-                    LOGGER.log(Level.WARNING, "Failed to contact NC service at " + ncHost + ":" + ncPort
-                            + "; will retry", e);
+                    LOGGER.log(Level.WARN, "Failed to contact NC service at " + ncHost + ":" + ncPort + "; will retry",
+                            e);
                 }
                 try {
                     Thread.sleep(5000);
@@ -79,16 +83,20 @@ public class TriggerNCWork extends AbstractWork {
 
     /**
      * Given an Ini object, serialize it to String with some enhancements.
-     * @param ccini
+     * @param ccini the ini file to decorate and forward to NC
      */
-    String serializeIni(Ini ccini) throws IOException {
+    private String serializeIni(Ini ccini) throws IOException {
         StringWriter iniString = new StringWriter();
-        ccini.store(iniString);
+        ccini.get(Section.NC.sectionName()).putIfAbsent(NCConfig.Option.CLUSTER_ADDRESS.ini(),
+                ccs.getCCConfig().getClusterPublicAddress());
+        ccini.get(Section.NC.sectionName()).putIfAbsent(NCConfig.Option.CLUSTER_PORT.ini(),
+                String.valueOf(ccs.getCCConfig().getClusterPublicPort()));
         // Finally insert *this* NC's name into localnc section - this is a fixed
         // entry point so that NCs can determine where all their config is.
-        iniString.append("\n[localnc]\nid=").append(ncId).append("\n");
-        if (LOGGER.isLoggable(Level.FINE)) {
-            LOGGER.fine("Returning Ini file:\n" + iniString.toString());
+        ccini.put(Section.LOCALNC.sectionName(), NCConfig.Option.NODE_ID.ini(), ncId);
+        ccini.store(iniString);
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Returning Ini file:\n" + iniString.toString());
         }
         return iniString.toString();
     }

@@ -8,8 +8,8 @@ FunctionCall test.string-length@1[
   ]
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [testds]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.testds]
   ]
   AS Variable [ Name=$l ]
 ]

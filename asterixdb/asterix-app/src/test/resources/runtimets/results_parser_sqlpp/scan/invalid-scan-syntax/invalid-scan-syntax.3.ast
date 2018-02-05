@@ -3,8 +3,8 @@ Query:
 SELECT ELEMENT [
 Variable [ Name=$t ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [test.Office]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.test.Office]
   ]
   AS Variable [ Name=$t ]
 ]

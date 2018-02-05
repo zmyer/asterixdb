@@ -25,12 +25,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.asterix.common.transactions.JobId;
-import org.apache.asterix.metadata.MetadataException;
+import org.apache.asterix.common.exceptions.MetadataException;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.metadata.MetadataNode;
 import org.apache.asterix.om.types.AUnionType;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 
 /**
  * Maps from a string representation of an Asterix type to an Asterix type.
@@ -92,12 +93,12 @@ public class BuiltinTypeMap {
         return new HashSet<>(_builtinTypeMap.values());
     }
 
-    public static IAType getTypeFromTypeName(MetadataNode metadataNode, JobId jobId, String dataverseName,
-            String typeName, boolean optional) throws MetadataException {
+    public static IAType getTypeFromTypeName(MetadataNode metadataNode, TxnId txnId, String dataverseName,
+            String typeName, boolean optional) throws AlgebricksException {
         IAType type = _builtinTypeMap.get(typeName);
         if (type == null) {
             try {
-                Datatype dt = metadataNode.getDatatype(jobId, dataverseName, typeName);
+                Datatype dt = metadataNode.getDatatype(txnId, dataverseName, typeName);
                 type = dt.getDatatype();
             } catch (RemoteException e) {
                 throw new MetadataException(e);

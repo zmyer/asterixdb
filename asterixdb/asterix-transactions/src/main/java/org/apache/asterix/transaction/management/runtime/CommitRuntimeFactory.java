@@ -19,33 +19,28 @@
 
 package org.apache.asterix.transaction.management.runtime;
 
-import org.apache.asterix.common.transactions.JobId;
+import org.apache.asterix.common.api.IJobEventListenerFactory;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntime;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntimeFactory;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.job.IJobletEventListenerFactory;
 
 public class CommitRuntimeFactory implements IPushRuntimeFactory {
 
     private static final long serialVersionUID = 1L;
 
-    private final JobId jobId;
-    private final int datasetId;
-    private final int[] primaryKeyFields;
-    private final boolean isTemporaryDatasetWriteJob;
-    private final boolean isWriteTransaction;
-    private final int upsertVarIdx;
-    private int[] datasetPartitions;
-    private final boolean isSink;
+    protected final int datasetId;
+    protected final int[] primaryKeyFields;
+    protected final boolean isWriteTransaction;
+    protected int[] datasetPartitions;
+    protected final boolean isSink;
 
-    public CommitRuntimeFactory(JobId jobId, int datasetId, int[] primaryKeyFields, boolean isTemporaryDatasetWriteJob,
-            boolean isWriteTransaction, int upsertVarIdx, int[] datasetPartitions, boolean isSink) {
-        this.jobId = jobId;
+    public CommitRuntimeFactory(int datasetId, int[] primaryKeyFields, boolean isWriteTransaction,
+            int[] datasetPartitions, boolean isSink) {
         this.datasetId = datasetId;
         this.primaryKeyFields = primaryKeyFields;
-        this.isTemporaryDatasetWriteJob = isTemporaryDatasetWriteJob;
         this.isWriteTransaction = isWriteTransaction;
-        this.upsertVarIdx = upsertVarIdx;
         this.datasetPartitions = datasetPartitions;
         this.isSink = isSink;
     }
@@ -56,14 +51,10 @@ public class CommitRuntimeFactory implements IPushRuntimeFactory {
     }
 
     @Override
-    public IPushRuntime createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException {
-        if (upsertVarIdx >= 0) {
-            return new UpsertCommitRuntime(ctx, jobId, datasetId, primaryKeyFields, isTemporaryDatasetWriteJob,
-                    isWriteTransaction, datasetPartitions[ctx.getTaskAttemptId().getTaskId().getPartition()],
-                    upsertVarIdx, isSink);
-        } else {
-            return new CommitRuntime(ctx, jobId, datasetId, primaryKeyFields, isTemporaryDatasetWriteJob,
-                    isWriteTransaction, datasetPartitions[ctx.getTaskAttemptId().getTaskId().getPartition()], isSink);
-        }
+    public IPushRuntime[] createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException {
+        IJobletEventListenerFactory fact = ctx.getJobletContext().getJobletEventListenerFactory();
+        return new IPushRuntime[] { new CommitRuntime(ctx, ((IJobEventListenerFactory) fact).getTxnId(datasetId),
+                datasetId, primaryKeyFields, isWriteTransaction,
+                datasetPartitions[ctx.getTaskAttemptId().getTaskId().getPartition()], isSink) };
     }
 }

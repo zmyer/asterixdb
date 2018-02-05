@@ -20,6 +20,7 @@
 package org.apache.hyracks.storage.am.common.api;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.storage.common.IIndexAccessor;
 
 /**
  * Client handle for performing operations
@@ -44,6 +45,5 @@ public interface ITreeIndexAccessor extends IIndexAccessor {
      * @throws HyracksDataException
      *             If the BufferCache throws while un/pinning or un/latching.
      */
-    public void diskOrderScan(ITreeIndexCursor cursor)
-            throws HyracksDataException;
+    public void diskOrderScan(ITreeIndexCursor cursor) throws HyracksDataException;
 }

@@ -25,8 +25,6 @@ import java.io.PipedOutputStream;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.external.dataset.adapter.FeedAdapter;
 import org.apache.asterix.om.types.ARecordType;
@@ -36,10 +34,10 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.std.file.ITupleParser;
 import org.apache.hyracks.dataflow.std.file.ITupleParserFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TestTypedAdapter extends FeedAdapter {
-
-    private static final long serialVersionUID = 1L;
 
     private final PipedOutputStream pos;
 
@@ -53,7 +51,7 @@ public class TestTypedAdapter extends FeedAdapter {
 
     protected final IAType sourceDatatype;
 
-    protected static final Logger LOGGER = Logger.getLogger(TestTypedAdapter.class.getName());
+    protected static final Logger LOGGER = LogManager.getLogger();
 
     public TestTypedAdapter(ITupleParserFactory parserFactory, ARecordType sourceDatatype, IHyracksTaskContext ctx,
             Map<String, String> configuration, int partition) throws IOException {
@@ -73,10 +71,9 @@ public class TestTypedAdapter extends FeedAdapter {
         if (pis != null) {
             tupleParser.parse(pis, writer);
         } else {
-            if (LOGGER.isLoggable(Level.WARNING)) {
-                LOGGER.warning(
-                        "Could not obtain input stream for parsing from adapter " + this + "[" + partition + "]");
-            }
+        }
+        if (LOGGER.isWarnEnabled()) {
+            LOGGER.warn("Could not obtain input stream for parsing from adapter " + this + "[" + partition + "]");
         }
     }
 
@@ -139,14 +136,9 @@ public class TestTypedAdapter extends FeedAdapter {
     }
 
     @Override
-    public boolean stop() {
+    public boolean stop(long timeout) {
         generator.stop();
         return true;
-    }
-
-    @Override
-    public boolean handleException(Throwable e) {
-        return false;
     }
 
     @Override

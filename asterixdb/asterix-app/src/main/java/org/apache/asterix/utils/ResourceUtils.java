@@ -19,11 +19,16 @@
 
 package org.apache.asterix.utils;
 
-import org.apache.asterix.app.resource.RequiredCapacityVisitor;
+import java.util.List;
+
+import org.apache.asterix.app.resource.OperatorResourcesComputer;
+import org.apache.asterix.app.resource.PlanStage;
+import org.apache.asterix.app.resource.PlanStagesGenerator;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalOperator;
 import org.apache.hyracks.algebricks.core.algebra.base.ILogicalPlan;
+import org.apache.hyracks.algebricks.core.rewriter.base.PhysicalOptimizationConfig;
 import org.apache.hyracks.api.job.resource.ClusterCapacity;
 import org.apache.hyracks.api.job.resource.IClusterCapacity;
 
@@ -40,31 +45,43 @@ public class ResourceUtils {
      *            a given query plan.
      * @param computationLocations,
      *            the partitions for computation.
-     * @param sortFrameLimit,
-     *            the frame limit for one sorter partition.
-     * @param groupFrameLimit,
-     *            the frame limit for one group-by partition.
-     * @param joinFrameLimit
-     *            the frame limit for one joiner partition.
-     * @param frameSize
-     *            the frame size used in query execution.
+     * @param physicalOptimizationConfig,
+     *            a PhysicalOptimizationConfig.
      * @return the required cluster capacity for executing the query.
      * @throws AlgebricksException
      *             if the query plan is malformed.
      */
-    public static IClusterCapacity getRequiredCompacity(ILogicalPlan plan,
-            AlgebricksAbsolutePartitionConstraint computationLocations, int sortFrameLimit, int groupFrameLimit,
-            int joinFrameLimit, int frameSize)
-            throws AlgebricksException {
-        // Creates a cluster capacity visitor.
-        IClusterCapacity clusterCapacity = new ClusterCapacity();
-        RequiredCapacityVisitor visitor = new RequiredCapacityVisitor(computationLocations.getLocations().length,
-                sortFrameLimit, groupFrameLimit, joinFrameLimit, frameSize, clusterCapacity);
-
-        // There could be only one root operator for a top-level query plan.
-        ILogicalOperator rootOp = plan.getRoots().get(0).getValue();
-        rootOp.accept(visitor, null);
-        return clusterCapacity;
+    public static IClusterCapacity getRequiredCapacity(ILogicalPlan plan,
+            AlgebricksAbsolutePartitionConstraint computationLocations,
+            PhysicalOptimizationConfig physicalOptimizationConfig) throws AlgebricksException {
+        final int frameSize = physicalOptimizationConfig.getFrameSize();
+        final int sortFrameLimit = physicalOptimizationConfig.getMaxFramesExternalSort();
+        final int groupFrameLimit = physicalOptimizationConfig.getMaxFramesForGroupBy();
+        final int joinFrameLimit = physicalOptimizationConfig.getMaxFramesForJoin();
+        final List<PlanStage> planStages = getStages(plan);
+        return getStageBasedRequiredCapacity(planStages, computationLocations.getLocations().length, sortFrameLimit,
+                groupFrameLimit, joinFrameLimit, frameSize);
     }
 
+    public static List<PlanStage> getStages(ILogicalPlan plan) throws AlgebricksException {
+        // There could be only one root operator for a top-level query plan.
+        final ILogicalOperator rootOp = plan.getRoots().get(0).getValue();
+        final PlanStagesGenerator stagesGenerator = new PlanStagesGenerator();
+        rootOp.accept(stagesGenerator, null);
+        return stagesGenerator.getStages();
+    }
+
+    public static IClusterCapacity getStageBasedRequiredCapacity(List<PlanStage> stages, int computationLocations,
+            int sortFrameLimit, int groupFrameLimit, int joinFrameLimit, int frameSize) {
+        final OperatorResourcesComputer computer = new OperatorResourcesComputer(computationLocations, sortFrameLimit,
+                groupFrameLimit, joinFrameLimit, frameSize);
+        final IClusterCapacity clusterCapacity = new ClusterCapacity();
+        final Long maxRequiredMemory = stages.stream().mapToLong(stage -> stage.getRequiredMemory(computer)).max()
+                .orElseThrow(IllegalStateException::new);
+        clusterCapacity.setAggregatedMemoryByteSize(maxRequiredMemory);
+        final Integer maxRequireCores = stages.stream().mapToInt(stage -> stage.getRequiredCores(computer)).max()
+                .orElseThrow(IllegalStateException::new);
+        clusterCapacity.setAggregatedCores(maxRequireCores);
+        return clusterCapacity;
+    }
 }

@@ -20,6 +20,7 @@ package org.apache.asterix.common.api;
 
 import java.io.Serializable;
 
+import org.apache.hyracks.api.control.CcId;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.service.IControllerService;
 
@@ -29,8 +30,9 @@ public interface INCLifecycleTask extends Serializable {
     /**
      * Performs the task.
      *
+     * @param ccId
      * @param cs
      * @throws HyracksDataException
      */
-    void perform(IControllerService cs) throws HyracksDataException;
+    void perform(CcId ccId, IControllerService cs) throws HyracksDataException;
 }

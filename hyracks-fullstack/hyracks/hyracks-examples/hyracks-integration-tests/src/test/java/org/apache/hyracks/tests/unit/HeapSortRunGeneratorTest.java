@@ -19,23 +19,37 @@
 
 package org.apache.hyracks.tests.unit;
 
-import org.junit.Test;
-
 import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.dataflow.value.INormalizedKeyComputerFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.dataflow.common.data.normalizers.IntegerNormalizedKeyComputerFactory;
+import org.apache.hyracks.dataflow.common.data.normalizers.UTF8StringNormalizedKeyComputerFactory;
 import org.apache.hyracks.dataflow.std.sort.AbstractSortRunGenerator;
 import org.apache.hyracks.dataflow.std.sort.HeapSortRunGenerator;
+import org.junit.Test;
 
 public class HeapSortRunGeneratorTest extends AbstractRunGeneratorTest {
     @Override
-    AbstractSortRunGenerator getSortRunGenerator(IHyracksTaskContext ctx, int frameLimit, int numOfInputRecord)
+    AbstractSortRunGenerator[] getSortRunGenerator(IHyracksTaskContext ctx, int frameLimit, int numOfInputRecord)
             throws HyracksDataException {
-        return new HeapSortRunGenerator(ctx, frameLimit, numOfInputRecord, SortFields, null, ComparatorFactories,
-                RecordDesc);
+        HeapSortRunGenerator runGenerator = new HeapSortRunGenerator(ctx, frameLimit, numOfInputRecord, SortFields,
+                null, ComparatorFactories, RecordDesc);
+        HeapSortRunGenerator runGeneratorWithOneNormalizedKey =
+                new HeapSortRunGenerator(ctx, frameLimit, numOfInputRecord, SortFields,
+                        new INormalizedKeyComputerFactory[] { new IntegerNormalizedKeyComputerFactory() },
+                        ComparatorFactories, RecordDesc);
+        HeapSortRunGenerator runGeneratorWithNormalizedKeys = new HeapSortRunGenerator(ctx, frameLimit,
+                numOfInputRecord, SortFields, new INormalizedKeyComputerFactory[] {
+                        new IntegerNormalizedKeyComputerFactory(), new UTF8StringNormalizedKeyComputerFactory() },
+                ComparatorFactories, RecordDesc);
+
+        return new AbstractSortRunGenerator[] { runGenerator, runGeneratorWithOneNormalizedKey,
+                runGeneratorWithNormalizedKeys };
+
     }
 
     @Test
-    public void testTopK(){
+    public void testTopK() {
 
     }
 }

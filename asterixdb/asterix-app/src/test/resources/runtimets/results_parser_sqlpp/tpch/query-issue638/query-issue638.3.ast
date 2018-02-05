@@ -15,16 +15,19 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [sum_profit]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
-          Variable [ Name=$pr ]
+          FieldAccessor [
+            Variable [ Name=$g ]
+            Field=profit
+          ]
           Field=amount
         ]
         ]
-        FROM [          Variable [ Name=$profit ]
-          AS Variable [ Name=$pr ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=$g ]
         ]
       )
     ]
@@ -54,8 +57,8 @@ FROM [  (
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Orders]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Orders]
       ]
       AS Variable [ Name=$o ]
 ,
@@ -112,8 +115,8 @@ FROM [  (
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Part]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Part]
           ]
           AS Variable [ Name=$p ]
 ,
@@ -178,8 +181,8 @@ FROM [  (
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Partsupp]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.Partsupp]
               ]
               AS Variable [ Name=$ps ]
 ,
@@ -265,13 +268,13 @@ FROM [  (
                       )
                     ]
                     ]
-                    FROM [                      FunctionCall Metadata.dataset@1[
-                        LiteralExpr [STRING] [Supplier]
+                    FROM [                      FunctionCall asterix.dataset@1[
+                        LiteralExpr [STRING] [tpch.Supplier]
                       ]
                       AS Variable [ Name=$s ]
 ,
-                      FunctionCall Metadata.dataset@1[
-                        LiteralExpr [STRING] [Nation]
+                      FunctionCall asterix.dataset@1[
+                        LiteralExpr [STRING] [tpch.Nation]
                       ]
                       AS Variable [ Name=$n ]
                     ]
@@ -290,8 +293,8 @@ FROM [  (
                   )
                   AS Variable [ Name=$s1 ]
 ,
-                  FunctionCall Metadata.dataset@1[
-                    LiteralExpr [STRING] [LineItem]
+                  FunctionCall asterix.dataset@1[
+                    LiteralExpr [STRING] [tpch.LineItem]
                   ]
                   AS Variable [ Name=$l ]
                 ]
@@ -431,7 +434,7 @@ Groupby
     Variable [ Name=$profit ]
     Field=o_year
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     profit:=Variable [ Name=$profit ]
   )

@@ -28,6 +28,7 @@ import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.base.IQueryRewriter;
 import org.apache.asterix.lang.common.base.IReturningStatement;
 import org.apache.asterix.lang.common.clause.LetClause;
+import org.apache.asterix.lang.common.expression.CallExpr;
 import org.apache.asterix.lang.common.rewrites.LangRewritingContext;
 import org.apache.asterix.lang.common.statement.FunctionDecl;
 import org.apache.asterix.lang.common.util.FunctionUtil;
@@ -46,7 +47,6 @@ import org.apache.asterix.lang.sqlpp.clause.SelectRegular;
 import org.apache.asterix.lang.sqlpp.clause.SelectSetOperation;
 import org.apache.asterix.lang.sqlpp.clause.UnnestClause;
 import org.apache.asterix.lang.sqlpp.expression.CaseExpression;
-import org.apache.asterix.lang.sqlpp.expression.IndependentSubquery;
 import org.apache.asterix.lang.sqlpp.expression.SelectExpression;
 import org.apache.asterix.lang.sqlpp.parser.FunctionParser;
 import org.apache.asterix.lang.sqlpp.parser.SqlppParserFactory;
@@ -56,7 +56,8 @@ import org.apache.asterix.lang.sqlpp.rewrites.visitor.InlineWithExpressionVisito
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.OperatorExpressionVisitor;
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.SetOperationVisitor;
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppBuiltinFunctionRewriteVisitor;
-import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppGlobalAggregationSugarVisitor;
+import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppDistinctAggregationSugarVisitor;
+import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppGroupByAggregationSugarVisitor;
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppGroupByVisitor;
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppInlineUdfsVisitor;
 import org.apache.asterix.lang.sqlpp.rewrites.visitor.SqlppListInputFunctionRewriteVisitor;
@@ -86,12 +87,11 @@ class SqlppQueryRewriter implements IQueryRewriter {
 
     @Override
     public void rewrite(List<FunctionDecl> declaredFunctions, IReturningStatement topStatement,
-            MetadataProvider metadataProvider, LangRewritingContext context) throws CompilationException {
+            MetadataProvider metadataProvider, LangRewritingContext context, boolean inlineUdfs)
+            throws CompilationException {
         if (topStatement == null) {
             return;
         }
-        // Marks the current variable counter.
-        context.markCounter();
 
         // Sets up parameters.
         setup(declaredFunctions, topStatement, metadataProvider, context);
@@ -105,51 +105,52 @@ class SqlppQueryRewriter implements IQueryRewriter {
         // Substitutes group-by key expressions.
         substituteGroupbyKeyExpression();
 
-        // Rewrites SQL-92 global aggregations.
-        rewriteGlobalAggregations();
-
-        // Group-by core/sugar rewrites.
+        // Group-by core rewrites
         rewriteGroupBys();
 
         // Rewrites set operations.
         rewriteSetOperations();
 
+        // Generate ids for variables (considering scopes) and replace global variable access with the dataset function.
+        variableCheckAndRewrite();
+
+        // Rewrites SQL-92 aggregate functions
+        rewriteGroupByAggregationSugar();
+
         // Rewrites like/not-like expressions.
         rewriteOperatorExpression();
 
-        // Generate ids for variables (considering scopes) and replace global variable access with the dataset function.
-        variableCheckAndRewrite(true);
+        // Inlines WITH expressions after variableCheckAndRewrite(...) so that the variable scoping for WITH
+        // expression is correct.
+        inlineWithExpressions();
 
         // Rewrites several variable-arg functions into their corresponding internal list-input functions.
         rewriteListInputFunctions();
 
         // Inlines functions.
-        inlineDeclaredUdfs();
+        inlineDeclaredUdfs(inlineUdfs);
 
         // Rewrites function names.
         // This should be done after inlineDeclaredUdfs() because user-defined function
         // names could be case sensitive.
         rewriteFunctionNames();
 
-        // Resets the variable counter to the previous marked value.
-        // Therefore, the variable ids in the final query plans will not be perturbed
-        // by the additon or removal of intermediate AST rewrites.
-        context.resetCounter();
-
-        // Replace global variable access with the dataset function for inlined expressions.
-        variableCheckAndRewrite(true);
-
-        // Inlines WITH expressions after variableCheckAndRewrite(...) so that the variable scoping for WITH
-        // expression is correct.
-        inlineWithExpressions();
+        // Rewrites distinct aggregates into regular aggregates
+        rewriteDistinctAggregations();
 
         // Sets the var counter of the query.
         topStatement.setVarCounter(context.getVarCounter());
     }
 
-    protected void rewriteGlobalAggregations() throws CompilationException {
-        SqlppGlobalAggregationSugarVisitor globalAggregationVisitor = new SqlppGlobalAggregationSugarVisitor();
-        topExpr.accept(globalAggregationVisitor, null);
+    protected void rewriteGroupByAggregationSugar() throws CompilationException {
+        SqlppGroupByAggregationSugarVisitor visitor = new SqlppGroupByAggregationSugarVisitor(context);
+        topExpr.accept(visitor, null);
+    }
+
+    protected void rewriteDistinctAggregations() throws CompilationException {
+        SqlppDistinctAggregationSugarVisitor distinctAggregationVisitor =
+                new SqlppDistinctAggregationSugarVisitor(context);
+        topExpr.accept(distinctAggregationVisitor, null);
     }
 
     protected void rewriteListInputFunctions() throws CompilationException {
@@ -203,9 +204,9 @@ class SqlppQueryRewriter implements IQueryRewriter {
         topExpr.accept(inlineColumnAliasVisitor, null);
     }
 
-    protected void variableCheckAndRewrite(boolean overwrite) throws CompilationException {
+    protected void variableCheckAndRewrite() throws CompilationException {
         VariableCheckAndRewriteVisitor variableCheckAndRewriteVisitor =
-                new VariableCheckAndRewriteVisitor(context, overwrite, metadataProvider);
+                new VariableCheckAndRewriteVisitor(context, metadataProvider, topExpr.getExternalVars());
         topExpr.accept(variableCheckAndRewriteVisitor, null);
     }
 
@@ -214,7 +215,7 @@ class SqlppQueryRewriter implements IQueryRewriter {
         topExpr.accept(groupByVisitor, null);
     }
 
-    protected void inlineDeclaredUdfs() throws CompilationException {
+    protected void inlineDeclaredUdfs(boolean inlineUdfs) throws CompilationException {
         List<FunctionSignature> funIds = new ArrayList<FunctionSignature>();
         for (FunctionDecl fdecl : declaredFunctions) {
             funIds.add(fdecl.getSignature());
@@ -227,7 +228,7 @@ class SqlppQueryRewriter implements IQueryRewriter {
                     signature -> FunctionMapUtil.normalizeBuiltinFunctionSignature(signature, false)));
         }
         declaredFunctions.addAll(usedStoredFunctionDecls);
-        if (!declaredFunctions.isEmpty()) {
+        if (inlineUdfs && !declaredFunctions.isEmpty()) {
             SqlppInlineUdfsVisitor visitor = new SqlppInlineUdfsVisitor(context,
                     new SqlppFunctionBodyRewriterFactory() /* the rewriter for function bodies expressions*/,
                     declaredFunctions, metadataProvider);
@@ -238,7 +239,8 @@ class SqlppQueryRewriter implements IQueryRewriter {
         declaredFunctions.removeAll(usedStoredFunctionDecls);
     }
 
-    private Set<FunctionSignature> getFunctionCalls(Expression expression) throws CompilationException {
+    @Override
+    public Set<CallExpr> getFunctionCalls(Expression expression) throws CompilationException {
         GatherFunctionCalls gfc = new GatherFunctionCalls();
         expression.accept(gfc, null);
         return gfc.getCalls();
@@ -370,12 +372,6 @@ class SqlppQueryRewriter implements IQueryRewriter {
         @Override
         public Void visit(HavingClause havingClause, Void arg) throws CompilationException {
             havingClause.getFilterExpression().accept(this, arg);
-            return null;
-        }
-
-        @Override
-        public Void visit(IndependentSubquery independentSubquery, Void arg) throws CompilationException {
-            independentSubquery.getExpr().accept(this, arg);
             return null;
         }
 

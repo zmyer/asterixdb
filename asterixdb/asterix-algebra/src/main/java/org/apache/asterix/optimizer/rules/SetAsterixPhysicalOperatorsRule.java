@@ -80,20 +80,20 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
             return false;
         }
 
-        computeDefaultPhysicalOp(op, context);
+        computeDefaultPhysicalOp(op, true, context);
         context.addToDontApplySet(this, op);
         return true;
     }
 
-    private static void setPhysicalOperators(ILogicalPlan plan, IOptimizationContext context)
+    private static void setPhysicalOperators(ILogicalPlan plan, boolean topLevelOp, IOptimizationContext context)
             throws AlgebricksException {
         for (Mutable<ILogicalOperator> root : plan.getRoots()) {
-            computeDefaultPhysicalOp((AbstractLogicalOperator) root.getValue(), context);
+            computeDefaultPhysicalOp((AbstractLogicalOperator) root.getValue(), topLevelOp, context);
         }
     }
 
-    private static void computeDefaultPhysicalOp(AbstractLogicalOperator op, IOptimizationContext context)
-            throws AlgebricksException {
+    private static void computeDefaultPhysicalOp(AbstractLogicalOperator op, boolean topLevelOp,
+            IOptimizationContext context) throws AlgebricksException {
         PhysicalOptimizationConfig physicalOptimizationConfig = context.getPhysicalOptimizationConfig();
         if (op.getOperatorTag().equals(LogicalOperatorTag.GROUP)) {
             GroupByOperator gby = (GroupByOperator) op;
@@ -107,8 +107,7 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                         boolean serializable = true;
                         for (Mutable<ILogicalExpression> exprRef : aggOp.getExpressions()) {
                             AbstractFunctionCallExpression expr = (AbstractFunctionCallExpression) exprRef.getValue();
-                            if (!BuiltinFunctions
-                                    .isAggregateFunctionSerializable(expr.getFunctionIdentifier())) {
+                            if (!BuiltinFunctions.isAggregateFunctionSerializable(expr.getFunctionIdentifier())) {
                                 serializable = false;
                                 break;
                             }
@@ -121,17 +120,17 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                                 // if serializable, use external group-by
                                 // now check whether the serialized version aggregation function has corresponding intermediate agg
                                 boolean hasIntermediateAgg = true;
-                                IMergeAggregationExpressionFactory mergeAggregationExpressionFactory = context
-                                        .getMergeAggregationExpressionFactory();
+                                IMergeAggregationExpressionFactory mergeAggregationExpressionFactory =
+                                        context.getMergeAggregationExpressionFactory();
                                 List<LogicalVariable> originalVariables = aggOp.getVariables();
                                 List<Mutable<ILogicalExpression>> aggExprs = aggOp.getExpressions();
                                 int aggNum = aggExprs.size();
                                 for (int i = 0; i < aggNum; i++) {
-                                    AbstractFunctionCallExpression expr = (AbstractFunctionCallExpression) aggExprs
-                                            .get(i).getValue();
-                                    AggregateFunctionCallExpression serialAggExpr = BuiltinFunctions
-                                            .makeSerializableAggregateFunctionExpression(expr.getFunctionIdentifier(),
-                                                    expr.getArguments());
+                                    AbstractFunctionCallExpression expr =
+                                            (AbstractFunctionCallExpression) aggExprs.get(i).getValue();
+                                    AggregateFunctionCallExpression serialAggExpr =
+                                            BuiltinFunctions.makeSerializableAggregateFunctionExpression(
+                                                    expr.getFunctionIdentifier(), expr.getArguments());
                                     if (mergeAggregationExpressionFactory.createMergeAggregation(
                                             originalVariables.get(i), serialAggExpr, context) == null) {
                                         hasIntermediateAgg = false;
@@ -153,17 +152,16 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
 
                                 if (hasIntermediateAgg && !multipleAggOpsFound) {
                                     for (int i = 0; i < aggNum; i++) {
-                                        AbstractFunctionCallExpression expr = (AbstractFunctionCallExpression) aggExprs
-                                                .get(i).getValue();
-                                        AggregateFunctionCallExpression serialAggExpr = BuiltinFunctions
-                                                .makeSerializableAggregateFunctionExpression(
+                                        AbstractFunctionCallExpression expr =
+                                                (AbstractFunctionCallExpression) aggExprs.get(i).getValue();
+                                        AggregateFunctionCallExpression serialAggExpr =
+                                                BuiltinFunctions.makeSerializableAggregateFunctionExpression(
                                                         expr.getFunctionIdentifier(), expr.getArguments());
                                         aggOp.getExpressions().get(i).setValue(serialAggExpr);
                                     }
                                     ExternalGroupByPOperator externalGby = new ExternalGroupByPOperator(
-                                            gby.getGroupByList(),
-                                            physicalOptimizationConfig.getMaxFramesExternalGroupBy(),
-                                            (long) physicalOptimizationConfig.getMaxFramesExternalGroupBy()
+                                            gby.getGroupByList(), physicalOptimizationConfig.getMaxFramesForGroupBy(),
+                                            (long) physicalOptimizationConfig.getMaxFramesForGroupBy()
                                                     * physicalOptimizationConfig.getFrameSize());
                                     generateMergeAggregationExpressions(gby, context);
                                     op.setPhysicalOperator(externalGby);
@@ -182,7 +180,8 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                                         columnList.add(varRef.getVariableReference());
                                     }
                                 }
-                                op.setPhysicalOperator(new PreclusteredGroupByPOperator(columnList, gby.isGroupAll()));
+                                op.setPhysicalOperator(new PreclusteredGroupByPOperator(columnList, gby.isGroupAll(),
+                                        context.getPhysicalOptimizationConfig().getMaxFramesForGroupBy()));
                             }
                         }
                     } else if (((AbstractLogicalOperator) (r0.getValue())).getOperatorTag()
@@ -196,7 +195,8 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                                 columnList.add(varRef.getVariableReference());
                             }
                         }
-                        op.setPhysicalOperator(new PreclusteredGroupByPOperator(columnList, gby.isGroupAll()));
+                        op.setPhysicalOperator(new PreclusteredGroupByPOperator(columnList, gby.isGroupAll(),
+                                context.getPhysicalOptimizationConfig().getMaxFramesForGroupBy()));
                     } else {
                         throw new AlgebricksException("Unsupported nested operator within a group-by: "
                                 + ((AbstractLogicalOperator) (r0.getValue())).getOperatorTag().name());
@@ -207,11 +207,11 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
         if (op.getPhysicalOperator() == null) {
             switch (op.getOperatorTag()) {
                 case INNERJOIN: {
-                    JoinUtils.setJoinAlgorithmAndExchangeAlgo((InnerJoinOperator) op, context);
+                    JoinUtils.setJoinAlgorithmAndExchangeAlgo((InnerJoinOperator) op, topLevelOp, context);
                     break;
                 }
                 case LEFTOUTERJOIN: {
-                    JoinUtils.setJoinAlgorithmAndExchangeAlgo((LeftOuterJoinOperator) op, context);
+                    JoinUtils.setJoinAlgorithmAndExchangeAlgo((LeftOuterJoinOperator) op, topLevelOp, context);
                     break;
                 }
                 case UNNEST_MAP:
@@ -227,12 +227,12 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                         AccessMethodJobGenParams jobGenParams = new AccessMethodJobGenParams();
                         jobGenParams.readFromFuncArgs(f.getArguments());
                         MetadataProvider mp = (MetadataProvider) context.getMetadataProvider();
-                        DataSourceId dataSourceId = new DataSourceId(jobGenParams.getDataverseName(),
-                                jobGenParams.getDatasetName());
-                        Dataset dataset = mp.findDataset(jobGenParams.getDataverseName(),
-                                jobGenParams.getDatasetName());
-                        IDataSourceIndex<String, DataSourceId> dsi = mp.findDataSourceIndex(jobGenParams.getIndexName(),
-                                dataSourceId);
+                        DataSourceId dataSourceId =
+                                new DataSourceId(jobGenParams.getDataverseName(), jobGenParams.getDatasetName());
+                        Dataset dataset =
+                                mp.findDataset(jobGenParams.getDataverseName(), jobGenParams.getDatasetName());
+                        IDataSourceIndex<String, DataSourceId> dsi =
+                                mp.findDataSourceIndex(jobGenParams.getIndexName(), dataSourceId);
                         INodeDomain storageDomain = mp.findNodeDomain(dataset.getNodeGroupName());
                         if (dsi == null) {
                             throw new AlgebricksException("Could not find index " + jobGenParams.getIndexName()
@@ -277,11 +277,11 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
         if (op.hasNestedPlans()) {
             AbstractOperatorWithNestedPlans nested = (AbstractOperatorWithNestedPlans) op;
             for (ILogicalPlan p : nested.getNestedPlans()) {
-                setPhysicalOperators(p, context);
+                setPhysicalOperators(p, false, context);
             }
         }
         for (Mutable<ILogicalOperator> opRef : op.getInputs()) {
-            computeDefaultPhysicalOp((AbstractLogicalOperator) opRef.getValue(), context);
+            computeDefaultPhysicalOp((AbstractLogicalOperator) opRef.getValue(), topLevelOp, context);
         }
     }
 
@@ -298,8 +298,8 @@ public class SetAsterixPhysicalOperatorsRule implements IAlgebraicRewriteRule {
                     "External group-by currently works only for one nested plan with one root containing"
                             + "an aggregate and a nested-tuple-source.");
         }
-        IMergeAggregationExpressionFactory mergeAggregationExpressionFactory = context
-                .getMergeAggregationExpressionFactory();
+        IMergeAggregationExpressionFactory mergeAggregationExpressionFactory =
+                context.getMergeAggregationExpressionFactory();
         Mutable<ILogicalOperator> r0 = p0.getRoots().get(0);
         AbstractLogicalOperator r0Logical = (AbstractLogicalOperator) r0.getValue();
         if (r0Logical.getOperatorTag() != LogicalOperatorTag.AGGREGATE) {

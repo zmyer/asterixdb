@@ -18,13 +18,11 @@
  */
 package org.apache.asterix.om.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.utils.RecordUtil;
-import org.apache.asterix.om.visitors.IOMVisitor;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class ARecord implements IAObject {
@@ -36,11 +34,6 @@ public class ARecord implements IAObject {
     public ARecord(ARecordType type, IAObject[] fields) {
         this.type = type;
         this.fields = fields;
-    }
-
-    @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitARecord(this);
     }
 
     @Override
@@ -90,7 +83,7 @@ public class ARecord implements IAObject {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("ARecord: { ");
+        sb.append("{ ");
         if (fields != null) {
             for (int i = 0; i < fields.length; i++) {
                 if (i > 0) {
@@ -106,7 +99,7 @@ public class ARecord implements IAObject {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode json = om.createObjectNode();
 

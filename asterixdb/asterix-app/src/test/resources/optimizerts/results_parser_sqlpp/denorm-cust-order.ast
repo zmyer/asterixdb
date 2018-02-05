@@ -43,27 +43,32 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [cust]
     :
-    FunctionCall Metadata.resolve@-1[
-      LiteralExpr [STRING] [cust]
-      Variable [ Name=$cid ]
-      Variable [ Name=$o ]
-      Variable [ Name=#1 ]
-      Variable [ Name=$c ]
-    ]
+    (
+      SELECT [
+      FunctionCall asterix.field-access-by-name@2[
+        Variable [ Name=$g ]
+        LiteralExpr [STRING] [c]
+      ]
+      c
+      ]
+      FROM [        Variable [ Name=$g ]
+        AS Variable [ Name=$g ]
+      ]
+    )
   )
   (
     LiteralExpr [STRING] [cnt-orders]
     :
-    FunctionCall custorder.sql-count@1[
+    FunctionCall asterix.sql-count@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
-          Variable [ Name=#2 ]
+          Variable [ Name=#1 ]
           Field=o
         ]
         ]
-        FROM [          Variable [ Name=#1 ]
-          AS Variable [ Name=#2 ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=#1 ]
         ]
       )
     ]
@@ -71,17 +76,28 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [orders]
     :
-    Variable [ Name=$o ]
+    (
+      SELECT [
+      FunctionCall asterix.field-access-by-name@2[
+        Variable [ Name=$g ]
+        LiteralExpr [STRING] [o]
+      ]
+      o
+      ]
+      FROM [        Variable [ Name=$g ]
+        AS Variable [ Name=$g ]
+      ]
+    )
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customers]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [custorder.Customers]
   ]
   AS Variable [ Name=$c ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Orders]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [custorder.Orders]
   ]
   AS Variable [ Name=$o ]
 ]
@@ -104,7 +120,7 @@ Groupby
     Variable [ Name=$c ]
     Field=cid
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     c:=Variable [ Name=$c ]
     o:=Variable [ Name=$o ]

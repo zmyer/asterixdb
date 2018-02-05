@@ -28,17 +28,26 @@ public class Servlets {
     public static final String SQLPP_QUERY = "/query/sqlpp";
     public static final String SQLPP_UPDATE = "/update/sqlpp";
     public static final String SQLPP_DDL = "/ddl/sqlpp";
-    public static final String QUERY_STATUS = "/query/status";
-    public static final String QUERY_RESULT = "/query/result";
+    public static final String QUERY_STATUS = "/query/service/status/*";
+    public static final String QUERY_RESULT = "/query/service/result/*";
     public static final String QUERY_SERVICE = "/query/service";
+    public static final String QUERY_AQL = "/query/aql";
     public static final String CONNECTOR = "/connector";
+    public static final String REBALANCE = "/admin/rebalance";
     public static final String SHUTDOWN = "/admin/shutdown";
     public static final String VERSION = "/admin/version";
+    public static final String RUNNING_REQUESTS = "/admin/requests/running/*";
     public static final String CLUSTER_STATE = "/admin/cluster/*";
     public static final String CLUSTER_STATE_NODE_DETAIL = "/admin/cluster/node/*";
     public static final String CLUSTER_STATE_CC_DETAIL = "/admin/cluster/cc/*";
     public static final String DIAGNOSTICS = "/admin/diagnostics";
+    public static final String ACTIVE_STATS = "/admin/active/*";
+    public static final String STORAGE = "/admin/storage/*";
 
     private Servlets() {
+    }
+
+    public static String getAbsolutePath(String servlet) {
+        return servlet.replaceAll("/\\*$", "");
     }
 }

@@ -34,14 +34,15 @@ import org.apache.hyracks.storage.common.buffercache.BufferCache;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
 import org.apache.hyracks.storage.common.file.BufferedFileHandle;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
 import org.apache.hyracks.test.support.TestStorageManagerComponentHolder;
 import org.apache.hyracks.test.support.TestUtils;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 public class BufferCacheRegressionTest {
+    protected String dirName = "target";
     protected String fileName = "flushTestFile";
     private static final int PAGE_SIZE = 256;
     private static final int HYRACKS_FRAME_SIZE = PAGE_SIZE;
@@ -53,35 +54,43 @@ public class BufferCacheRegressionTest {
     // invalidated, but most not be flushed.
     // 2. If the file was not deleted, then we must flush its dirty pages.
     @Before
-    public void setUp() throws IOException{
+    public void setUp() throws IOException {
         resetState();
     }
+
     @After
-    public void tearDown() throws IOException{
+    public void tearDown() throws IOException {
         resetState();
     }
-    private void resetState() throws IOException{
-        File f = new File(fileName);
+
+    private void resetState() throws IOException {
+        File f = new File(dirName, fileName);
         if (f.exists()) {
             f.delete();
         }
     }
+
     @Test
     public void testFlushBehaviorOnFileEviction() throws IOException {
         flushBehaviorTest(true);
-        flushBehaviorTest(false);
+        boolean exceptionCaught = false;
+        try {
+            flushBehaviorTest(false);
+        } catch (Exception e) {
+            exceptionCaught = true;
+        }
+        Assert.assertTrue(exceptionCaught);
     }
 
     private void flushBehaviorTest(boolean deleteFile) throws IOException {
         TestStorageManagerComponentHolder.init(PAGE_SIZE, 10, 1);
 
-        IBufferCache bufferCache = TestStorageManagerComponentHolder.getBufferCache(ctx);
-        IFileMapProvider fmp = TestStorageManagerComponentHolder.getFileMapProvider(ctx);
+        IBufferCache bufferCache =
+                TestStorageManagerComponentHolder.getBufferCache(ctx.getJobletContext().getServiceContext());
         IOManager ioManager = TestStorageManagerComponentHolder.getIOManager();
 
         FileReference firstFileRef = ioManager.resolve(fileName);
-        bufferCache.createFile(firstFileRef);
-        int firstFileId = fmp.lookupFileId(firstFileRef);
+        int firstFileId = bufferCache.createFile(firstFileRef);
         bufferCache.openFile(firstFileId);
 
         // Fill the first page with known data and make it dirty by write
@@ -99,13 +108,12 @@ public class BufferCacheRegressionTest {
         }
         bufferCache.closeFile(firstFileId);
         if (deleteFile) {
-            bufferCache.deleteFile(firstFileId, false);
+            bufferCache.deleteFile(firstFileId);
         }
 
         // Create a file with the same name.
         FileReference secondFileRef = ioManager.resolve(fileName);
-        bufferCache.createFile(secondFileRef);
-        int secondFileId = fmp.lookupFileId(secondFileRef);
+        int secondFileId = bufferCache.createFile(secondFileRef);
 
         // This open will replace the firstFileRef's slot in the BufferCache,
         // causing it's pages to be cleaned up. We want to make sure that those
@@ -120,8 +128,8 @@ public class BufferCacheRegressionTest {
         // physical memory again, and for performance reasons pages are never
         // reset with 0's.
         FileReference testFileRef = ioManager.resolve(fileName);
-        IFileHandle testFileHandle = ioManager.open(testFileRef, FileReadWriteMode.READ_ONLY,
-                FileSyncMode.METADATA_SYNC_DATA_SYNC);
+        IFileHandle testFileHandle =
+                ioManager.open(testFileRef, FileReadWriteMode.READ_ONLY, FileSyncMode.METADATA_SYNC_DATA_SYNC);
         ByteBuffer testBuffer = ByteBuffer.allocate(PAGE_SIZE + BufferCache.RESERVED_HEADER_BYTES);
         ioManager.syncRead(testFileHandle, 0, testBuffer);
         for (int i = BufferCache.RESERVED_HEADER_BYTES; i < testBuffer.capacity(); i++) {
@@ -142,7 +150,7 @@ public class BufferCacheRegressionTest {
         ioManager.close(testFileHandle);
         bufferCache.closeFile(secondFileId);
         if (deleteFile) {
-            bufferCache.deleteFile(secondFileId, false);
+            bufferCache.deleteFile(secondFileId);
         }
         bufferCache.close();
     }

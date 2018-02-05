@@ -22,9 +22,6 @@ package org.apache.hyracks.storage.am.btree;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import java.util.logging.Level;
-
-import org.junit.Test;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.btree.util.AbstractBTreeTest;
@@ -32,6 +29,7 @@ import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.apache.hyracks.storage.common.buffercache.ICachedPage;
 import org.apache.hyracks.storage.common.file.BufferedFileHandle;
 import org.apache.hyracks.storage.common.sync.LatchType;
+import org.junit.Test;
 
 public class StorageFileAccessTest extends AbstractBTreeTest {
     public class PinnedLatchedPage {
@@ -66,7 +64,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
         private int loopCount = 0;
         private boolean fileIsOpen = false;
         private Random rnd = new Random(50);
-        private List<PinnedLatchedPage> pinnedPages = new LinkedList<PinnedLatchedPage>();
+        private List<PinnedLatchedPage> pinnedPages = new LinkedList<>();
 
         public FileAccessWorker(int workerId, IBufferCache bufferCache, FileAccessType fta, int fileId, int maxPages,
                 int maxPinnedPages, int maxLoopCount, int closeFileChance, long thinkTime) {
@@ -84,7 +82,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
         private void pinRandomPage() {
             int pageId = Math.abs(rnd.nextInt() % maxPages);
 
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info(workerId + " PINNING PAGE: " + pageId);
             }
 
@@ -100,7 +98,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
                         break;
 
                     case FTA_READONLY: {
-                        if (LOGGER.isLoggable(Level.INFO)) {
+                        if (LOGGER.isInfoEnabled()) {
                             LOGGER.info(workerId + " S LATCHING: " + pageId);
                         }
                         page.acquireReadLatch();
@@ -109,7 +107,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
                         break;
 
                     case FTA_WRITEONLY: {
-                        if (LOGGER.isLoggable(Level.INFO)) {
+                        if (LOGGER.isInfoEnabled()) {
                             LOGGER.info(workerId + " X LATCHING: " + pageId);
                         }
                         page.acquireWriteLatch();
@@ -119,13 +117,13 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
 
                     case FTA_MIXED: {
                         if (rnd.nextInt() % 2 == 0) {
-                            if (LOGGER.isLoggable(Level.INFO)) {
+                            if (LOGGER.isInfoEnabled()) {
                                 LOGGER.info(workerId + " S LATCHING: " + pageId);
                             }
                             page.acquireReadLatch();
                             latch = LatchType.LATCH_S;
                         } else {
-                            if (LOGGER.isLoggable(Level.INFO)) {
+                            if (LOGGER.isInfoEnabled()) {
                                 LOGGER.info(workerId + " X LATCHING: " + pageId);
                             }
                             page.acquireWriteLatch();
@@ -150,18 +148,18 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
 
                 if (plPage.latch != null) {
                     if (plPage.latch == LatchType.LATCH_S) {
-                        if (LOGGER.isLoggable(Level.INFO)) {
+                        if (LOGGER.isInfoEnabled()) {
                             LOGGER.info(workerId + " S UNLATCHING: " + plPage.pageId);
                         }
                         plPage.page.releaseReadLatch();
                     } else {
-                        if (LOGGER.isLoggable(Level.INFO)) {
+                        if (LOGGER.isInfoEnabled()) {
                             LOGGER.info(workerId + " X UNLATCHING: " + plPage.pageId);
                         }
                         plPage.page.releaseWriteLatch(true);
                     }
                 }
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info(workerId + " UNPINNING PAGE: " + plPage.pageId);
                 }
 
@@ -173,7 +171,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
         }
 
         private void openFile() {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info(workerId + " OPENING FILE: " + fileId);
             }
             try {
@@ -185,7 +183,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
         }
 
         private void closeFile() {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info(workerId + " CLOSING FILE: " + fileId);
             }
             try {
@@ -204,7 +202,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
             while (loopCount < maxLoopCount) {
                 loopCount++;
 
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info(workerId + " LOOP: " + loopCount + "/" + maxLoopCount);
                 }
 
@@ -259,8 +257,7 @@ public class StorageFileAccessTest extends AbstractBTreeTest {
     public void oneThreadOneFileTest() throws Exception {
         IBufferCache bufferCache = harness.getBufferCache();
         bufferCache.createFile(harness.getFileReference());
-        int btreeFileId = harness.getFileMapProvider().lookupFileId(harness.getFileReference());
-        bufferCache.openFile(btreeFileId);
+        int btreeFileId = bufferCache.openFile(harness.getFileReference());
         Thread worker = new Thread(new FileAccessWorker(0, harness.getBufferCache(), FileAccessType.FTA_UNLATCHED,
                 btreeFileId, 10, 10, 100, 10, 0));
         worker.start();

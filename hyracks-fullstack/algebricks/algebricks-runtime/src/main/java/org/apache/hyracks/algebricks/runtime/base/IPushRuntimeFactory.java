@@ -24,5 +24,5 @@ import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 public interface IPushRuntimeFactory extends Serializable {
-    public IPushRuntime createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException;
+    IPushRuntime[] createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException;
 }

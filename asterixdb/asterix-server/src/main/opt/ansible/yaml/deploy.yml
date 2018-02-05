@@ -27,3 +27,6 @@
   file:
     path: "{{ binarydir }}/logs"
     state: directory
+
+- include: download_yourkit.yml
+  when: debug

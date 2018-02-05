@@ -20,8 +20,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [empDataset]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.empDataset]
   ]
   AS Variable [ Name=$emp ]
 ]

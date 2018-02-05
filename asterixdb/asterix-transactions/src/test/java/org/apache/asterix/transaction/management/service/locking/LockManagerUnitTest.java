@@ -30,13 +30,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Logger;
 
 import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.asterix.common.transactions.ILockManager;
 import org.apache.asterix.common.transactions.ITransactionContext;
-import org.apache.asterix.common.transactions.JobId;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.transaction.management.service.locking.Request.Kind;
 import org.apache.asterix.transaction.management.service.transaction.TransactionManagementConstants.LockManagerConstants.LockMode;
 import org.junit.After;
@@ -52,10 +50,6 @@ public class LockManagerUnitTest {
     static int INITIAL_TIMESTAMP = 0;
     static long COORDINATOR_SLEEP = 20;
     static int TIMEOUT_MS = 100;
-
-    static {
-        Logger.getLogger(ConcurrentLockManager.class.getName()).addHandler(new ConsoleHandler());
-    }
 
     Map<Integer, ITransactionContext> jobId2TxnCtxMap;
     ILockManager lockMgr;
@@ -300,7 +294,7 @@ public class LockManagerUnitTest {
      * @return throwable for said error
      */
     private static Throwable getError(Map<String, Throwable> errors, ITransactionContext txnCtx) {
-        return errors.get(txnCtx.getJobId().toString());
+        return errors.get(txnCtx.getTxnId().toString());
     }
 
     /**
@@ -318,7 +312,7 @@ public class LockManagerUnitTest {
         Throwable error = getError(errors, txnCtx);
         if (error == null) {
             throw new AssertionError(
-                    "expected " + clazz.getSimpleName() + " for " + txnCtx.getJobId() + ", got no " + "exception");
+                    "expected " + clazz.getSimpleName() + " for " + txnCtx.getTxnId() + ", got no " + "exception");
         }
         if (!clazz.isInstance(error)) {
             throw new AssertionError(error);
@@ -354,7 +348,7 @@ public class LockManagerUnitTest {
     private ITransactionContext j(int jId) {
         if (!jobId2TxnCtxMap.containsKey(jId)) {
             ITransactionContext mockTxnContext = mock(ITransactionContext.class);
-            when(mockTxnContext.getJobId()).thenReturn(new JobId(jId));
+            when(mockTxnContext.getTxnId()).thenReturn(new TxnId(jId));
             jobId2TxnCtxMap.put(jId, mockTxnContext);
         }
         return jobId2TxnCtxMap.get(jId);

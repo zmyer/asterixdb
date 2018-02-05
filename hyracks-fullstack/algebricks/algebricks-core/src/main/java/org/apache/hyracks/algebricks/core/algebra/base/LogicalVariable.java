@@ -25,9 +25,16 @@ package org.apache.hyracks.algebricks.core.algebra.base;
  */
 public final class LogicalVariable {
     private final int id;
+    private final String displayName;
 
     public LogicalVariable(int id) {
         this.id = id;
+        this.displayName = "$$" + id;
+    }
+
+    public LogicalVariable(int id, String displayName) {
+        this.id = id;
+        this.displayName = "$" + displayName;
     }
 
     public int getId() {
@@ -36,16 +43,15 @@ public final class LogicalVariable {
 
     @Override
     public String toString() {
-        return "$$" + id;
+        return displayName;
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof LogicalVariable)) {
-            return false;
-        } else {
+        if (obj instanceof LogicalVariable) {
             return id == ((LogicalVariable) obj).getId();
         }
+        return false;
     }
 
     @Override

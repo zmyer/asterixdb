@@ -66,11 +66,6 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="api">
-      <compilation-unit name="replication">
-        <output-dir compare="Text">replication</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="api">
       <compilation-unit name="query_status_1">
         <output-dir compare="Text">query_status_1</output-dir>
         <expected-error>HTTP/1.1 404 Not Found</expected-error>
@@ -116,6 +111,11 @@
       <compilation-unit name="query_result_4">
         <output-dir compare="Text">query_result_4</output-dir>
         <expected-error>HTTP/1.1 400 Bad Request</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="api">
+      <compilation-unit name="feed-stats">
+        <output-dir compare="Text">feed-stats</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>

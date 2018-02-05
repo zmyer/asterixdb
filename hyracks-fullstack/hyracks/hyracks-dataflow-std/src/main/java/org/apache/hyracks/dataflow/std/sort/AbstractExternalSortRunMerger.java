@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.FrameConstants;
 import org.apache.hyracks.api.comm.IFrameWriter;
@@ -35,8 +33,12 @@ import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
 import org.apache.hyracks.dataflow.common.io.GeneratedRunFileReader;
+import org.apache.hyracks.dataflow.common.io.RunFileReader;
 import org.apache.hyracks.dataflow.common.io.RunFileWriter;
 import org.apache.hyracks.dataflow.std.sort.util.GroupVSizeFrame;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class AbstractExternalSortRunMerger {
 
@@ -54,7 +56,7 @@ public abstract class AbstractExternalSortRunMerger {
     private VSizeFrame outputFrame;
     private ISorter sorter;
 
-    private static final Logger LOGGER = Logger.getLogger(AbstractExternalSortRunMerger.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public AbstractExternalSortRunMerger(IHyracksTaskContext ctx, ISorter sorter, List<GeneratedRunFileReader> runs,
             IBinaryComparator[] comparators, INormalizedKeyComputer nmkComputer, RecordDescriptor recordDesc,
@@ -146,8 +148,8 @@ public abstract class AbstractExternalSortRunMerger {
 
                         if (currentGenerationRunAvailable.isEmpty()) {
 
-                            if (LOGGER.isLoggable(Level.FINE)) {
-                                LOGGER.fine("generated runs:" + stop);
+                            if (LOGGER.isDebugEnabled()) {
+                                LOGGER.debug("generated runs:" + stop);
                             }
                             runs.subList(0, stop).clear();
                             currentGenerationRunAvailable.clear();
@@ -155,9 +157,7 @@ public abstract class AbstractExternalSortRunMerger {
                             stop = runs.size();
                         }
                     } else {
-                        if (LOGGER.isLoggable(Level.FINE)) {
-                            LOGGER.fine("final runs:" + stop);
-                        }
+                        LOGGER.debug("final runs: {}", stop);
                         merge(finalWriter, partialRuns);
                         break;
                     }
@@ -167,10 +167,22 @@ public abstract class AbstractExternalSortRunMerger {
             if (finalWriter != null) {
                 finalWriter.fail();
             }
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         } finally {
-            if (finalWriter != null) {
-                finalWriter.close();
+            try {
+                if (finalWriter != null) {
+                    finalWriter.close();
+                }
+            } finally {
+                for (RunFileReader reader : runs) {
+                    try {
+                        reader.close(); // close is idempotent.
+                    } catch (Exception e) {
+                        if (LOGGER.isWarnEnabled()) {
+                            LOGGER.log(Level.WARN, e.getMessage(), e);
+                        }
+                    }
+                }
             }
         }
     }
@@ -246,8 +258,8 @@ public abstract class AbstractExternalSortRunMerger {
             }
         } finally {
             merger.close();
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.fine("Output " + io + " frames");
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Output " + io + " frames");
             }
         }
     }

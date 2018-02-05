@@ -23,20 +23,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.http.api.IServlet;
+import org.apache.hyracks.util.ThreadDumpUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -47,7 +50,12 @@ public class HttpServer {
     // Constants
     private static final int LOW_WRITE_BUFFER_WATER_MARK = 8 * 1024;
     private static final int HIGH_WRITE_BUFFER_WATER_MARK = 32 * 1024;
-    private static final Logger LOGGER = Logger.getLogger(HttpServer.class.getName());
+    protected static final WriteBufferWaterMark WRITE_BUFFER_WATER_MARK =
+            new WriteBufferWaterMark(LOW_WRITE_BUFFER_WATER_MARK, HIGH_WRITE_BUFFER_WATER_MARK);
+    protected static final int RECEIVE_BUFFER_SIZE = 4096;
+    protected static final int DEFAULT_NUM_EXECUTOR_THREADS = 16;
+    protected static final int DEFAULT_REQUEST_QUEUE_SIZE = 256;
+    private static final Logger LOGGER = LogManager.getLogger();
     private static final int FAILED = -1;
     private static final int STOPPED = 0;
     private static final int STARTING = 1;
@@ -57,18 +65,19 @@ public class HttpServer {
     private final Object lock = new Object();
     private final AtomicInteger threadId = new AtomicInteger();
     private final ConcurrentMap<String, Object> ctx;
+    private final LinkedBlockingQueue<Runnable> workQueue;
     private final List<IServlet> servlets;
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
     private final int port;
-    private final ExecutorService executor;
+    private final ThreadPoolExecutor executor;
     // Mutable members
     private volatile int state = STOPPED;
     private Channel channel;
     private Throwable cause;
 
     public HttpServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port) {
-        this(bossGroup, workerGroup, port, 16, 256);
+        this(bossGroup, workerGroup, port, DEFAULT_NUM_EXECUTOR_THREADS, DEFAULT_REQUEST_QUEUE_SIZE);
     }
 
     public HttpServer(EventLoopGroup bossGroup, EventLoopGroup workerGroup, int port, int numExecutorThreads,
@@ -78,9 +87,19 @@ public class HttpServer {
         this.port = port;
         ctx = new ConcurrentHashMap<>();
         servlets = new ArrayList<>();
-        executor = new ThreadPoolExecutor(numExecutorThreads, numExecutorThreads, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(requestQueueSize),
+        workQueue = new LinkedBlockingQueue<>(requestQueueSize);
+        executor = new ThreadPoolExecutor(numExecutorThreads, numExecutorThreads, 0L, TimeUnit.MILLISECONDS, workQueue,
                 runnable -> new Thread(runnable, "HttpExecutor(port:" + port + ")-" + threadId.getAndIncrement()));
+        long directMemoryBudget = numExecutorThreads * (long) HIGH_WRITE_BUFFER_WATER_MARK
+                + numExecutorThreads * HttpServerInitializer.RESPONSE_CHUNK_SIZE;
+        LOGGER.log(Level.INFO, "The output direct memory budget for this server is " + directMemoryBudget + " bytes");
+        long inputBudgetEstimate =
+                (long) HttpServerInitializer.MAX_REQUEST_INITIAL_LINE_LENGTH * (requestQueueSize + numExecutorThreads);
+        inputBudgetEstimate = inputBudgetEstimate * 2;
+        LOGGER.log(Level.INFO,
+                "The \"estimated\" input direct memory budget for this server is " + inputBudgetEstimate + " bytes");
+        // Having multiple arenas, memory fragments, and local thread cached buffers
+        // can cause the input memory usage to exceed estimate and custom buffer allocator must be used to avoid this
     }
 
     public final void start() throws Exception { // NOSONAR
@@ -93,7 +112,7 @@ public class HttpServer {
                 doStart();
                 setStarted();
             } catch (Throwable e) { // NOSONAR
-                LOGGER.log(Level.SEVERE, "Failure starting an Http Server", e);
+                LOGGER.log(Level.ERROR, "Failure starting an Http Server with port: " + port, e);
                 setFailed(e);
                 throw e;
             }
@@ -110,7 +129,7 @@ public class HttpServer {
                 doStop();
                 setStopped();
             } catch (Throwable e) { // NOSONAR
-                LOGGER.log(Level.SEVERE, "Failure stopping an Http Server", e);
+                LOGGER.log(Level.ERROR, "Failure stopping an Http Server", e);
                 setFailed(e);
                 throw e;
             }
@@ -192,24 +211,37 @@ public class HttpServer {
         Collections.sort(servlets, (l1, l2) -> l2.getPaths()[0].length() - l1.getPaths()[0].length());
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
-                .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK,
-                        new WriteBufferWaterMark(LOW_WRITE_BUFFER_WATER_MARK, HIGH_WRITE_BUFFER_WATER_MARK))
+                .childOption(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(RECEIVE_BUFFER_SIZE))
+                .childOption(ChannelOption.AUTO_READ, Boolean.FALSE)
+                .childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
+                .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, WRITE_BUFFER_WATER_MARK)
                 .handler(new LoggingHandler(LogLevel.DEBUG)).childHandler(new HttpServerInitializer(this));
         channel = b.bind(port).sync().channel();
     }
 
     protected void doStop() throws InterruptedException {
-        channel.close();
-        channel.closeFuture().sync();
+        // stop taking new requests
         executor.shutdown();
         try {
-            executor.awaitTermination(1, TimeUnit.MINUTES);
+            // wait 5s before interrupting existing requests
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+            // interrupt
+            executor.shutdownNow();
+            // wait 30s for interrupted requests to unwind
+            executor.awaitTermination(30, TimeUnit.SECONDS);
             if (!executor.isTerminated()) {
-                LOGGER.log(Level.SEVERE, "Failed to shutdown http server executor");
+                if (LOGGER.isErrorEnabled()) {
+                    LOGGER.log(Level.ERROR,
+                            "Failed to shutdown http server executor; thread dump: " + ThreadDumpUtil.takeDumpString());
+                } else {
+                    LOGGER.log(Level.ERROR, "Failed to shutdown http server executor");
+                }
             }
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error while shutting down http server executor", e);
+            LOGGER.log(Level.ERROR, "Error while shutting down http server executor", e);
         }
+        channel.close();
+        channel.closeFuture().sync();
     }
 
     public IServlet getServlet(FullHttpRequest request) {
@@ -218,23 +250,22 @@ public class HttpServer {
         if (i >= 0) {
             uri = uri.substring(0, i);
         }
-        for (IServlet let : servlets) {
-            for (String path : let.getPaths()) {
+        for (IServlet servlet : servlets) {
+            for (String path : servlet.getPaths()) {
                 if (match(path, uri)) {
-                    return let;
+                    return servlet;
                 }
             }
         }
         return null;
     }
 
-    private static boolean match(String pathSpec, String path) {
+    static boolean match(String pathSpec, String path) {
         char c = pathSpec.charAt(0);
         if (c == '/') {
-            if (pathSpec.length() == 1 || pathSpec.equals(path)) {
+            if (pathSpec.equals(path) || (pathSpec.length() == 1 && path.isEmpty())) {
                 return true;
             }
-
             if (isPathWildcardMatch(pathSpec, path)) {
                 return true;
             }
@@ -244,13 +275,29 @@ public class HttpServer {
         return false;
     }
 
-    private static boolean isPathWildcardMatch(String pathSpec, String path) {
-        int cpl = pathSpec.length() - 2;
-        return (pathSpec.endsWith("/*") && path.regionMatches(0, pathSpec, 0, cpl))
-                && (path.length() == cpl || '/' == path.charAt(cpl));
+    static boolean isPathWildcardMatch(String pathSpec, String path) {
+        final int length = pathSpec.length();
+        if (length < 2) {
+            return false;
+        }
+        final int cpl = length - 2;
+        final boolean b = pathSpec.endsWith("/*") && path.regionMatches(0, pathSpec, 0, cpl);
+        return b && (path.length() == cpl || '/' == path.charAt(cpl));
     }
 
-    public ExecutorService getExecutor() {
+    protected HttpServerHandler<? extends HttpServer> createHttpHandler(int chunkSize) {
+        return new HttpServerHandler<>(this, chunkSize);
+    }
+
+    public ThreadPoolExecutor getExecutor(HttpRequestHandler handler) {
         return executor;
+    }
+
+    protected EventLoopGroup getWorkerGroup() {
+        return workerGroup;
+    }
+
+    public int getWorkQueueSize() {
+        return workQueue.size();
     }
 }

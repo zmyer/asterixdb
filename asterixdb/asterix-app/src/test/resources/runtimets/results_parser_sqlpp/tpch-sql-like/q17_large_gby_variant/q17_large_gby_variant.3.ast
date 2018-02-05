@@ -10,16 +10,16 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_count]
     :
-    FunctionCall tpch.sql-count@1[
+    FunctionCall asterix.count@1[
       (
         SELECT ELEMENT [
-        FieldAccessor [
-          Variable [ Name=#2 ]
-          Field=l
+        FunctionCall asterix.field-access-by-name@2[
+          Variable [ Name=$g ]
+          LiteralExpr [STRING] [l]
         ]
         ]
-        FROM [          Variable [ Name=#1 ]
-          AS Variable [ Name=#2 ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=$g ]
         ]
       )
     ]
@@ -30,7 +30,7 @@ RecordConstructor [
     OperatorExpr [
       LiteralExpr [DOUBLE] [0.2]
       *
-      FunctionCall tpch.avg@1[
+      FunctionCall asterix.avg@1[
         (
           SELECT ELEMENT [
           FieldAccessor [
@@ -38,7 +38,17 @@ RecordConstructor [
             Field=l_quantity
           ]
           ]
-          FROM [            Variable [ Name=$l ]
+          FROM [            (
+              SELECT ELEMENT [
+              FunctionCall asterix.field-access-by-name@2[
+                Variable [ Name=$g ]
+                LiteralExpr [STRING] [l]
+              ]
+              ]
+              FROM [                Variable [ Name=$g ]
+                AS Variable [ Name=$g ]
+              ]
+            )
             AS Variable [ Name=$i ]
           ]
         )
@@ -48,7 +58,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_max_suppkey]
     :
-    FunctionCall tpch.max@1[
+    FunctionCall asterix.max@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -56,7 +66,17 @@ RecordConstructor [
           Field=l_suppkey
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -65,7 +85,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_max_linenumber]
     :
-    FunctionCall tpch.max@1[
+    FunctionCall asterix.max@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -73,7 +93,17 @@ RecordConstructor [
           Field=l_linenumber
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -82,7 +112,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_avg_extendedprice]
     :
-    FunctionCall tpch.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -90,7 +120,17 @@ RecordConstructor [
           Field=l_extendedprice
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -99,7 +139,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_avg_discount]
     :
-    FunctionCall tpch.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -107,7 +147,17 @@ RecordConstructor [
           Field=l_discount
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -116,7 +166,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_avg_tax]
     :
-    FunctionCall tpch.avg@1[
+    FunctionCall asterix.avg@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -124,7 +174,17 @@ RecordConstructor [
           Field=l_tax
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -133,7 +193,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_max_shipdate]
     :
-    FunctionCall tpch.max@1[
+    FunctionCall asterix.max@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -141,7 +201,17 @@ RecordConstructor [
           Field=l_shipdate
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -150,7 +220,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_min_commitdate]
     :
-    FunctionCall tpch.min@1[
+    FunctionCall asterix.min@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -158,7 +228,17 @@ RecordConstructor [
           Field=l_commitdate
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -167,7 +247,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_min_receiptdate]
     :
-    FunctionCall tpch.min@1[
+    FunctionCall asterix.min@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -175,7 +255,17 @@ RecordConstructor [
           Field=l_receiptdate
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -184,7 +274,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [t_max_comment]
     :
-    FunctionCall tpch.max@1[
+    FunctionCall asterix.max@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -192,7 +282,17 @@ RecordConstructor [
           Field=l_comment
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [l]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -200,8 +300,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [LineItem]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.LineItem]
   ]
   AS Variable [ Name=$l ]
 ]
@@ -212,7 +312,7 @@ Groupby
     Variable [ Name=$l ]
     Field=l_partkey
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     l:=Variable [ Name=$l ]
   )

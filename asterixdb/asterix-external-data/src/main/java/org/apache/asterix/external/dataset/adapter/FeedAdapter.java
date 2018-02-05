@@ -24,7 +24,6 @@ import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 public class FeedAdapter implements IDataSourceAdapter {
-    private static final long serialVersionUID = 1L;
     private final AbstractFeedDataFlowController controller;
 
     public FeedAdapter(AbstractFeedDataFlowController controller) {
@@ -32,16 +31,12 @@ public class FeedAdapter implements IDataSourceAdapter {
     }
 
     @Override
-    public void start(int partition, IFrameWriter writer) throws HyracksDataException {
+    public void start(int partition, IFrameWriter writer) throws HyracksDataException, InterruptedException {
         controller.start(writer);
     }
 
-    public boolean stop() throws HyracksDataException {
-        return controller.stop();
-    }
-
-    public boolean handleException(Throwable e) {
-        return controller.handleException(e);
+    public boolean stop(long timeout) throws HyracksDataException {
+        return controller.stop(timeout);
     }
 
     public boolean pause() throws HyracksDataException {
@@ -50,5 +45,13 @@ public class FeedAdapter implements IDataSourceAdapter {
 
     public boolean resume() throws HyracksDataException {
         return controller.resume();
+    }
+
+    public String getStats() {
+        return controller.getStats();
+    }
+
+    public AbstractFeedDataFlowController getController() {
+        return controller;
     }
 }

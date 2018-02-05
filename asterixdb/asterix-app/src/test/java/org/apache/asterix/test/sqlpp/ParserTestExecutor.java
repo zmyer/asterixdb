@@ -51,6 +51,7 @@ import org.apache.asterix.test.common.ComparisonException;
 import org.apache.asterix.test.common.TestExecutor;
 import org.apache.asterix.testframework.context.TestCaseContext;
 import org.apache.asterix.testframework.context.TestFileContext;
+import org.apache.asterix.testframework.xml.ComparisonEnum;
 import org.apache.asterix.testframework.xml.TestCase.CompilationUnit;
 import org.apache.asterix.testframework.xml.TestGroup;
 import org.junit.Assert;
@@ -91,9 +92,9 @@ public class ParserTestExecutor extends TestExecutor {
                             "[TEST]: " + testCaseCtx.getTestCase().getFilePath() + "/" + cUnit.getName() + " PASSED ");
                     queryCount++;
                 } catch (Exception e) {
-                    System.err.println("testFile " + testFile.toString() + " raised an exception:");
-                    e.printStackTrace();
+                    System.err.println("testFile " + testFile.toString() + " raised an exception: " + e);
                     if (cUnit.getExpectedError().isEmpty()) {
+                        e.printStackTrace();
                         System.err.println("...Unexpected!");
                         if (failedGroup != null) {
                             failedGroup.getTestCase().add(testCaseCtx.getTestCase());
@@ -148,9 +149,9 @@ public class ParserTestExecutor extends TestExecutor {
             }
             writer.close();
             // Compares the actual result and the expected result.
-            runScriptAndCompareWithResult(queryFile, new PrintWriter(System.err), expectedFile, actualResultFile);
+            runScriptAndCompareWithResult(queryFile, expectedFile, actualResultFile, ComparisonEnum.TEXT);
         } catch (Exception e) {
-            GlobalConfig.ASTERIX_LOGGER.warning("Failed while testing file " + queryFile);
+            GlobalConfig.ASTERIX_LOGGER.warn("Failed while testing file " + queryFile);
             throw e;
         } finally {
             writer.close();
@@ -190,9 +191,13 @@ public class ParserTestExecutor extends TestExecutor {
                         + "org.apache.asterix.lang.common.rewrites.LangRewritingContext)",
                 declaredFunctions, topExpr, metadataProvider, context);
         PA.invokeMethod(rewriter, "inlineColumnAlias()");
-        PA.invokeMethod(rewriter, "rewriteGlobalAggregations()");
+        PA.invokeMethod(rewriter, "generateColumnNames()");
+        PA.invokeMethod(rewriter, "substituteGroupbyKeyExpression()");
         PA.invokeMethod(rewriter, "rewriteGroupBys()");
-        PA.invokeMethod(rewriter, "variableCheckAndRewrite(boolean)", Boolean.TRUE);
+        PA.invokeMethod(rewriter, "rewriteSetOperations()");
+        PA.invokeMethod(rewriter, "variableCheckAndRewrite()");
+        PA.invokeMethod(rewriter, "rewriteGroupByAggregationSugar()");
+
     }
 
 }

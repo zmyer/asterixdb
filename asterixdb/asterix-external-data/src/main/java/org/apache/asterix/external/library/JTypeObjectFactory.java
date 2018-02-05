@@ -19,6 +19,7 @@
 package org.apache.asterix.external.library;
 
 import org.apache.asterix.external.api.IJObject;
+import org.apache.asterix.external.library.java.JObjects;
 import org.apache.asterix.external.library.java.JObjects.JBoolean;
 import org.apache.asterix.external.library.java.JObjects.JCircle;
 import org.apache.asterix.external.library.java.JObjects.JDate;
@@ -57,7 +58,7 @@ public class JTypeObjectFactory implements IObjectFactory<IJObject, IAType> {
     public IJObject create(IAType type) {
         IJObject retValue = null;
         switch (type.getTypeTag()) {
-            case INT32:
+            case INTEGER:
                 retValue = new JInt(0);
                 break;
             case STRING:
@@ -105,22 +106,28 @@ public class JTypeObjectFactory implements IObjectFactory<IJObject, IAType> {
             case TIME:
                 retValue = new JTime(0);
                 break;
-            case INT64:
+            case BIGINT:
                 retValue = new JLong(0);
                 break;
-            case ORDEREDLIST:
+            case NULL:
+                retValue = JObjects.JNull.INSTANCE;
+                break;
+            case MISSING:
+                retValue = JObjects.JMissing.INSTANCE;
+                break;
+            case ARRAY:
                 AOrderedListType ot = (AOrderedListType) type;
                 IAType orderedItemType = ot.getItemType();
                 IJObject orderedItemObject = create(orderedItemType);
                 retValue = new JOrderedList(orderedItemObject);
                 break;
-            case UNORDEREDLIST:
+            case MULTISET:
                 AUnorderedListType ut = (AUnorderedListType) type;
                 IAType unorderedItemType = ut.getItemType();
                 IJObject unorderedItemObject = create(unorderedItemType);
                 retValue = new JUnorderedList(unorderedItemObject);
                 break;
-            case RECORD:
+            case OBJECT:
                 IAType[] fieldTypes = ((ARecordType) type).getFieldTypes();
                 IJObject[] fieldObjects = new IJObject[fieldTypes.length];
                 int index = 0;

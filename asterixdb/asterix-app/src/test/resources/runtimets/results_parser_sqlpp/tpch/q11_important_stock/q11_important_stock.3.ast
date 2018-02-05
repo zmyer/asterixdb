@@ -2,7 +2,7 @@ DataverseUse tpch
 Query:
 Let Variable [ Name=$sum ]
   :=
-  FunctionCall tpch.sum@1[
+  FunctionCall asterix.sum@1[
     (
       SELECT ELEMENT [
       OperatorExpr [
@@ -17,8 +17,8 @@ Let Variable [ Name=$sum ]
         ]
       ]
       ]
-      FROM [        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [Partsupp]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [tpch.Partsupp]
         ]
         AS Variable [ Name=$ps ]
 ,
@@ -35,13 +35,13 @@ Let Variable [ Name=$sum ]
             )
           ]
           ]
-          FROM [            FunctionCall Metadata.dataset@1[
-              LiteralExpr [STRING] [Supplier]
+          FROM [            FunctionCall asterix.dataset@1[
+              LiteralExpr [STRING] [tpch.Supplier]
             ]
             AS Variable [ Name=$s ]
 ,
-            FunctionCall Metadata.dataset@1[
-              LiteralExpr [STRING] [Nation]
+            FunctionCall asterix.dataset@1[
+              LiteralExpr [STRING] [tpch.Nation]
             ]
             AS Variable [ Name=$n ]
           ]
@@ -105,22 +105,28 @@ FROM [  (
       (
         LiteralExpr [STRING] [part_value]
         :
-        FunctionCall tpch.sum@1[
+        FunctionCall asterix.sum@1[
           (
             SELECT ELEMENT [
             OperatorExpr [
               FieldAccessor [
-                Variable [ Name=$i ]
+                FieldAccessor [
+                  Variable [ Name=$i ]
+                  Field=ps
+                ]
                 Field=ps_supplycost
               ]
               *
               FieldAccessor [
-                Variable [ Name=$i ]
+                FieldAccessor [
+                  Variable [ Name=$i ]
+                  Field=ps
+                ]
                 Field=ps_availqty
               ]
             ]
             ]
-            FROM [              Variable [ Name=$ps ]
+            FROM [              Variable [ Name=$g ]
               AS Variable [ Name=$i ]
             ]
           )
@@ -128,8 +134,8 @@ FROM [  (
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Partsupp]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Partsupp]
       ]
       AS Variable [ Name=$ps ]
 ,
@@ -146,13 +152,13 @@ FROM [  (
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Supplier]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Supplier]
           ]
           AS Variable [ Name=$s ]
 ,
-          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Nation]
+          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Nation]
           ]
           AS Variable [ Name=$n ]
         ]
@@ -190,7 +196,7 @@ FROM [  (
         Variable [ Name=$ps ]
         Field=ps_partkey
       ]
-      GROUP AS Variable [ Name=#1 ]
+      GROUP AS Variable [ Name=$g ]
       (
         ps:=Variable [ Name=$ps ]
         sn:=Variable [ Name=$sn ]

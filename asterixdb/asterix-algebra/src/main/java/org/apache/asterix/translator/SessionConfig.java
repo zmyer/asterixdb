@@ -18,12 +18,12 @@
  */
 package org.apache.asterix.translator;
 
-import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
-import org.apache.hyracks.algebricks.core.algebra.prettyprint.AlgebricksAppendable;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 
 /**
  * SessionConfig captures several different parameters for controlling
@@ -38,8 +38,9 @@ import org.apache.hyracks.algebricks.core.algebra.prettyprint.AlgebricksAppendab
  * execution output - LOSSLESS_JSON, CSV, etc.
  * <li>It allows you to specify output format-specific parameters.
  */
+public class SessionConfig implements Serializable {
+    private static final long serialVersionUID = 1L;
 
-public class SessionConfig {
     /**
      * Used to specify the output format for the primary execution.
      */
@@ -48,6 +49,27 @@ public class SessionConfig {
         CSV,
         CLEAN_JSON,
         LOSSLESS_JSON
+    };
+
+    /**
+     * Used to specify the format for logical plan and optimized logical plan.
+     */
+
+    public enum PlanFormat {
+        JSON,
+        STRING;
+        public static PlanFormat get(String fmtString, String label, PlanFormat defaultFmt, Logger logger) {
+            try {
+                if (fmtString != null) {
+                    String format = ("JSON".equalsIgnoreCase(fmtString) || "CLEAN_JSON".equalsIgnoreCase(fmtString))
+                            ? "JSON" : fmtString;
+                    return PlanFormat.valueOf(format);
+                }
+            } catch (IllegalArgumentException e) {
+                logger.log(Level.INFO, fmtString + ": unsupported " + label + ", using " + defaultFmt + "instead", e);
+            }
+            return defaultFmt;
+        }
     };
 
     /**
@@ -105,57 +127,24 @@ public class SessionConfig {
      */
     public static final String FORMAT_QUOTE_RECORD = "quote-record";
 
-    @FunctionalInterface
-    public interface ResultDecorator {
-        AlgebricksAppendable append(AlgebricksAppendable app) throws AlgebricksException;
-    }
+    // Output format.
+    private final OutputFormat fmt;
+    private final PlanFormat lpfmt;
 
     // Standard execution flags.
     private final boolean executeQuery;
     private final boolean generateJobSpec;
     private final boolean optimize;
 
-    // Output path for primary execution.
-    private final PrintWriter out;
-
-    // Output format.
-    private final OutputFormat fmt;
-
-    private final ResultDecorator preResultDecorator;
-    private final ResultDecorator postResultDecorator;
-    private final ResultDecorator preHandleDecorator;
-    private final ResultDecorator postHandleDecorator;
-
     // Flags.
     private final Map<String, Boolean> flags;
 
-    /**
-     * Create a SessionConfig object with all default values:
-     * - All format flags set to "false".
-     * - All out-of-band outputs set to "null".
-     * - "Optimize" set to "true".
-     * - "Execute Query" set to "true".
-     * - "Generate Job Spec" set to "true".
-     *
-     * @param out
-     *            PrintWriter for execution output.
-     * @param fmt
-     *            Output format for execution output.
-     */
-    public SessionConfig(PrintWriter out, OutputFormat fmt) {
-        this(out, fmt, null, null, null, null, true, true, true);
+    public SessionConfig(OutputFormat fmt) {
+        this(fmt, PlanFormat.STRING);
     }
 
-    public SessionConfig(PrintWriter out, OutputFormat fmt, ResultDecorator preResultDecorator,
-            ResultDecorator postResultDecorator, ResultDecorator preHandleDecorator,
-            ResultDecorator postHandleDecorator) {
-        this(out, fmt, preResultDecorator, postResultDecorator, preHandleDecorator, postHandleDecorator, true, true,
-                true);
-    }
-
-    public SessionConfig(PrintWriter out, OutputFormat fmt, boolean optimize, boolean executeQuery,
-            boolean generateJobSpec) {
-        this(out, fmt, null, null, null, null, optimize, executeQuery, generateJobSpec);
+    public SessionConfig(OutputFormat fmt, PlanFormat lpfmt) {
+        this(fmt, true, true, true, lpfmt);
     }
 
     /**
@@ -163,8 +152,6 @@ public class SessionConfig {
      * - All format flags set to "false".
      * - All out-of-band outputs set to "false".
      *
-     * @param out
-     *            PrintWriter for execution output.
      * @param fmt
      *            Output format for execution output.
      * @param optimize
@@ -173,28 +160,21 @@ public class SessionConfig {
      *            Whether to execute the query or not.
      * @param generateJobSpec
      *            Whether to generate the Hyracks job specification (if
-     *            false, job cannot be executed).
+     * @param lpfmt
+     *            Plan format for logical plan.
      */
-    public SessionConfig(PrintWriter out, OutputFormat fmt, ResultDecorator preResultDecorator,
-            ResultDecorator postResultDecorator, ResultDecorator preHandleDecorator,
-            ResultDecorator postHandleDecorator, boolean optimize, boolean executeQuery, boolean generateJobSpec) {
-        this.out = out;
+    public SessionConfig(OutputFormat fmt, boolean optimize, boolean executeQuery, boolean generateJobSpec) {
+        this(fmt, optimize, executeQuery, generateJobSpec, PlanFormat.STRING);
+    }
+
+    public SessionConfig(OutputFormat fmt, boolean optimize, boolean executeQuery, boolean generateJobSpec,
+            PlanFormat lpfmt) {
         this.fmt = fmt;
-        this.preResultDecorator = preResultDecorator;
-        this.postResultDecorator = postResultDecorator;
-        this.preHandleDecorator = preHandleDecorator;
-        this.postHandleDecorator = postHandleDecorator;
         this.optimize = optimize;
         this.executeQuery = executeQuery;
         this.generateJobSpec = generateJobSpec;
         this.flags = new HashMap<>();
-    }
-
-    /**
-     * Retrieve the PrintWriter to produce output to.
-     */
-    public PrintWriter out() {
-        return this.out;
+        this.lpfmt = lpfmt;
     }
 
     /**
@@ -204,21 +184,13 @@ public class SessionConfig {
         return this.fmt;
     }
 
-    public AlgebricksAppendable resultPrefix(AlgebricksAppendable app) throws AlgebricksException {
-        return this.preResultDecorator != null ? this.preResultDecorator.append(app) : app;
+    /**
+     * Retrieve the PlanFormat for this execution.
+     */
+    public PlanFormat getLpfmt() {
+        return this.lpfmt;
     }
 
-    public AlgebricksAppendable resultPostfix(AlgebricksAppendable app) throws AlgebricksException {
-        return this.postResultDecorator != null ? this.postResultDecorator.append(app) : app;
-    }
-
-    public AlgebricksAppendable handlePrefix(AlgebricksAppendable app) throws AlgebricksException {
-        return this.preHandleDecorator != null ? this.preHandleDecorator.append(app) : app;
-    }
-
-    public AlgebricksAppendable handlePostfix(AlgebricksAppendable app) throws AlgebricksException {
-        return this.postHandleDecorator != null ? this.postHandleDecorator.append(app) : app;
-    }
     /**
      * Retrieve the value of the "execute query" flag.
      */

@@ -27,10 +27,10 @@ import org.apache.hyracks.storage.am.common.api.ITreeIndexFrame;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexTupleReference;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexTupleWriter;
 import org.apache.hyracks.storage.am.common.frames.TreeIndexNSMFrame;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.rtree.api.IRTreeFrame;
 import org.apache.hyracks.storage.am.rtree.api.IRTreePolicy;
 import org.apache.hyracks.storage.am.rtree.impls.UnorderedSlotManager;
+import org.apache.hyracks.storage.common.MultiComparator;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 import org.apache.hyracks.storage.common.buffercache.IExtraPageBlockHelper;
 
@@ -115,8 +115,7 @@ public abstract class RTreeNSMFrame extends TreeIndexNSMFrame implements IRTreeF
 
     @Override
     public void split(ITreeIndexFrame rightFrame, ITupleReference tuple, ISplitKey splitKey,
-            IExtraPageBlockHelper extraPageBlockHelper, IBufferCache bufferCache)
-            throws HyracksDataException {
+            IExtraPageBlockHelper extraPageBlockHelper, IBufferCache bufferCache) throws HyracksDataException {
         rtreePolicy.split(this, buf, rightFrame, slotManager, frameTuple, tuple, splitKey);
     }
 
@@ -166,15 +165,12 @@ public abstract class RTreeNSMFrame extends TreeIndexNSMFrame implements IRTreeF
 
     @Override
     public String toString() {
-        return new StringBuilder(this.getClass().getSimpleName()).append('\n').append(
-                "Tuple Count: " + getTupleCount()).append('\n').append("Free Space offset: " + buf
-                        .getInt(Constants.FREE_SPACE_OFFSET)).append('\n').append("Level: " + buf
-                                .get(Constants.LEVEL_OFFSET)).append('\n').append("LSN: "
-                                        + buf.getLong(PAGE_LSN_OFFSET)).append('\n').append(
-                                                "Total Free Space: " + buf.getInt(TOTAL_FREE_SPACE_OFFSET)).append(
-                                                        '\n').append("Flag: " + buf.get(
-                                                                FLAG_OFFSET)).append('\n')
-                .append("NSN: " + buf.getLong(PAGE_NSN_OFFSET)).append('\n').append("Right Page:")
-                .append(buf.getInt(RIGHT_PAGE_OFFSET)).toString();
+        return new StringBuilder(this.getClass().getSimpleName()).append('\n').append("Tuple Count: " + getTupleCount())
+                .append('\n').append("Free Space offset: " + buf.getInt(Constants.FREE_SPACE_OFFSET)).append('\n')
+                .append("Level: " + buf.get(Constants.LEVEL_OFFSET)).append('\n')
+                .append("LSN: " + buf.getLong(PAGE_LSN_OFFSET)).append('\n')
+                .append("Total Free Space: " + buf.getInt(TOTAL_FREE_SPACE_OFFSET)).append('\n')
+                .append("Flag: " + buf.get(FLAG_OFFSET)).append('\n').append("NSN: " + buf.getLong(PAGE_NSN_OFFSET))
+                .append('\n').append("Right Page:").append(buf.getInt(RIGHT_PAGE_OFFSET)).toString();
     }
 }

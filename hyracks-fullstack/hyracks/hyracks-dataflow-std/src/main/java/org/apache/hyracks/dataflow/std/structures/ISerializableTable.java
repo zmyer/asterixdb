@@ -57,11 +57,16 @@ public interface ISerializableTable {
      * @return the number of frames that are reclaimed.
      * @throws HyracksDataException
      */
-    int collectGarbage(ITuplePointerAccessor bufferAccessor, ITuplePartitionComputer tpc)
-            throws HyracksDataException;
+    int collectGarbage(ITuplePointerAccessor bufferAccessor, ITuplePartitionComputer tpc) throws HyracksDataException;
 
     /**
      * Prints out the internal information of this table.
      */
     String printInfo();
+
+    /**
+     * Returns the number of entries of this table.
+     * @return the number entries.
+     */
+    int getTableSize();
 }

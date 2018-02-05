@@ -20,12 +20,11 @@
 package org.apache.hyracks.storage.am.rtree;
 
 import java.util.Random;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.accessors.PointableBinaryComparatorFactory;
 import org.apache.hyracks.data.std.primitive.DoublePointable;
@@ -39,19 +38,21 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.utils.TupleUtils;
 import org.apache.hyracks.storage.am.common.TestOperationCallback;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexBulkLoader;
 import org.apache.hyracks.storage.am.common.api.IPrimitiveValueProviderFactory;
 import org.apache.hyracks.storage.am.common.api.ITreeIndex;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
-import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
+import org.apache.hyracks.storage.am.common.impls.IndexAccessParameters;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.common.impls.TreeIndexDiskOrderScanCursor;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.rtree.frames.RTreePolicyType;
 import org.apache.hyracks.storage.am.rtree.impls.SearchPredicate;
 import org.apache.hyracks.storage.am.rtree.util.RTreeUtils;
+import org.apache.hyracks.storage.common.IIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexBulkLoader;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.MultiComparator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 @SuppressWarnings("rawtypes")
@@ -63,16 +64,15 @@ public abstract class AbstractRTreeExamplesTest {
         RTREE
     };
 
-    protected static final Logger LOGGER = Logger.getLogger(AbstractRTreeExamplesTest.class.getName());
+    protected static final Logger LOGGER = LogManager.getLogger();
     protected final Random rnd = new Random(50);
     protected RTreeType rTreeType;
 
     protected abstract ITreeIndex createTreeIndex(ITypeTraits[] typeTraits,
             IBinaryComparatorFactory[] rtreeCmpFactories, IBinaryComparatorFactory[] btreeCmpFactories,
-            IPrimitiveValueProviderFactory[] valueProviderFactories, RTreePolicyType rtreePolicyType,
-            int[] rtreeFields, int[] btreeFields, ITypeTraits[] filterTypeTraits,
-            IBinaryComparatorFactory[] filterCmpFactories, int[] filterFields) throws TreeIndexException,
-            HyracksDataException;
+            IPrimitiveValueProviderFactory[] valueProviderFactories, RTreePolicyType rtreePolicyType, int[] rtreeFields,
+            int[] btreeFields, ITypeTraits[] filterTypeTraits, IBinaryComparatorFactory[] filterCmpFactories,
+            int[] filterFields) throws HyracksDataException;
 
     /**
      * Two Dimensions Example. Create an RTree index of two dimensions, where
@@ -82,7 +82,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void twoDimensionsExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Fixed-Length Key,Value Example.");
         }
 
@@ -96,10 +96,10 @@ public abstract class AbstractRTreeExamplesTest {
         typeTraits[4] = IntegerPointable.TYPE_TRAITS;
         typeTraits[5] = IntegerPointable.TYPE_TRAITS;
         // Declare field serdes.
-        ISerializerDeserializer[] fieldSerdes = { IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE };
+        ISerializerDeserializer[] fieldSerdes =
+                { IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
+                        IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
+                        IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
 
         // Declare RTree keys.
         int rtreeKeyFieldCount = 4;
@@ -136,22 +136,21 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, IntegerPointable.FACTORY);
 
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RTREE, null, btreeFields, null, null, null);
         treeIndex.create();
         treeIndex.activate();
 
         long start = System.currentTimeMillis();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Inserting into tree...");
         }
         ArrayTupleBuilder tb = new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpIndexAccessParameters.INSTANCE);
         int numInserts = 10000;
         for (int i = 0; i < numInserts; i++) {
             int p1x = rnd.nextInt();
@@ -166,11 +165,14 @@ public abstract class AbstractRTreeExamplesTest {
                     Math.max(p1y, p2y), pk1, pk2);
             try {
                 indexAccessor.insert(tuple);
-            } catch (TreeIndexException e) {
+            } catch (HyracksDataException e) {
+                if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                    throw e;
+                }
             }
         }
         long end = System.currentTimeMillis();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info(numInserts + " inserts in " + (end - start) + "ms");
         }
 
@@ -196,7 +198,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void rTreePageSplitTestExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree page split test.");
         }
 
@@ -246,20 +248,21 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, IntegerPointable.FACTORY);
 
         //2
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RTREE, null, btreeFields, null, null, null);
 
         treeIndex.create();
         treeIndex.activate();
 
         ArrayTupleBuilder tb = new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(TestOperationCallback.INSTANCE,
-                TestOperationCallback.INSTANCE);
+        IndexAccessParameters actx =
+                new IndexAccessParameters(TestOperationCallback.INSTANCE, TestOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(actx);
 
         int p1x = rnd.nextInt();
         int p1y = rnd.nextInt();
@@ -336,7 +339,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void rStarTreePageSplitTestExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("R*Tree page split test.");
         }
 
@@ -386,19 +389,20 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, IntegerPointable.FACTORY);
 
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RSTARTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RSTARTREE, null, btreeFields, null, null, null);
 
         treeIndex.create();
         treeIndex.activate();
 
         ArrayTupleBuilder tb = new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(TestOperationCallback.INSTANCE,
-                TestOperationCallback.INSTANCE);
+        IndexAccessParameters actx =
+                new IndexAccessParameters(TestOperationCallback.INSTANCE, TestOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(actx);
 
         int p1x = rnd.nextInt();
         int p1y = rnd.nextInt();
@@ -478,7 +482,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void threeDimensionsExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Fixed-Length Key,Value Example.");
         }
 
@@ -535,23 +539,22 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, DoublePointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, DoublePointable.FACTORY);
 
         //4
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RTREE, null, btreeFields, null, null, null);
         treeIndex.create();
         treeIndex.activate();
 
         long start = System.currentTimeMillis();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Inserting into tree...");
         }
         ArrayTupleBuilder tb = new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpIndexAccessParameters.INSTANCE);
         int numInserts = 10000;
         for (int i = 0; i < numInserts; i++) {
             double p1x = rnd.nextDouble();
@@ -567,11 +570,14 @@ public abstract class AbstractRTreeExamplesTest {
                     Math.max(p1x, p2x), Math.max(p1y, p2y), Math.max(p1z, p2z), pk);
             try {
                 indexAccessor.insert(tuple);
-            } catch (TreeIndexException e) {
+            } catch (HyracksDataException e) {
+                if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                    throw e;
+                }
             }
         }
         long end = System.currentTimeMillis();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info(numInserts + " inserts in " + (end - start) + "ms");
         }
 
@@ -597,7 +603,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void deleteExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Deletion Example");
         }
 
@@ -643,22 +649,21 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, IntegerPointable.FACTORY);
 
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RTREE, null, btreeFields, null, null, null);
         treeIndex.create();
         treeIndex.activate();
 
         ArrayTupleBuilder tb = new ArrayTupleBuilder(fieldCount);
         ArrayTupleReference tuple = new ArrayTupleReference();
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpIndexAccessParameters.INSTANCE);
 
         int runs = 3;
         for (int run = 0; run < runs; run++) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Deletion example run: " + (run + 1) + "/" + runs);
                 LOGGER.info("Inserting into tree...");
             }
@@ -689,12 +694,15 @@ public abstract class AbstractRTreeExamplesTest {
                         Math.max(p1y, p2y), pk);
                 try {
                     indexAccessor.insert(tuple);
-                } catch (TreeIndexException e) {
+                } catch (HyracksDataException e) {
+                    if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                        throw e;
+                    }
                 }
                 insDoneCmp[i] = insDone;
             }
 
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Deleting from tree...");
             }
             int delDone = 0;
@@ -703,10 +711,13 @@ public abstract class AbstractRTreeExamplesTest {
                 try {
                     indexAccessor.delete(tuple);
                     delDone++;
-                } catch (TreeIndexException e) {
+                } catch (HyracksDataException e) {
+                    if (e.getErrorCode() != ErrorCode.UPDATE_OR_DELETE_NON_EXISTENT_KEY) {
+                        throw e;
+                    }
                 }
                 if (insDoneCmp[i] != delDone) {
-                    if (LOGGER.isLoggable(Level.INFO)) {
+                    if (LOGGER.isInfoEnabled()) {
                         LOGGER.info("INCONSISTENT STATE, ERROR IN DELETION EXAMPLE.");
                         LOGGER.info("INSDONECMP: " + insDoneCmp[i] + " " + delDone);
                     }
@@ -714,7 +725,7 @@ public abstract class AbstractRTreeExamplesTest {
                 }
             }
             if (insDone != delDone) {
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info("ERROR! INSDONE: " + insDone + " DELDONE: " + delDone);
                 }
                 break;
@@ -729,7 +740,7 @@ public abstract class AbstractRTreeExamplesTest {
      */
     @Test
     public void bulkLoadExample() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Bulk load example");
         }
         // Declare fields.
@@ -779,18 +790,18 @@ public abstract class AbstractRTreeExamplesTest {
         }
 
         // create value providers
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                rtreeCmpFactories.length, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(rtreeCmpFactories.length, IntegerPointable.FACTORY);
 
         //6
-        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories,
-                valueProviderFactories, RTreePolicyType.RTREE, null, btreeFields, null, null, null);
+        ITreeIndex treeIndex = createTreeIndex(typeTraits, rtreeCmpFactories, btreeCmpFactories, valueProviderFactories,
+                RTreePolicyType.RTREE, null, btreeFields, null, null, null);
         treeIndex.create();
         treeIndex.activate();
 
         // Load records.
         int numInserts = 10000;
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Bulk loading " + numInserts + " tuples");
         }
         long start = System.currentTimeMillis();
@@ -813,12 +824,11 @@ public abstract class AbstractRTreeExamplesTest {
 
         bulkLoader.end();
         long end = System.currentTimeMillis();
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info(numInserts + " tuples loaded in " + (end - start) + "ms");
         }
 
-        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        IIndexAccessor indexAccessor = treeIndex.createAccessor(NoOpIndexAccessParameters.INSTANCE);
 
         // Build key.
         ArrayTupleBuilder keyTb = new ArrayTupleBuilder(rtreeKeyFieldCount);
@@ -832,10 +842,10 @@ public abstract class AbstractRTreeExamplesTest {
     }
 
     protected void scan(IIndexAccessor indexAccessor, ISerializerDeserializer[] fieldSerdes) throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Scan:");
         }
-        ITreeIndexCursor scanCursor = (ITreeIndexCursor) indexAccessor.createSearchCursor(false);
+        IIndexCursor scanCursor = indexAccessor.createSearchCursor(false);
         SearchPredicate nullPred = new SearchPredicate(null, null);
         indexAccessor.search(scanCursor, nullPred);
         try {
@@ -843,46 +853,46 @@ public abstract class AbstractRTreeExamplesTest {
                 scanCursor.next();
                 ITupleReference frameTuple = scanCursor.getTuple();
                 String rec = TupleUtils.printTuple(frameTuple, fieldSerdes);
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info(rec);
                 }
             }
         } finally {
-            scanCursor.close();
+            scanCursor.destroy();
         }
     }
 
     protected void diskOrderScan(IIndexAccessor indexAccessor, ISerializerDeserializer[] fieldSerdes) throws Exception {
         try {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Disk-Order Scan:");
             }
             ITreeIndexAccessor treeIndexAccessor = (ITreeIndexAccessor) indexAccessor;
-            TreeIndexDiskOrderScanCursor diskOrderCursor = (TreeIndexDiskOrderScanCursor) treeIndexAccessor
-                    .createDiskOrderScanCursor();
+            TreeIndexDiskOrderScanCursor diskOrderCursor =
+                    (TreeIndexDiskOrderScanCursor) treeIndexAccessor.createDiskOrderScanCursor();
             treeIndexAccessor.diskOrderScan(diskOrderCursor);
             try {
                 while (diskOrderCursor.hasNext()) {
                     diskOrderCursor.next();
                     ITupleReference frameTuple = diskOrderCursor.getTuple();
                     String rec = TupleUtils.printTuple(frameTuple, fieldSerdes);
-                    if (LOGGER.isLoggable(Level.INFO)) {
+                    if (LOGGER.isInfoEnabled()) {
                         LOGGER.info(rec);
                     }
                 }
             } finally {
-                diskOrderCursor.close();
+                diskOrderCursor.destroy();
             }
         } catch (UnsupportedOperationException e) {
             // Ignore exception because some indexes, e.g. the LSMRTree, don't
             // support disk-order scan.
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Ignoring disk-order scan since it's not supported.");
             }
         } catch (ClassCastException e) {
             // Ignore exception because IIndexAccessor sometimes isn't
             // an ITreeIndexAccessor, e.g., for the LSMRTree.
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Ignoring disk-order scan since it's not supported.");
             }
         }
@@ -891,11 +901,11 @@ public abstract class AbstractRTreeExamplesTest {
     protected void rangeSearch(IBinaryComparatorFactory[] cmpFactories, IIndexAccessor indexAccessor,
             ISerializerDeserializer[] fieldSerdes, ITupleReference key, ITupleReference minFilterTuple,
             ITupleReference maxFilterTuple) throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             String kString = TupleUtils.printTuple(key, fieldSerdes);
             LOGGER.info("Range-Search using key: " + kString);
         }
-        ITreeIndexCursor rangeCursor = (ITreeIndexCursor) indexAccessor.createSearchCursor(false);
+        IIndexCursor rangeCursor = indexAccessor.createSearchCursor(false);
         MultiComparator cmp = RTreeUtils.getSearchMultiComparator(cmpFactories, key);
 
         SearchPredicate rangePred;
@@ -911,12 +921,12 @@ public abstract class AbstractRTreeExamplesTest {
                 rangeCursor.next();
                 ITupleReference frameTuple = rangeCursor.getTuple();
                 String rec = TupleUtils.printTuple(frameTuple, fieldSerdes);
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info(rec);
                 }
             }
         } finally {
-            rangeCursor.close();
+            rangeCursor.destroy();
         }
     }
 }

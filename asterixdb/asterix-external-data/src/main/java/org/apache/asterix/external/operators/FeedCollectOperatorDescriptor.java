@@ -54,10 +54,9 @@ public class FeedCollectOperatorDescriptor extends AbstractSingleActivityOperato
     private final FeedRuntimeType subscriptionLocation;
 
     public FeedCollectOperatorDescriptor(JobSpecification spec, FeedConnectionId feedConnectionId, ARecordType atype,
-            RecordDescriptor rDesc, Map<String, String> feedPolicyProperties,
-            FeedRuntimeType subscriptionLocation) {
+            RecordDescriptor rDesc, Map<String, String> feedPolicyProperties, FeedRuntimeType subscriptionLocation) {
         super(spec, 1, 1);
-        this.recordDescriptors[0] = rDesc;
+        this.outRecDescs[0] = rDesc;
         this.outputType = atype;
         this.connectionId = feedConnectionId;
         this.feedPolicyProperties = feedPolicyProperties;
@@ -84,7 +83,7 @@ public class FeedCollectOperatorDescriptor extends AbstractSingleActivityOperato
     }
 
     public RecordDescriptor getRecordDescriptor() {
-        return recordDescriptors[0];
+        return outRecDescs[0];
     }
 
     public FeedRuntimeType getSubscriptionLocation() {

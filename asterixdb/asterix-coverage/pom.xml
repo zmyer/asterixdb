@@ -26,8 +26,12 @@
   <parent>
     <groupId>org.apache.asterix</groupId>
     <artifactId>apache-asterixdb</artifactId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
+
+  <properties>
+    <root.dir>${basedir}/..</root.dir>
+  </properties>
 
   <profiles>
     <profile>

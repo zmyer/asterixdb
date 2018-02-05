@@ -19,48 +19,18 @@
 
 package org.apache.hyracks.control.nc.task;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import org.apache.hyracks.control.common.base.IClusterController;
-import org.apache.hyracks.control.nc.NodeControllerService;
+import org.apache.hyracks.util.ExitUtil;
 
 public class ShutdownTask implements Runnable {
-    private static final Logger LOGGER = Logger.getLogger(ShutdownTask.class.getName());
-    private final NodeControllerService ncs;
     private final boolean terminateNCService;
 
-    public ShutdownTask(NodeControllerService ncs, boolean terminateNCService) {
-        this.ncs = ncs;
+    public ShutdownTask(boolean terminateNCService) {
         this.terminateNCService = terminateNCService;
     }
 
     @Override
     public void run() {
-        IClusterController ccs = ncs.getClusterController();
-        try {
-            ccs.notifyShutdown(ncs.getId());
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Exception notifying CC of shutdown acknowledgment", e);
-            // proceed with shutdown
-        }
-
-        LOGGER.info("JVM Exiting.. Bye!");
-        //run the shutdown in a new thread, so we don't block this last work task
-        Thread t = new Thread("NC " + ncs.getId() + " Shutdown") {
-            @Override
-            public void run() {
-                try {
-                    ncs.stop();
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, "Exception stopping node controller service", e);
-                } finally {
-                    Runtime rt = Runtime.getRuntime();
-                    rt.exit(terminateNCService ? 99 : 0);
-                }
-            }
-        };
-        t.start();
+        ExitUtil.exit(terminateNCService ? 99 : 0);
     }
 
 }

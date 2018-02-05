@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.asterix.fuzzyjoin.invertedlist.InvertedListLengthList;
 import org.apache.asterix.fuzzyjoin.invertedlist.InvertedListsLengthList;
@@ -81,7 +80,7 @@ public class FuzzyJoinMemory {
     @SuppressWarnings("squid:S1166") // Either log or rethrow this exception
     public static void readRecords(String fileName, List<int[]> records, List<Integer> rids) throws IOException {
         try (LittleEndianIntInputStream in =
-                     new LittleEndianIntInputStream(new BufferedInputStream(new FileInputStream(fileName)))) {
+                new LittleEndianIntInputStream(new BufferedInputStream(new FileInputStream(fileName)))) {
 
             while (true) {
                 int rid = 0;
@@ -162,9 +161,8 @@ public class FuzzyJoinMemory {
                             count = -1;
                         }
                         // suffix filter
-                        if (count == 1
-                                && !similarityFilters.passSuffixFilter(tokens, indexToken, records.get(indexProbe),
-                                        indexTokenProbe)) {
+                        if (count == 1 && !similarityFilters.passSuffixFilter(tokens, indexToken,
+                                records.get(indexProbe), indexTokenProbe)) {
                             count = -1;
                         }
                         counts.put(indexProbe, count);
@@ -176,9 +174,9 @@ public class FuzzyJoinMemory {
         // verify candidates
         //
         ArrayList<ResultJoin> results = new ArrayList<>();
-        for (Map.Entry<Integer, Integer> cand : counts.entrySet()) {
-            int count = cand.getValue();
-            int indexProbe = cand.getKey();
+        counts.forEach((key, value) -> {
+            int count = value;
+            int indexProbe = key;
             if (count > 0) {
                 int tokensProbe[] = records.get(indexProbe);
                 float similarity = similarityFilters.passSimilarityFilter(tokens, prefixLength, tokensProbe,
@@ -187,7 +185,7 @@ public class FuzzyJoinMemory {
                     results.add(new ResultJoin(indexProbe, similarity));
                 }
             }
-        }
+        });
         return results;
     }
 
@@ -269,9 +267,8 @@ public class FuzzyJoinMemory {
                             count = -1;
                         }
                         // suffix filter
-                        if (count == 1
-                                && !similarityFilters.passSuffixFilter(tokens, indexToken, records.get(indexProbe),
-                                        indexTokenProbe)) {
+                        if (count == 1 && !similarityFilters.passSuffixFilter(tokens, indexToken,
+                                records.get(indexProbe), indexTokenProbe)) {
                             count = -1;
                         }
                         counts.put(indexProbe, count);
@@ -293,9 +290,9 @@ public class FuzzyJoinMemory {
         // verify candidates
         //
         ArrayList<ResultSelfJoin> results = new ArrayList<>();
-        for (Map.Entry<Integer, Integer> cand : counts.entrySet()) {
-            int count = cand.getValue();
-            int indexProbe = cand.getKey();
+        counts.forEach((key, value) -> {
+            int count = value;
+            int indexProbe = key;
             if (count > 0) {
                 int tokensProbe[] = records.get(indexProbe);
                 float similarity = similarityFilters.passSimilarityFilter(tokens, prefixLength, tokensProbe,
@@ -304,7 +301,7 @@ public class FuzzyJoinMemory {
                     results.add(new ResultSelfJoin(index, indexProbe, similarity));
                 }
             }
-        }
+        });
         return results;
     }
 }

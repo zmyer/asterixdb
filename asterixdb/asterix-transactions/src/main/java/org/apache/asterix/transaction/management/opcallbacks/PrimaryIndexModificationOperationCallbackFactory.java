@@ -19,24 +19,25 @@
 
 package org.apache.asterix.transaction.management.opcallbacks;
 
+import org.apache.asterix.common.api.IJobEventListenerFactory;
 import org.apache.asterix.common.context.ITransactionSubsystemProvider;
+import org.apache.asterix.common.dataflow.DatasetLocalResource;
 import org.apache.asterix.common.exceptions.ACIDException;
-import org.apache.asterix.common.transactions.AbstractOperationCallback;
 import org.apache.asterix.common.transactions.AbstractOperationCallbackFactory;
+import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.asterix.common.transactions.ITransactionContext;
 import org.apache.asterix.common.transactions.ITransactionSubsystem;
-import org.apache.asterix.common.transactions.JobId;
-import org.apache.asterix.common.transactions.Resource;
+import org.apache.asterix.transaction.management.opcallbacks.AbstractIndexModificationOperationCallback.Operation;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.IOperatorNodePushable;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
+import org.apache.hyracks.api.job.IJobletEventListenerFactory;
 import org.apache.hyracks.storage.am.common.api.IModificationOperationCallbackFactory;
-import org.apache.hyracks.storage.am.common.api.IResourceLifecycleManager;
-import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
-import org.apache.hyracks.storage.common.file.LocalResource;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IModificationOperationCallback;
+import org.apache.hyracks.storage.common.IResourceLifecycleManager;
+import org.apache.hyracks.storage.common.LocalResource;
 
 /**
  * Assumes LSM-BTrees as primary indexes.
@@ -45,15 +46,12 @@ public class PrimaryIndexModificationOperationCallbackFactory extends AbstractOp
         implements IModificationOperationCallbackFactory {
 
     private static final long serialVersionUID = 1L;
-    private final IndexOperation indexOp;
-    private final boolean logBeforeImage;
+    private final Operation indexOp;
 
-    public PrimaryIndexModificationOperationCallbackFactory(JobId jobId, int datasetId, int[] primaryKeyFields,
-            ITransactionSubsystemProvider txnSubsystemProvider, IndexOperation indexOp, byte resourceType,
-            boolean logBeforeImage) {
-        super(jobId, datasetId, primaryKeyFields, txnSubsystemProvider, resourceType);
+    public PrimaryIndexModificationOperationCallbackFactory(int datasetId, int[] primaryKeyFields,
+            ITransactionSubsystemProvider txnSubsystemProvider, Operation indexOp, byte resourceType) {
+        super(datasetId, primaryKeyFields, txnSubsystemProvider, resourceType);
         this.indexOp = indexOp;
-        this.logBeforeImage = logBeforeImage;
     }
 
     @Override
@@ -61,22 +59,24 @@ public class PrimaryIndexModificationOperationCallbackFactory extends AbstractOp
             IHyracksTaskContext ctx, IOperatorNodePushable operatorNodePushable) throws HyracksDataException {
         ITransactionSubsystem txnSubsystem = txnSubsystemProvider.getTransactionSubsystem(ctx);
         IResourceLifecycleManager<IIndex> indexLifeCycleManager =
-                txnSubsystem.getAsterixAppRuntimeContextProvider().getDatasetLifecycleManager();
+                txnSubsystem.getApplicationContext().getDatasetLifecycleManager();
         ILSMIndex index = (ILSMIndex) indexLifeCycleManager.get(resource.getPath());
         if (index == null) {
             throw new HyracksDataException("Index(id:" + resource.getId() + ") is not registered.");
         }
 
         try {
-            ITransactionContext txnCtx = txnSubsystem.getTransactionManager().getTransactionContext(jobId, false);
-            Resource aResource = (Resource) resource.getResource();
-            IModificationOperationCallback modCallback = new PrimaryIndexModificationOperationCallback(datasetId,
-                    primaryKeyFields, txnCtx, txnSubsystem.getLockManager(), txnSubsystem, resource.getId(),
-                    aResource.partition(), resourceType, indexOp, operatorNodePushable, logBeforeImage);
-            txnCtx.registerIndexAndCallback(resource.getId(), index, (AbstractOperationCallback) modCallback, true);
+            IJobletEventListenerFactory fact = ctx.getJobletContext().getJobletEventListenerFactory();
+            ITransactionContext txnCtx = txnSubsystem.getTransactionManager()
+                    .getTransactionContext(((IJobEventListenerFactory) fact).getTxnId(datasetId));
+            DatasetLocalResource aResource = (DatasetLocalResource) resource.getResource();
+            IModificationOperationCallback modCallback = new PrimaryIndexModificationOperationCallback(
+                    new DatasetId(datasetId), primaryKeyFields, txnCtx, txnSubsystem.getLockManager(), txnSubsystem,
+                    resource.getId(), aResource.getPartition(), resourceType, indexOp, operatorNodePushable);
+            txnCtx.register(resource.getId(), aResource.getPartition(), index, modCallback, true);
             return modCallback;
         } catch (ACIDException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 }

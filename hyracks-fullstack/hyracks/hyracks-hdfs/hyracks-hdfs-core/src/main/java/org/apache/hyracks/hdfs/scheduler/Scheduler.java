@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Random;
-import java.util.logging.Logger;
 
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.mapred.InputSplit;
@@ -42,13 +41,15 @@ import org.apache.hyracks.api.exceptions.HyracksException;
 import org.apache.hyracks.api.topology.ClusterTopology;
 import org.apache.hyracks.hdfs.api.INcCollection;
 import org.apache.hyracks.hdfs.api.INcCollectionBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The scheduler conduct data-local scheduling for data reading on HDFS. This
  * class works for Hadoop old API.
  */
 public class Scheduler {
-    private static final Logger LOGGER = Logger.getLogger(Scheduler.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /** a list of NCs */
     private String[] NCs;
@@ -129,8 +130,8 @@ public class Scheduler {
     public Scheduler(Map<String, NodeControllerInfo> ncNameToNcInfos, ClusterTopology topology)
             throws HyracksException {
         this(ncNameToNcInfos);
-        this.ncCollectionBuilder = topology == null ? new IPProximityNcCollectionBuilder()
-                : new RackAwareNcCollectionBuilder(topology);
+        this.ncCollectionBuilder =
+                topology == null ? new IPProximityNcCollectionBuilder() : new RackAwareNcCollectionBuilder(topology);
     }
 
     /**
@@ -275,7 +276,7 @@ public class Scheduler {
      */
     private void scheduleLocalSlots(InputSplit[] splits, int[] workloads, String[] locations, int slots, Random random,
             boolean[] scheduled, final Map<String, IntWritable> locationToNumSplits)
-                    throws IOException, UnknownHostException {
+            throws IOException, UnknownHostException {
         /** scheduling candidates will be ordered inversely according to their popularity */
         PriorityQueue<String> scheduleCadndiates = new PriorityQueue<String>(3, new Comparator<String>() {
 
@@ -379,23 +380,19 @@ public class Scheduler {
             ncNameToIndex.clear();
             int i = 0;
 
-            /**
+            /*
              * build the IP address to NC map
              */
             for (Map.Entry<String, NodeControllerInfo> entry : ncNameToNcInfos.entrySet()) {
                 String ipAddr = InetAddress.getByAddress(entry.getValue().getNetworkAddress().lookupIpAddress())
                         .getHostAddress();
-                List<String> matchedNCs = ipToNcMapping.get(ipAddr);
-                if (matchedNCs == null) {
-                    matchedNCs = new ArrayList<String>();
-                    ipToNcMapping.put(ipAddr, matchedNCs);
-                }
+                List<String> matchedNCs = ipToNcMapping.computeIfAbsent(ipAddr, k -> new ArrayList<>());
                 matchedNCs.add(entry.getKey());
                 NCs[i] = entry.getKey();
                 i++;
             }
 
-            /**
+            /*
              * set up the NC name to index mapping
              */
             for (i = 0; i < NCs.length; i++) {

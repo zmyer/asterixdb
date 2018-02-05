@@ -31,26 +31,24 @@ import org.apache.hyracks.api.dataflow.value.ITypeTraits;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.control.nc.io.IOManager;
-import org.apache.hyracks.storage.am.btree.exceptions.BTreeException;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
 import org.apache.hyracks.storage.am.common.datagen.DataGenThread;
 import org.apache.hyracks.storage.am.common.datagen.TupleBatch;
-import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.lsm.btree.impls.LSMBTree;
 import org.apache.hyracks.storage.am.lsm.btree.utils.LSMBTreeUtil;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
 import org.apache.hyracks.storage.am.lsm.common.impls.AsynchronousScheduler;
 import org.apache.hyracks.storage.am.lsm.common.impls.NoMergePolicy;
-import org.apache.hyracks.storage.am.lsm.common.impls.NoOpIOOperationCallback;
+import org.apache.hyracks.storage.am.lsm.common.impls.NoOpIOOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.impls.ThreadCountingTracker;
 import org.apache.hyracks.storage.am.lsm.common.impls.VirtualBufferCache;
+import org.apache.hyracks.storage.common.IIndexAccessor;
 import org.apache.hyracks.storage.common.buffercache.HeapBufferAllocator;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
 import org.apache.hyracks.test.support.TestStorageManagerComponentHolder;
 import org.apache.hyracks.test.support.TestUtils;
+import org.apache.hyracks.util.trace.ITracer;
 
 public class LSMTreeRunner implements IExperimentRunner {
 
@@ -84,7 +82,7 @@ public class LSMTreeRunner implements IExperimentRunner {
 
     public LSMTreeRunner(int numBatches, int inMemPageSize, int inMemNumPages, int onDiskPageSize, int onDiskNumPages,
             ITypeTraits[] typeTraits, IBinaryComparatorFactory[] cmpFactories, int[] bloomFilterKeyFields,
-            double bloomFilterFalsePositiveRate) throws BTreeException, HyracksDataException {
+            double bloomFilterFalsePositiveRate) throws HyracksDataException {
         this.numBatches = numBatches;
 
         this.onDiskPageSize = onDiskPageSize;
@@ -92,28 +90,27 @@ public class LSMTreeRunner implements IExperimentRunner {
         onDiskDir = classDir + sep + simpleDateFormat.format(new Date()) + sep;
         ctx = TestUtils.create(HYRACKS_FRAME_SIZE);
         TestStorageManagerComponentHolder.init(this.onDiskPageSize, this.onDiskNumPages, MAX_OPEN_FILES);
-        bufferCache = TestStorageManagerComponentHolder.getBufferCache(ctx);
+        bufferCache = TestStorageManagerComponentHolder.getBufferCache(ctx.getJobletContext().getServiceContext());
         ioManager = TestStorageManagerComponentHolder.getIOManager();
 
         ioDeviceId = 0;
         file = ioManager.resolveAbsolutePath(onDiskDir);
-        IFileMapProvider fmp = TestStorageManagerComponentHolder.getFileMapProvider(ctx);
 
         List<IVirtualBufferCache> virtualBufferCaches = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            IVirtualBufferCache virtualBufferCache = new VirtualBufferCache(new HeapBufferAllocator(), inMemPageSize,
-                    inMemNumPages / 2);
+            IVirtualBufferCache virtualBufferCache =
+                    new VirtualBufferCache(new HeapBufferAllocator(), inMemPageSize, inMemNumPages / 2);
             virtualBufferCaches.add(virtualBufferCache);
         }
 
         this.ioScheduler = AsynchronousScheduler.INSTANCE;
         AsynchronousScheduler.INSTANCE.init(threadFactory);
 
-        lsmtree = LSMBTreeUtil.createLSMTree(ioManager, virtualBufferCaches, file, bufferCache, fmp, typeTraits,
-                cmpFactories,
-                bloomFilterKeyFields, bloomFilterFalsePositiveRate, new NoMergePolicy(), new ThreadCountingTracker(),
-                ioScheduler, NoOpIOOperationCallback.INSTANCE, true, null, null, null, null, true,
-                TestStorageManagerComponentHolder.getMetadataPageManagerFactory());
+        lsmtree = LSMBTreeUtil.createLSMTree(ioManager, virtualBufferCaches, file, bufferCache, typeTraits,
+                cmpFactories, bloomFilterKeyFields, bloomFilterFalsePositiveRate, new NoMergePolicy(),
+                new ThreadCountingTracker(), ioScheduler, NoOpIOOperationCallbackFactory.INSTANCE, true, null, null,
+                null, null, true, TestStorageManagerComponentHolder.getMetadataPageManagerFactory(), false,
+                ITracer.NONE);
     }
 
     @Override
@@ -173,7 +170,7 @@ public class LSMTreeRunner implements IExperimentRunner {
         public LSMTreeThread(DataGenThread dataGen, LSMBTree lsmTree, int numBatches) {
             this.dataGen = dataGen;
             this.numBatches = numBatches;
-            lsmTreeAccessor = lsmTree.createAccessor(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
+            lsmTreeAccessor = lsmTree.createAccessor(NoOpIndexAccessParameters.INSTANCE);
         }
 
         @Override
@@ -184,7 +181,8 @@ public class LSMTreeRunner implements IExperimentRunner {
                     for (int j = 0; j < batch.size(); j++) {
                         try {
                             lsmTreeAccessor.insert(batch.get(j));
-                        } catch (TreeIndexException e) {
+                        } catch (Exception e) {
+                            throw e;
                         }
                     }
                     dataGen.releaseBatch(batch);

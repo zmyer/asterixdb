@@ -19,55 +19,32 @@
 
 package org.apache.asterix.common.context;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
-import org.apache.asterix.common.api.IAppRuntimeContext;
 import org.apache.asterix.common.api.IDatasetLifecycleManager;
-import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.storage.am.common.api.IResourceLifecycleManager;
+import org.apache.asterix.common.api.INcApplicationContext;
+import org.apache.hyracks.api.application.INCServiceContext;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMMergePolicy;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMMergePolicyFactory;
+import org.apache.hyracks.storage.am.lsm.common.impls.PrefixMergePolicyFactory;
 
-public class CorrelatedPrefixMergePolicyFactory implements ILSMMergePolicyFactory {
+public class CorrelatedPrefixMergePolicyFactory extends PrefixMergePolicyFactory {
 
     private static final long serialVersionUID = 1L;
-
-    private static final String[] SET_VALUES = new String[] { "max-mergable-component-size",
-            "max-tolerance-component-count" };
-    private static final Set<String> PROPERTIES_NAMES = new HashSet<String>(Arrays.asList(SET_VALUES));
-
-    private int datasetID;
-
-    @Override
-    public ILSMMergePolicy createMergePolicy(Map<String, String> properties, IHyracksTaskContext ctx) {
-        IDatasetLifecycleManager dslcManager = ((IAppRuntimeContext) ctx.getJobletContext()
-                .getApplicationContext().getApplicationObject()).getDatasetLifecycleManager();
-        ILSMMergePolicy policy = new CorrelatedPrefixMergePolicy(dslcManager, datasetID);
-        policy.configure(properties);
-        return policy;
-    }
+    public static final String NAME = "correlated-prefix";
+    public static final String KEY_DATASET_ID = "datasetId";
 
     @Override
     public String getName() {
-        return "correlated-prefix";
+        return NAME;
     }
 
     @Override
-    public Set<String> getPropertiesNames() {
-        return PROPERTIES_NAMES;
-    }
-
-    @Override
-    public ILSMMergePolicy createMergePolicy(Map<String, String> properties, IResourceLifecycleManager ilcm) {
-        ILSMMergePolicy policy = new CorrelatedPrefixMergePolicy(ilcm, datasetID);
-        policy.configure(properties);
+    public ILSMMergePolicy createMergePolicy(Map<String, String> configuration, INCServiceContext ctx) {
+        IDatasetLifecycleManager dslcManager =
+                ((INcApplicationContext) ctx.getApplicationContext()).getDatasetLifecycleManager();
+        int datasetId = Integer.parseInt(configuration.get(KEY_DATASET_ID));
+        ILSMMergePolicy policy = new CorrelatedPrefixMergePolicy(dslcManager, datasetId);
+        policy.configure(configuration);
         return policy;
-    }
-
-    public void setDatasetID(int datasetID) {
-        this.datasetID = datasetID;
     }
 }

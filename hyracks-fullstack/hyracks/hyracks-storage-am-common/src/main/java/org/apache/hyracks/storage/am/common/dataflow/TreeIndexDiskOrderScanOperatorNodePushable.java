@@ -28,40 +28,44 @@ import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryOutputSourceOperatorNodePushable;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.am.common.api.IIndexDataflowHelper;
+import org.apache.hyracks.storage.am.common.api.ISearchOperationCallbackFactory;
 import org.apache.hyracks.storage.am.common.api.ITreeIndex;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexAccessor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrame;
+import org.apache.hyracks.storage.am.common.impls.IndexAccessParameters;
 import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
-import org.apache.hyracks.storage.common.file.LocalResource;
+import org.apache.hyracks.storage.am.common.impls.TreeIndexDiskOrderScanCursor;
+import org.apache.hyracks.storage.common.IIndexAccessParameters;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.LocalResource;
 
 public class TreeIndexDiskOrderScanOperatorNodePushable extends AbstractUnaryOutputSourceOperatorNodePushable {
-    private final AbstractTreeIndexOperatorDescriptor opDesc;
     private final IHyracksTaskContext ctx;
-    private final TreeIndexDataflowHelper treeIndexHelper;
-    private ITreeIndex treeIndex;
+    private final IIndexDataflowHelper treeIndexHelper;
+    private final ISearchOperationCallbackFactory searchCallbackFactory;
 
-    public TreeIndexDiskOrderScanOperatorNodePushable(AbstractTreeIndexOperatorDescriptor opDesc,
-            IHyracksTaskContext ctx, int partition) throws HyracksDataException {
-        this.opDesc = opDesc;
+    public TreeIndexDiskOrderScanOperatorNodePushable(IHyracksTaskContext ctx, int partition,
+            IIndexDataflowHelperFactory indexHelperFactory, ISearchOperationCallbackFactory searchCallbackFactory)
+            throws HyracksDataException {
         this.ctx = ctx;
-        this.treeIndexHelper = (TreeIndexDataflowHelper) opDesc.getIndexDataflowHelperFactory()
-                .createIndexDataflowHelper(opDesc, ctx, partition);
+        this.treeIndexHelper = indexHelperFactory.create(ctx.getJobletContext().getServiceContext(), partition);
+        this.searchCallbackFactory = searchCallbackFactory;
     }
 
     @Override
     public void initialize() throws HyracksDataException {
         treeIndexHelper.open();
-        treeIndex = (ITreeIndex) treeIndexHelper.getIndexInstance();
+        ITreeIndex treeIndex = (ITreeIndex) treeIndexHelper.getIndexInstance();
         try {
             ITreeIndexFrame cursorFrame = treeIndex.getLeafFrameFactory().createFrame();
-            ITreeIndexCursor cursor = treeIndexHelper.createDiskOrderScanCursor(cursorFrame);
+            ITreeIndexCursor cursor = new TreeIndexDiskOrderScanCursor(cursorFrame);
             LocalResource resource = treeIndexHelper.getResource();
-            ISearchOperationCallback searchCallback = opDesc.getSearchOpCallbackFactory()
-                    .createSearchOperationCallback(resource.getId(), ctx, null);
-            ITreeIndexAccessor indexAccessor = (ITreeIndexAccessor) treeIndex
-                    .createAccessor(NoOpOperationCallback.INSTANCE, searchCallback);
+            ISearchOperationCallback searchCallback =
+                    searchCallbackFactory.createSearchOperationCallback(resource.getId(), ctx, null);
+            IIndexAccessParameters iap = new IndexAccessParameters(NoOpOperationCallback.INSTANCE, searchCallback);
+            ITreeIndexAccessor indexAccessor = (ITreeIndexAccessor) treeIndex.createAccessor(iap);
             try {
                 writer.open();
                 indexAccessor.diskOrderScan(cursor);
@@ -91,7 +95,7 @@ public class TreeIndexDiskOrderScanOperatorNodePushable extends AbstractUnaryOut
                 throw new HyracksDataException(th);
             } finally {
                 try {
-                    cursor.close();
+                    cursor.destroy();
                 } catch (Exception cursorCloseException) {
                     throw new IllegalStateException(cursorCloseException);
                 } finally {

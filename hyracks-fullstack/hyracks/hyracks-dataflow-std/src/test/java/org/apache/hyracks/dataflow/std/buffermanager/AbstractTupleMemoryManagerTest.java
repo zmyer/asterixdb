@@ -35,13 +35,13 @@ import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAppender;
 import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.data.marshalling.UTF8StringSerializerDeserializer;
-import org.apache.hyracks.util.IntSerDeUtils;
 import org.apache.hyracks.dataflow.std.sort.Utility;
 import org.apache.hyracks.dataflow.std.structures.TuplePointer;
+import org.apache.hyracks.util.IntSerDeUtils;
 
 public abstract class AbstractTupleMemoryManagerTest {
-    ISerializerDeserializer[] fieldsSerDer = new ISerializerDeserializer[] {
-            IntegerSerializerDeserializer.INSTANCE, new UTF8StringSerializerDeserializer() };
+    ISerializerDeserializer[] fieldsSerDer = new ISerializerDeserializer[] { IntegerSerializerDeserializer.INSTANCE,
+            new UTF8StringSerializerDeserializer() };
     RecordDescriptor recordDescriptor = new RecordDescriptor(fieldsSerDer);
     ArrayTupleBuilder tupleBuilder = new ArrayTupleBuilder(recordDescriptor.getFieldCount());
     FrameTupleAccessor inFTA = new FrameTupleAccessor(recordDescriptor);
@@ -51,19 +51,17 @@ public abstract class AbstractTupleMemoryManagerTest {
 
     protected void assertEachTupleInFTAIsInBuffer(Map<Integer, Integer> map, Map<TuplePointer, Integer> mapInserted) {
         ITuplePointerAccessor accessor = getTuplePointerAccessor();
-        for (Map.Entry<TuplePointer, Integer> entry : mapInserted.entrySet()) {
-            accessor.reset(entry.getKey());
-            int dataLength = map.get(entry.getValue());
-            assertEquals((int) entry.getValue(),
+        mapInserted.forEach((key, value) -> {
+            accessor.reset(key);
+            int dataLength = map.get(value);
+            assertEquals((int) value,
                     IntSerDeUtils.getInt(accessor.getBuffer().array(), accessor.getAbsFieldStartOffset(0)));
             assertEquals(dataLength, accessor.getTupleLength());
-        }
+        });
         assertEquals(map.size(), mapInserted.size());
     }
 
-    protected Map<Integer, Integer> prepareFixedSizeTuples(
-            int tuplePerFrame,
-            int extraMetaBytePerFrame,
+    protected Map<Integer, Integer> prepareFixedSizeTuples(int tuplePerFrame, int extraMetaBytePerFrame,
             int extraMetaBytePerRecord) throws HyracksDataException {
         Map<Integer, Integer> dataSet = new HashMap<>();
         ByteBuffer buffer = ByteBuffer.allocate(Common.BUDGET);
@@ -72,8 +70,7 @@ public abstract class AbstractTupleMemoryManagerTest {
         appender.reset(frame, true);
 
         int sizePerTuple = (Common.MIN_FRAME_SIZE - 1 - tuplePerFrame * 4 - 4 - extraMetaBytePerFrame) / tuplePerFrame;
-        int sizeChar =
-                sizePerTuple - extraMetaBytePerRecord - fieldsSerDer.length * 4 - 4 - 2; //2byte to write str length
+        int sizeChar = sizePerTuple - extraMetaBytePerRecord - fieldsSerDer.length * 4 - 4 - 2; //2byte to write str length
         assert (sizeChar > 0);
         for (int i = 0; i < Common.NUM_MIN_FRAME * tuplePerFrame; i++) {
             tupleBuilder.reset();

@@ -35,8 +35,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Orders]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [prim_index_search.Orders]
   ]
   AS Variable [ Name=$o ]
 ]

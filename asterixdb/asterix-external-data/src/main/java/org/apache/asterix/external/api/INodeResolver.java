@@ -18,11 +18,17 @@
  */
 package org.apache.asterix.external.api;
 
+import java.net.InetAddress;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
 
 /**
  * A policy for resolving a name to a node controller id.
  */
+@FunctionalInterface
 public interface INodeResolver {
 
     /**
@@ -33,5 +39,6 @@ public interface INodeResolver {
      * @return resolved result (a node controller id)
      * @throws AsterixException
      */
-    public String resolveNode(String value) throws AsterixException;
+    String resolveNode(ICcApplicationContext appCtx, String value, Map<InetAddress, Set<String>> ncMap, Set<String> ncs)
+            throws AsterixException;
 }

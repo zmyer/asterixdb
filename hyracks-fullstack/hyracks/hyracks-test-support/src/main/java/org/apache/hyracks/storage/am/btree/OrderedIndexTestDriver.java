@@ -20,9 +20,9 @@
 package org.apache.hyracks.storage.am.btree;
 
 import java.util.Random;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
@@ -35,18 +35,18 @@ import org.apache.hyracks.storage.am.config.AccessMethodTestsConfig;
 
 @SuppressWarnings("rawtypes")
 public abstract class OrderedIndexTestDriver {
-    protected final Logger LOGGER = Logger.getLogger(OrderedIndexTestDriver.class.getName());
+    protected final Logger LOGGER = LogManager.getLogger();
 
     protected static final int numTuplesToInsert = AccessMethodTestsConfig.BTREE_NUM_TUPLES_TO_INSERT;
 
     protected abstract OrderedIndexTestContext createTestContext(ISerializerDeserializer[] fieldSerdes, int numKeys,
-            BTreeLeafFrameType leafType) throws Exception;
+            BTreeLeafFrameType leafType, boolean filtered) throws Exception;
 
     protected abstract Random getRandom();
 
     protected abstract void runTest(ISerializerDeserializer[] fieldSerdes, int numKeys, BTreeLeafFrameType leafType,
-            ITupleReference lowKey, ITupleReference highKey, ITupleReference prefixLowKey, ITupleReference prefixHighKey)
-            throws Exception;
+            ITupleReference lowKey, ITupleReference highKey, ITupleReference prefixLowKey,
+            ITupleReference prefixHighKey) throws Exception;
 
     protected abstract String getTestOpName();
 
@@ -58,12 +58,12 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void oneIntKeyAndValue() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With One Int Key And Value.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE };
+        ISerializerDeserializer[] fieldSerdes =
+                { IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
         // Range search in [-1000, 1000]
         ITupleReference lowKey = TupleUtils.createIntegerTuple(-1000);
         ITupleReference highKey = TupleUtils.createIntegerTuple(1000);
@@ -75,12 +75,12 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void twoIntKeys() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With Two Int Keys.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE };
+        ISerializerDeserializer[] fieldSerdes =
+                { IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
 
         // Range search in [50 0, 50 500]
         ITupleReference lowKey = TupleUtils.createIntegerTuple(50, 0);
@@ -97,13 +97,13 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void twoIntKeysAndValues() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With Two Int Keys And Values.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE };
+        ISerializerDeserializer[] fieldSerdes =
+                { IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE,
+                        IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
 
         // Range search in [50 100, 100 100]
         ITupleReference lowKey = TupleUtils.createIntegerTuple(-100, -100);
@@ -120,12 +120,12 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void oneStringKeyAndValue() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With One String Key And Value.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { new UTF8StringSerializerDeserializer(),
-                new UTF8StringSerializerDeserializer() };
+        ISerializerDeserializer[] fieldSerdes =
+                { new UTF8StringSerializerDeserializer(), new UTF8StringSerializerDeserializer() };
 
         // Range search in ["cbf", cc7"]
         ITupleReference lowKey = TupleUtils.createTuple(fieldSerdes, "cbf");
@@ -138,12 +138,12 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void twoStringKeys() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With Two String Keys.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { new UTF8StringSerializerDeserializer(),
-                new UTF8StringSerializerDeserializer() };
+        ISerializerDeserializer[] fieldSerdes =
+                { new UTF8StringSerializerDeserializer(), new UTF8StringSerializerDeserializer() };
 
         // Range search in ["cbf", "ddd", cc7", "eee"]
         ITupleReference lowKey = TupleUtils.createTuple(fieldSerdes, "cbf", "ddd");
@@ -160,13 +160,13 @@ public abstract class OrderedIndexTestDriver {
 
     @Test
     public void twoStringKeysAndValues() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("BTree " + getTestOpName() + " Test With Two String Keys And Values.");
         }
 
-        ISerializerDeserializer[] fieldSerdes = { new UTF8StringSerializerDeserializer(),
-                new UTF8StringSerializerDeserializer(), new UTF8StringSerializerDeserializer(),
-                new UTF8StringSerializerDeserializer() };
+        ISerializerDeserializer[] fieldSerdes =
+                { new UTF8StringSerializerDeserializer(), new UTF8StringSerializerDeserializer(),
+                        new UTF8StringSerializerDeserializer(), new UTF8StringSerializerDeserializer() };
 
         // Range search in ["cbf", "ddd", cc7", "eee"]
         ITupleReference lowKey = TupleUtils.createTuple(fieldSerdes, "cbf", "ddd");

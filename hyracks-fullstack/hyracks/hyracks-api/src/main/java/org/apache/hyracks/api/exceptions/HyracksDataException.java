@@ -22,15 +22,29 @@ package org.apache.hyracks.api.exceptions;
 import java.io.Serializable;
 
 import org.apache.hyracks.api.util.ErrorMessageUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The main execution time exception type for runtime errors in a hyracks environment
  */
 public class HyracksDataException extends HyracksException {
 
+    private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = LogManager.getLogger();
+
     public static HyracksDataException create(Throwable cause) {
-        if (cause instanceof HyracksDataException) {
+        if (cause instanceof HyracksDataException || cause == null) {
             return (HyracksDataException) cause;
+        } else if (cause instanceof Error) {
+            // don't wrap errors, allow them to propagate
+            throw (Error) cause;
+        } else if (cause instanceof InterruptedException && !Thread.currentThread().isInterrupted()) {
+            // TODO(mblow): why not force interrupt on current thread?
+            LOGGER.log(Level.WARN,
+                    "Wrapping an InterruptedException in HyracksDataException and current thread is not interrupted",
+                    cause);
         }
         return new HyracksDataException(cause);
     }
@@ -43,14 +57,32 @@ public class HyracksDataException extends HyracksException {
         return new HyracksDataException(ErrorCode.HYRACKS, code, ErrorCode.getErrorMessage(code), cause, params);
     }
 
-    public static HyracksDataException create(HyracksDataException e, String nodeId) {
-        return new HyracksDataException(e.getComponent(), e.getErrorCode(), e.getMessage(), e.getCause(), nodeId, e
-                .getParams());
+    public static HyracksDataException suppress(HyracksDataException root, Throwable th) {
+        if (root == null) {
+            return HyracksDataException.create(th);
+        }
+        if (th instanceof Error) {
+            // don't suppress errors into a HyracksDataException, allow them to propagate
+            th.addSuppressed(root);
+            throw (Error) th;
+        } else if (th instanceof InterruptedException && !Thread.currentThread().isInterrupted()) {
+            // TODO(mblow): why not force interrupt on current thread?
+            LOGGER.log(Level.WARN, "Suppressing an InterruptedException in a HyracksDataException and current "
+                    + "thread is not interrupted", th);
+        }
+        root.addSuppressed(th);
+        return root;
     }
 
     public HyracksDataException(String component, int errorCode, String message, Throwable cause, String nodeId,
             Serializable... params) {
         super(component, errorCode, message, cause, nodeId, params);
+    }
+
+    public HyracksDataException(String component, int errorCode, String message, Throwable cause, String nodeId,
+            StackTraceElement[] stackTrace, Serializable... params) {
+        super(component, errorCode, message, cause, nodeId, params);
+        setStackTrace(stackTrace);
     }
 
     /**
@@ -106,7 +138,7 @@ public class HyracksDataException extends HyracksException {
     }
 
     public HyracksDataException(String component, int errorCode, Throwable cause, Serializable... params) {
-        super(component, errorCode, cause.getMessage(), cause, null, params);
+        super(component, errorCode, cause, params);
     }
 
     public HyracksDataException(String component, int errorCode, String message, Throwable cause,
@@ -114,4 +146,8 @@ public class HyracksDataException extends HyracksException {
         super(component, errorCode, message, cause, null, params);
     }
 
+    public static HyracksDataException create(HyracksDataException e, String nodeId) {
+        return new HyracksDataException(e.getComponent(), e.getErrorCode(), e.getMessage(), e.getCause(), nodeId,
+                e.getStackTrace(), e.getParams());
+    }
 }

@@ -19,13 +19,14 @@
 
 package org.apache.asterix.metadata.bootstrap;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import org.apache.asterix.common.metadata.MetadataIndexImmutableProperties;
 import org.apache.asterix.common.transactions.DatasetId;
+import org.apache.asterix.common.transactions.ImmutableDatasetId;
+import org.apache.asterix.common.utils.StoragePathUtil;
 import org.apache.asterix.formats.nontagged.BinaryComparatorFactoryProvider;
 import org.apache.asterix.formats.nontagged.BinaryHashFunctionFactoryProvider;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
@@ -147,7 +148,7 @@ public class MetadataIndex implements IMetadataIndex {
             }
         }
 
-        this.datasetId = new DatasetId(indexImmutableProperties.getDatasetId());
+        this.datasetId = new ImmutableDatasetId(indexImmutableProperties.getDatasetId());
         this.isPrimaryIndex = isPrimaryIndex;
 
         //PrimaryKeyFieldIndexes
@@ -231,7 +232,9 @@ public class MetadataIndex implements IMetadataIndex {
 
     @Override
     public String getFileNameRelativePath() {
-        return getDataverseName() + File.separator + getIndexedDatasetName() + "_idx_" + getIndexName();
+        // The rebalance count for metadata dataset is always 0.
+        return StoragePathUtil.prepareDataverseIndexName(getDataverseName(), getIndexedDatasetName(), getIndexName(),
+                0);
     }
 
     @Override
@@ -260,12 +263,12 @@ public class MetadataIndex implements IMetadataIndex {
     }
 
     @Override
-    public void setResourceID(long resourceID) {
+    public void setResourceId(long resourceID) {
         this.resourceId = resourceID;
     }
 
     @Override
-    public long getResourceID() {
+    public long getResourceId() {
         return resourceId;
     }
 

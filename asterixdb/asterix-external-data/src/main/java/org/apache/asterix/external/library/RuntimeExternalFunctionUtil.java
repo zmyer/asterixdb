@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.asterix.common.api.IApplicationContext;
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.om.base.AMutableInt32;
@@ -35,7 +36,7 @@ import org.apache.hyracks.algebricks.core.algebra.functions.IFunctionInfo;
 
 public class RuntimeExternalFunctionUtil {
 
-    private static Map<String, ClassLoader> libraryClassLoaders = new HashMap<String, ClassLoader>();
+    private static Map<String, ClassLoader> libraryClassLoaders = new HashMap<>();
 
     public static void registerLibraryClassLoader(String dataverseName, String libraryName, ClassLoader classLoader)
             throws RuntimeDataException {
@@ -55,10 +56,11 @@ public class RuntimeExternalFunctionUtil {
         }
     }
 
-    public static IFunctionDescriptor getFunctionDescriptor(IFunctionInfo finfo) throws RuntimeDataException {
+    public static IFunctionDescriptor getFunctionDescriptor(IFunctionInfo finfo, IApplicationContext appCtx)
+            throws RuntimeDataException {
         switch (((IExternalFunctionInfo) finfo).getKind()) {
             case SCALAR:
-                return getScalarFunctionDescriptor(finfo);
+                return getScalarFunctionDescriptor(finfo, appCtx);
             case AGGREGATE:
             case UNNEST:
             case STATEFUL:
@@ -68,13 +70,14 @@ public class RuntimeExternalFunctionUtil {
         return null;
     }
 
-    private static AbstractScalarFunctionDynamicDescriptor getScalarFunctionDescriptor(IFunctionInfo finfo) {
-        return new ExternalScalarFunctionDescriptor(finfo);
+    private static AbstractScalarFunctionDynamicDescriptor getScalarFunctionDescriptor(IFunctionInfo finfo,
+            IApplicationContext appCtx) {
+        return new ExternalScalarFunctionDescriptor(finfo, appCtx);
     }
 
     public static ByteBuffer allocateArgumentBuffers(IAType type) {
         switch (type.getTypeTag()) {
-            case INT32:
+            case INTEGER:
                 return ByteBuffer.allocate(4);
             case STRING:
                 return ByteBuffer.allocate(32 * 1024);
@@ -85,21 +88,21 @@ public class RuntimeExternalFunctionUtil {
 
     public static IAObject allocateArgumentObjects(IAType type) {
         switch (type.getTypeTag()) {
-            case INT32:
+            case INTEGER:
                 return new AMutableInt32(0);
             case STRING:
                 return new AMutableString("");
             default:
                 return null;
-                /*
-                ARecordType recordType = (ARecordType) type;
-                IAType[] fieldTypes = recordType.getFieldTypes();
-                IAObject[] fields = new IAObject[fieldTypes.length];
-                for (int i = 0; i < fields.length; i++) {
-                    fields[i] = allocateArgumentObjects(fieldTypes[i]);
-                }
-                return new AMutableRecord((ARecordType) type, fields);
-                */
+            /*
+            ARecordType recordType = (ARecordType) type;
+            IAType[] fieldTypes = recordType.getFieldTypes();
+            IAObject[] fields = new IAObject[fieldTypes.length];
+            for (int i = 0; i < fields.length; i++) {
+                fields[i] = allocateArgumentObjects(fieldTypes[i]);
+            }
+            return new AMutableRecord((ARecordType) type, fields);
+            */
         }
     }
 

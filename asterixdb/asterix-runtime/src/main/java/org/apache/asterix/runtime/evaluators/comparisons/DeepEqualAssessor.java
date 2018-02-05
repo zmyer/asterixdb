@@ -43,7 +43,7 @@ public class DeepEqualAssessor {
     private final DeepEqualityVisitor equalityVisitor = new DeepEqualityVisitor();
 
     public boolean isEqual(IVisitablePointable leftPointable, IVisitablePointable rightPointable)
-            throws HyracksDataException, AsterixException {
+            throws HyracksDataException {
         if (leftPointable == null || rightPointable == null) {
             return false;
         }
@@ -60,9 +60,9 @@ public class DeepEqualAssessor {
             if (ATypeHierarchy.isSameTypeDomain(leftTypeTag, rightTypeTag, false)
                     && ATypeHierarchy.getTypeDomain(leftTypeTag) == Domain.NUMERIC) {
                 double leftVal = ATypeHierarchy.getDoubleValue(DEEP_EQUAL, 0, leftPointable.getByteArray(),
-                            leftPointable.getStartOffset());
+                        leftPointable.getStartOffset());
                 double rightVal = ATypeHierarchy.getDoubleValue(DEEP_EQUAL, 1, rightPointable.getByteArray(),
-                            rightPointable.getStartOffset());
+                        rightPointable.getStartOffset());
                 return Math.abs(leftVal - rightVal) < EPSILON;
             } else {
                 return false;

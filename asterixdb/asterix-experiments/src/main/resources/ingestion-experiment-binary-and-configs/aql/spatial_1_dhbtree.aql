@@ -1,3 +1,0 @@
-use dataverse experiments;
-create dataset Tweets(TweetMessageType) primary key tweetid;
-create index dhbtreeLocation on Tweets(sender-location) type dhbtree;

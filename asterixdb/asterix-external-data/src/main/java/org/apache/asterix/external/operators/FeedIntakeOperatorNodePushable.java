@@ -21,18 +21,20 @@ package org.apache.asterix.external.operators;
 import org.apache.asterix.active.ActiveRuntimeId;
 import org.apache.asterix.active.ActiveSourceOperatorNodePushable;
 import org.apache.asterix.active.EntityId;
-import org.apache.asterix.common.exceptions.ErrorCode;
-import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.external.api.IAdapterFactory;
 import org.apache.asterix.external.dataset.adapter.FeedAdapter;
-import org.apache.asterix.external.feed.policy.FeedPolicyAccessor;
-import org.apache.asterix.external.feed.runtime.AdapterRuntimeManager;
+import org.apache.hyracks.api.comm.IFrame;
 import org.apache.hyracks.api.comm.VSizeFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.util.HyracksConstants;
+import org.apache.hyracks.dataflow.common.io.MessagingFrameTupleAppender;
 import org.apache.hyracks.dataflow.common.utils.TaskUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The runtime for @see{FeedIntakeOperationDescriptor}.
@@ -40,58 +42,111 @@ import org.apache.hyracks.dataflow.common.utils.TaskUtil;
  * The artifacts are lazily activated when a feed receives a subscription request.
  */
 public class FeedIntakeOperatorNodePushable extends ActiveSourceOperatorNodePushable {
-
-    private final int partition;
-    private final IAdapterFactory adapterFactory;
+    private static final Logger LOGGER = LogManager.getLogger();
+    // TODO: Make configurable https://issues.apache.org/jira/browse/ASTERIXDB-2065
+    public static final int DEFAULT_ABORT_TIMEOUT = 10000;
     private final FeedIntakeOperatorDescriptor opDesc;
-    private volatile AdapterRuntimeManager adapterRuntimeManager;
+    private final FeedAdapter adapter;
+    private boolean poisoned = false;
 
     public FeedIntakeOperatorNodePushable(IHyracksTaskContext ctx, EntityId feedId, IAdapterFactory adapterFactory,
-            int partition, FeedPolicyAccessor policyAccessor, IRecordDescriptorProvider recordDescProvider,
-            FeedIntakeOperatorDescriptor feedIntakeOperatorDescriptor) {
+            int partition, IRecordDescriptorProvider recordDescProvider,
+            FeedIntakeOperatorDescriptor feedIntakeOperatorDescriptor) throws HyracksDataException {
         super(ctx, new ActiveRuntimeId(feedId, FeedIntakeOperatorNodePushable.class.getSimpleName(), partition));
         this.opDesc = feedIntakeOperatorDescriptor;
         this.recordDesc = recordDescProvider.getOutputRecordDescriptor(opDesc.getActivityId(), 0);
-        this.partition = partition;
-        this.adapterFactory = adapterFactory;
+        adapter = (FeedAdapter) adapterFactory.createAdapter(ctx, runtimeId.getPartition());
     }
 
     @Override
     protected void start() throws HyracksDataException, InterruptedException {
-        writer.open();
+        String before = Thread.currentThread().getName();
+        Thread.currentThread().setName("Intake Thread");
         try {
-            Thread.currentThread().setName("Intake Thread");
-            FeedAdapter adapter = (FeedAdapter) adapterFactory.createAdapter(ctx, partition);
-            adapterRuntimeManager = new AdapterRuntimeManager(ctx, runtimeId.getEntityId(), adapter, writer, partition);
-            TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, new VSizeFrame(ctx), ctx);
-            adapterRuntimeManager.start();
-            synchronized (adapterRuntimeManager) {
-                while (!adapterRuntimeManager.isDone()) {
-                    adapterRuntimeManager.wait();
+            writer.open();
+            synchronized (this) {
+                if (poisoned) {
+                    return;
                 }
             }
-            if (adapterRuntimeManager.isFailed()) {
-                throw new RuntimeDataException(
-                        ErrorCode.OPERATORS_FEED_INTAKE_OPERATOR_NODE_PUSHABLE_FAIL_AT_INGESTION);
-            }
-        } catch (Exception e) {
             /*
-             * An Interrupted Exception is thrown if the Intake job cannot progress further due to failure of another
-             * node involved in the Hyracks job. As the Intake job involves only the intake operator, the exception is
-             * indicative of a failure at the sibling intake operator location. The surviving intake partitions must
-             * continue to live and receive data from the external source.
+             * Set null feed message. Feed pipeline carries with it a message with each frame
+             * Initially, the message is set to a null message that can be changed by feed adapters.
+             * One use case is adapters which consume data sources that allow restartability. Such adapters
+             * can propagate progress information through the ingestion pipeline to storage nodes
              */
-            writer.fail();
+            IFrame message = new VSizeFrame(ctx);
+            TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
+            message.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
+            message.getBuffer().flip();
+            run();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARN, "Failure during data ingestion", e);
             throw e;
         } finally {
             writer.close();
+            Thread.currentThread().setName(before);
+        }
+    }
+
+    private void run() throws HyracksDataException {
+        // Start by getting the partition number from the manager
+        LOGGER.info("Starting ingestion for partition:" + ctx.getTaskAttemptId().getTaskId().getPartition());
+        try {
+            doRun();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw HyracksDataException.create(e);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARN, "Unhandled Exception", e);
+            throw HyracksDataException.create(e);
+        }
+    }
+
+    private void doRun() throws HyracksDataException, InterruptedException {
+        while (true) {
+            try {
+                // Start the adapter
+                adapter.start(ctx.getTaskAttemptId().getTaskId().getPartition(), writer);
+                // Adapter has completed execution
+                return;
+            } catch (InterruptedException e) {
+                throw e;
+            } catch (Exception e) {
+                LOGGER.log(Level.WARN, "Exception during feed ingestion ", e);
+                throw HyracksDataException.create(e);
+            }
         }
     }
 
     @Override
     protected void abort() throws HyracksDataException, InterruptedException {
-        if (adapterRuntimeManager != null) {
-            adapterRuntimeManager.stop();
+        LOGGER.info(runtimeId + " aborting...");
+        synchronized (this) {
+            poisoned = true;
+            try {
+                if (!adapter.stop(DEFAULT_ABORT_TIMEOUT)) {
+                    LOGGER.info(runtimeId + " failed to stop adapter. interrupting the thread...");
+                    taskThread.interrupt();
+                }
+            } catch (HyracksDataException hde) {
+                if (hde.getComponent() == ErrorCode.HYRACKS && hde.getErrorCode() == ErrorCode.TIMEOUT) {
+                    LOGGER.log(Level.WARN, runtimeId + " stop adapter timed out. interrupting the thread...", hde);
+                    taskThread.interrupt();
+                } else {
+                    LOGGER.log(Level.WARN, "Failure during attempt to stop " + runtimeId, hde);
+                    throw hde;
+                }
+            }
+        }
+    }
+
+    @Override
+    public String getStats() {
+        if (adapter != null) {
+            return "{\"adapter-stats\": " + adapter.getStats() + "}";
+        } else {
+            return "\"Runtime stats is not available.\"";
         }
     }
 }

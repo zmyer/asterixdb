@@ -19,16 +19,21 @@
 package org.apache.asterix.common.context;
 
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
+import org.apache.hyracks.storage.common.LocalResource;
 
 public class IndexInfo extends Info {
     private final ILSMIndex index;
-    private final long resourceId;
     private final int datasetId;
+    private final long resourceId;
+    private final int partition;
+    private final LocalResource localResource;
 
-    public IndexInfo(ILSMIndex index, int datasetId, long resourceId) {
+    public IndexInfo(ILSMIndex index, int datasetId, LocalResource localResource, int partition) {
         this.index = index;
         this.datasetId = datasetId;
-        this.resourceId = resourceId;
+        this.localResource = localResource;
+        this.resourceId = localResource.getId();
+        this.partition = partition;
     }
 
     public ILSMIndex getIndex() {
@@ -39,7 +44,15 @@ public class IndexInfo extends Info {
         return resourceId;
     }
 
+    public int getPartition() {
+        return partition;
+    }
+
     public int getDatasetId() {
         return datasetId;
+    }
+
+    public LocalResource getLocalResource() {
+        return localResource;
     }
 }

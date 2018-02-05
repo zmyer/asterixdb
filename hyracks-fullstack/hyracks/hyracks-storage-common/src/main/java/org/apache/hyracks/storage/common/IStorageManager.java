@@ -20,10 +20,8 @@ package org.apache.hyracks.storage.common;
 
 import java.io.Serializable;
 
-import org.apache.hyracks.api.context.IHyracksTaskContext;
+import org.apache.hyracks.api.application.INCServiceContext;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
-import org.apache.hyracks.storage.common.file.ILocalResourceRepository;
 import org.apache.hyracks.storage.common.file.IResourceIdFactory;
 
 /**
@@ -32,29 +30,29 @@ import org.apache.hyracks.storage.common.file.IResourceIdFactory;
 public interface IStorageManager extends Serializable {
     /**
      * @param ctx
-     *            hyracks task context
+     *            the nc service context
      * @return the disk buffer cache {@link org.apache.hyracks.storage.common.buffercache.IBufferCache}
      */
-    IBufferCache getBufferCache(IHyracksTaskContext ctx);
+    IBufferCache getBufferCache(INCServiceContext ctx);
 
     /**
      * @param ctx
-     *            the task context
-     * @return the file map provider {@link org.apache.hyracks.storage.common.file.IFileMapProvider}
+     *            the nc service context
+     * @return the local resource repository {@link org.apache.hyracks.storage.am.common.build.ILocalResourceRepository}
      */
-    IFileMapProvider getFileMapProvider(IHyracksTaskContext ctx);
+    ILocalResourceRepository getLocalResourceRepository(INCServiceContext ctx);
 
     /**
      * @param ctx
-     *            the task context
-     * @return the local resource repository {@link org.apache.hyracks.storage.common.file.ILocalResourceRepository}
-     */
-    ILocalResourceRepository getLocalResourceRepository(IHyracksTaskContext ctx);
-
-    /**
-     * @param ctx
-     *            the task context
+     *            the nc service context
      * @return the resource id factory {@link org.apache.hyracks.storage.common.file.IResourceIdFactory}
      */
-    IResourceIdFactory getResourceIdFactory(IHyracksTaskContext ctx);
+    IResourceIdFactory getResourceIdFactory(INCServiceContext ctx);
+
+    /**
+     * @param ctx
+     *            the nc service context
+     * @return the resource lifecycle manager
+     */
+    IResourceLifecycleManager<IIndex> getLifecycleManager(INCServiceContext ctx);
 }

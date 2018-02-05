@@ -20,10 +20,11 @@
   <modelVersion>4.0.0</modelVersion>
   <artifactId>asterix-server</artifactId>
   <name>asterix-server</name>
+
   <parent>
     <groupId>org.apache.asterix</groupId>
     <artifactId>apache-asterixdb</artifactId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -36,15 +37,25 @@
   </licenses>
 
   <properties>
-    <appendedResourcesDirectory>${basedir}/../src/main/appended-resources</appendedResourcesDirectory>
+    <root.dir>${basedir}/..</root.dir>
   </properties>
 
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.apache.hyracks</groupId>
         <artifactId>license-automation-plugin</artifactId>
-        <version>${hyracks.version}</version>
         <executions>
           <execution>
             <phase>generate-resources</phase>
@@ -124,6 +135,14 @@
               <gav>xmlenc:xmlenc:0.52</gav>
               <url>https://cytranet.dl.sourceforge.net/project/xmlenc/xmlenc/0.52/xmlenc-0.52.tgz?xmlenc-0.52/COPYRIGHT</url>
             </override>
+            <override>
+              <gav>org.codehaus.mojo.appassembler:appassembler-booter:2.0.0</gav>
+              <url>https://raw.githubusercontent.com/mojohaus/appassembler/appassembler-2.0.0/LICENSE.txt</url>
+            </override>
+            <override>
+              <gav>org.codehaus.mojo.appassembler:appassembler-model:2.0.0</gav>
+              <url>https://raw.githubusercontent.com/mojohaus/appassembler/appassembler-2.0.0/LICENSE.txt</url>
+            </override>
           </overrides>
           <licenses>
             <license>
@@ -166,10 +185,6 @@
             <license>
               <url>http://www.json.org/license.html</url>
               <displayName>The JSON License</displayName>
-            </license>
-            <license>
-              <url>https://raw.githubusercontent.com/mojohaus/appassembler/master/LICENSE.txt</url>
-              <aliasUrls>http://svn.codehaus.org/mojo/trunk/mojo/appassembler/LICENSE.txt</aliasUrls>
             </license>
             <license>
               <url>https://glassfish.dev.java.net/public/CDDL+GPL_1_1.html</url>
@@ -224,7 +239,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>appassembler-maven-plugin</artifactId>
-        <version>1.10</version>
         <configuration>
           <assembleDirectory>
             ${project.build.directory}/appassembler
@@ -239,8 +253,8 @@
               <name>asterixcc</name>
               <mainClass>org.apache.hyracks.control.cc.CCDriver</mainClass>
               <commandLineArguments>
-                <commandLineArgument>-app-cc-main-class</commandLineArgument>
-                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.CCApplicationEntryPoint</commandLineArgument>
+                <commandLineArgument>-app-class</commandLineArgument>
+                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.CCApplication</commandLineArgument>
               </commandLineArguments>
             </program>
             <program>
@@ -250,8 +264,8 @@
               <name>asterixnc</name>
               <mainClass>org.apache.hyracks.control.nc.NCDriver</mainClass>
               <commandLineArguments>
-                <commandLineArgument>-app-nc-main-class</commandLineArgument>
-                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.NCApplicationEntryPoint</commandLineArgument>
+                <commandLineArgument>-app-class</commandLineArgument>
+                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.NCApplication</commandLineArgument>
               </commandLineArguments>
             </program>
             <program>
@@ -270,8 +284,8 @@
                 <platform>booter-windows</platform>
               </platforms>
               <commandLineArguments>
-                <commandLineArgument>-app-cc-main-class</commandLineArgument>
-                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.CCApplicationEntryPoint</commandLineArgument>
+                <commandLineArgument>-app-class</commandLineArgument>
+                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.CCApplication</commandLineArgument>
               </commandLineArguments>
             </daemon>
             <daemon>
@@ -281,8 +295,8 @@
                 <platform>booter-windows</platform>
               </platforms>
               <commandLineArguments>
-                <commandLineArgument>-app-nc-main-class</commandLineArgument>
-                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.NCApplicationEntryPoint</commandLineArgument>
+                <commandLineArgument>-app-class</commandLineArgument>
+                <commandLineArgument>org.apache.asterix.hyracks.bootstrap.NCApplication</commandLineArgument>
               </commandLineArguments>
             </daemon>
             <daemon>
@@ -305,7 +319,6 @@
       </plugin>
       <plugin>
         <artifactId>maven-antrun-plugin</artifactId>
-        <version>1.6</version>
         <executions>
           <execution>
             <id>process-test-classes</id>
@@ -323,7 +336,6 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.6</version>
         <executions>
           <execution>
             <configuration>
@@ -343,74 +355,13 @@
         </executions>
       </plugin>
       <plugin>
-        <artifactId>jdeb</artifactId>
-        <groupId>org.vafer</groupId>
-        <version>1.5</version>
-        <executions>
-          <execution>
-            <phase>package</phase>
-            <goals>
-              <goal>jdeb</goal>
-            </goals>
-            <configuration>
-              <dataSet>
-                <data>
-                  <src>${project.build.directory}/${project.build.finalName}-binary-assembly/</src>
-                  <excludes>bin/**</excludes>
-                  <type>directory</type>
-                  <mapper>
-                    <type>perm</type>
-                    <prefix>/opt/apache-asterixdb/</prefix>
-                    <user>asterixdb</user>
-                    <group>asterixdb</group>
-                    <filemode>644</filemode>
-                  </mapper>
-                </data>
-                <data>
-                  <src>${project.build.directory}/${project.build.finalName}-binary-assembly/bin</src>
-                  <type>directory</type>
-                  <mapper>
-                    <type>perm</type>
-                    <prefix>/opt/apache-asterixdb/bin</prefix>
-                    <user>asterixdb</user>
-                    <group>asterixdb</group>
-                    <filemode>754</filemode>
-                  </mapper>
-                </data>
-                <data>
-                  <type>file</type>
-                  <src>src/deb/systemd/asterix-cc.service</src>
-                  <mapper>
-                     <prefix>/lib/systemd/system</prefix>
-                     <type>perm</type>
-                     <user>root</user>
-                     <group>root</group>
-                  </mapper>
-                </data>
-                <data>
-                  <type>file</type>
-                  <src>src/deb/systemd/asterix-nc.service</src>
-                  <mapper>
-                     <prefix>/lib/systemd/system</prefix>
-                     <type>perm</type>
-                     <user>root</user>
-                     <group>root</group>
-                  </mapper>
-                </data>
-              </dataSet>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.10</version>
         <configuration>
-          <ignoredDependencies>
+          <ignoredDependencies combine.children="append">
             <ignoredDependency>org.apache.asterix:asterix-opt-bom:*</ignoredDependency>
           </ignoredDependencies>
-          <usedDependencies>
+          <usedDependencies combine.children="append">
             <usedDependency>org.apache.asterix:asterix-app</usedDependency>
             <usedDependency>org.apache.asterix:asterix-client-helper</usedDependency>
             <usedDependency>org.apache.hadoop:hadoop-minicluster</usedDependency>
@@ -435,7 +386,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.hyracks</groupId>
                     <artifactId>license-automation-plugin</artifactId>
-                    <versionRange>${hyracks.version}</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>generate</goal>
                     </goals>
@@ -467,6 +418,79 @@
           <type>pom</type>
         </dependency>
       </dependencies>
+    </profile>
+    <!-- putting jdeb in a profile ensures it runs after inherited plugins which may be in a profile -->
+    <profile>
+      <id>jdeb</id>
+      <activation>
+        <file>
+          <exists>pom.xml</exists>
+        </file>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>jdeb</artifactId>
+            <groupId>org.vafer</groupId>
+            <version>1.5</version>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>jdeb</goal>
+                </goals>
+                <configuration>
+                  <dataSet>
+                    <data>
+                      <src>${project.build.directory}/${project.build.finalName}-binary-assembly/</src>
+                      <excludes>bin/**</excludes>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/opt/apache-asterixdb/</prefix>
+                        <user>asterixdb</user>
+                        <group>asterixdb</group>
+                        <filemode>644</filemode>
+                      </mapper>
+                    </data>
+                    <data>
+                      <src>${project.build.directory}/${project.build.finalName}-binary-assembly/bin</src>
+                      <type>directory</type>
+                      <mapper>
+                        <type>perm</type>
+                        <prefix>/opt/apache-asterixdb/bin</prefix>
+                        <user>asterixdb</user>
+                        <group>asterixdb</group>
+                        <filemode>754</filemode>
+                      </mapper>
+                    </data>
+                    <data>
+                      <type>file</type>
+                      <src>src/deb/systemd/asterix-cc.service</src>
+                      <mapper>
+                        <prefix>/lib/systemd/system</prefix>
+                        <type>perm</type>
+                        <user>root</user>
+                        <group>root</group>
+                      </mapper>
+                    </data>
+                    <data>
+                      <type>file</type>
+                      <src>src/deb/systemd/asterix-nc.service</src>
+                      <mapper>
+                        <prefix>/lib/systemd/system</prefix>
+                        <type>perm</type>
+                        <user>root</user>
+                        <group>root</group>
+                      </mapper>
+                    </data>
+                  </dataSet>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
   <dependencies>
@@ -503,6 +527,11 @@
       <groupId>org.apache.asterix</groupId>
       <artifactId>asterix-common</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.asterix</groupId>
+      <artifactId>asterix-common</artifactId>
+      <version>${project.version}</version>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
@@ -515,13 +544,6 @@
     <dependency>
       <groupId>org.codehaus.mojo.appassembler</groupId>
       <artifactId>appassembler-booter</artifactId>
-      <version>1.10</version>
-      <exclusions>
-        <exclusion>
-          <groupId>junit</groupId>
-          <artifactId>junit</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.asterix</groupId>
@@ -529,6 +551,16 @@
       <version>${project.version}</version>
       <type>zip</type>
       <classifier>assembly</classifier>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.asterix</groupId>
+      <artifactId>asterix-external-data</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.plexus</groupId>
+      <artifactId>plexus-utils</artifactId>
+      <version>3.0.24</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -547,6 +579,14 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-minicluster</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hyracks</groupId>
+      <artifactId>hyracks-util</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
     </dependency>
   </dependencies>
 </project>

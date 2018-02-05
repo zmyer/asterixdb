@@ -18,6 +18,8 @@
  */
 package org.apache.asterix.lang.common.statement;
 
+import java.util.List;
+
 import org.apache.asterix.common.exceptions.CompilationException;
 import org.apache.asterix.common.functions.FunctionSignature;
 import org.apache.asterix.lang.common.base.Statement;
@@ -26,9 +28,6 @@ import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
 import org.apache.asterix.metadata.feeds.BuiltinFeedPolicies;
 import org.apache.hyracks.algebricks.common.utils.Pair;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class ConnectFeedStatement implements Statement {
 
     private final Identifier dataverseName;
@@ -36,11 +35,10 @@ public class ConnectFeedStatement implements Statement {
     private final String feedName;
     private final String policy;
     private int varCounter;
-    private final ArrayList<FunctionSignature> appliedFunctions;
+    private final List<FunctionSignature> appliedFunctions;
 
     public ConnectFeedStatement(Pair<Identifier, Identifier> feedNameCmp, Pair<Identifier, Identifier> datasetNameCmp,
-            FunctionSignature appliedFunction, String policy, int varCounter) {
-        appliedFunctions = new ArrayList<>();
+            List<FunctionSignature> appliedFunctions, String policy, int varCounter) {
         if (feedNameCmp.first != null && datasetNameCmp.first != null
                 && !feedNameCmp.first.getValue().equals(datasetNameCmp.first.getValue())) {
             throw new IllegalArgumentException("Dataverse for source feed and target dataset do not match");
@@ -51,9 +49,7 @@ public class ConnectFeedStatement implements Statement {
         this.feedName = feedNameCmp.second.getValue();
         this.policy = policy != null ? policy : BuiltinFeedPolicies.DEFAULT_POLICY.getPolicyName();
         this.varCounter = varCounter;
-        if (appliedFunction != null) {
-            this.appliedFunctions.add(appliedFunction);
-        }
+        this.appliedFunctions = appliedFunctions;
     }
 
     public Identifier getDataverseName() {

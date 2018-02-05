@@ -26,7 +26,6 @@ import java.util.List;
 
 import org.apache.asterix.builders.OrderedListBuilder;
 import org.apache.asterix.builders.UnorderedListBuilder;
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.pointables.AListVisitablePointable;
 import org.apache.asterix.om.pointables.PointableAllocator;
 import org.apache.asterix.om.pointables.base.DefaultOpenFieldType;
@@ -37,6 +36,7 @@ import org.apache.asterix.om.types.EnumDeserializer;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.utils.ResettableByteArrayOutputStream;
 import org.apache.hyracks.algebricks.common.utils.Triple;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 /**
  * This class is to do the runtime type cast for a list. It is ONLY visible to
@@ -46,8 +46,8 @@ class AListCaster {
 
     // for storing the cast result
     private final IVisitablePointable itemTempReference = PointableAllocator.allocateUnrestableEmpty();
-    private final Triple<IVisitablePointable, IAType, Boolean> itemVisitorArg = new Triple<>(itemTempReference, null,
-            null);
+    private final Triple<IVisitablePointable, IAType, Boolean> itemVisitorArg =
+            new Triple<>(itemTempReference, null, null);
 
     private final UnorderedListBuilder unOrderedListBuilder = new UnorderedListBuilder();
     private final OrderedListBuilder orderedListBuilder = new OrderedListBuilder();
@@ -57,12 +57,12 @@ class AListCaster {
     private IAType reqItemType;
 
     public void castList(AListVisitablePointable listAccessor, IVisitablePointable resultAccessor,
-            AbstractCollectionType reqType, ACastVisitor visitor) throws IOException, AsterixException {
-        if (reqType.getTypeTag().equals(ATypeTag.UNORDEREDLIST)) {
+            AbstractCollectionType reqType, ACastVisitor visitor) throws HyracksDataException {
+        if (reqType.getTypeTag().equals(ATypeTag.MULTISET)) {
             unOrderedListBuilder.reset(reqType);
             reqItemType = reqType.getItemType();
         }
-        if (reqType.getTypeTag().equals(ATypeTag.ORDEREDLIST)) {
+        if (reqType.getTypeTag().equals(ATypeTag.ARRAY)) {
             orderedListBuilder.reset(reqType);
             reqItemType = reqType.getItemType();
         }
@@ -83,17 +83,17 @@ class AListCaster {
                 itemVisitorArg.second = reqItemType;
             }
             item.accept(visitor, itemVisitorArg);
-            if (reqType.getTypeTag().equals(ATypeTag.ORDEREDLIST)) {
+            if (reqType.getTypeTag().equals(ATypeTag.ARRAY)) {
                 orderedListBuilder.addItem(itemVisitorArg.first);
             }
-            if (reqType.getTypeTag().equals(ATypeTag.UNORDEREDLIST)) {
+            if (reqType.getTypeTag().equals(ATypeTag.MULTISET)) {
                 unOrderedListBuilder.addItem(itemVisitorArg.first);
             }
         }
-        if (reqType.getTypeTag().equals(ATypeTag.ORDEREDLIST)) {
+        if (reqType.getTypeTag().equals(ATypeTag.ARRAY)) {
             orderedListBuilder.write(dataDos, true);
         }
-        if (reqType.getTypeTag().equals(ATypeTag.UNORDEREDLIST)) {
+        if (reqType.getTypeTag().equals(ATypeTag.MULTISET)) {
             unOrderedListBuilder.write(dataDos, true);
         }
         int end = dataBos.size();

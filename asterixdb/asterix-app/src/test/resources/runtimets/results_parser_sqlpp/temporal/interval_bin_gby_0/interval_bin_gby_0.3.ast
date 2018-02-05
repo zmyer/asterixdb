@@ -10,7 +10,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [count]
     :
-    FunctionCall test.sql-count@1[
+    FunctionCall asterix.sql-count@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -26,8 +26,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [tsdata]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.tsdata]
   ]
   AS Variable [ Name=$i ]
 ]

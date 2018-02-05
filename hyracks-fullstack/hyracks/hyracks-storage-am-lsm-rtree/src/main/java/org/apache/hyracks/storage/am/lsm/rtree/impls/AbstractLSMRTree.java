@@ -23,32 +23,23 @@ import java.util.List;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparatorFactory;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.btree.impls.BTree;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
 import org.apache.hyracks.storage.am.common.api.IPageManager;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
 import org.apache.hyracks.storage.am.common.api.ITreeIndex;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexFrameFactory;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.exceptions.TreeIndexDuplicateKeyException;
-import org.apache.hyracks.storage.am.common.impls.AbstractSearchPredicate;
-import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
+import org.apache.hyracks.storage.am.lsm.common.api.IComponentFilterHelper;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFrameFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMDiskComponentFactory;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponent;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFactory;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilterFrameFactory;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallback;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIOOperationScheduler;
-import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexFileManager;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMMergePolicy;
@@ -56,12 +47,16 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMOperationTracker;
 import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
 import org.apache.hyracks.storage.am.lsm.common.freepage.VirtualFreePageManager;
 import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndex;
-import org.apache.hyracks.storage.am.lsm.common.impls.BlockingIOOperationCallbackWrapper;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFileReferences;
 import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFilterManager;
+import org.apache.hyracks.storage.am.rtree.frames.RTreeFrameFactory;
 import org.apache.hyracks.storage.am.rtree.impls.RTree;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.IModificationOperationCallback;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
-import org.apache.hyracks.storage.common.file.IFileMapProvider;
+import org.apache.hyracks.util.trace.ITracer;
 
 public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITreeIndex {
 
@@ -69,10 +64,6 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
     protected final int[] comparatorFields;
     protected final IBinaryComparatorFactory[] linearizerArray;
     protected final boolean isPointMBR;
-
-    // On-disk components.
-    // For creating RTree's used in flush and merge.
-    protected final ILSMDiskComponentFactory componentFactory;
 
     protected IBinaryComparatorFactory[] btreeCmpFactories;
     protected IBinaryComparatorFactory[] rtreeCmpFactories;
@@ -82,36 +73,33 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
     protected final ITreeIndexFrameFactory btreeInteriorFrameFactory;
     protected final ITreeIndexFrameFactory rtreeLeafFrameFactory;
     protected final ITreeIndexFrameFactory btreeLeafFrameFactory;
-    protected final int[] rtreeFields;
 
     public AbstractLSMRTree(IIOManager ioManager, List<IVirtualBufferCache> virtualBufferCaches,
-            ITreeIndexFrameFactory rtreeInteriorFrameFactory, ITreeIndexFrameFactory rtreeLeafFrameFactory,
+            RTreeFrameFactory rtreeInteriorFrameFactory, RTreeFrameFactory rtreeLeafFrameFactory,
             ITreeIndexFrameFactory btreeInteriorFrameFactory, ITreeIndexFrameFactory btreeLeafFrameFactory,
-            ILSMIndexFileManager fileManager, ILSMDiskComponentFactory componentFactory,
-            IFileMapProvider diskFileMapProvider, int fieldCount, IBinaryComparatorFactory[] rtreeCmpFactories,
-            IBinaryComparatorFactory[] btreeCmpFactories, ILinearizeComparatorFactory linearizer,
-            int[] comparatorFields, IBinaryComparatorFactory[] linearizerArray, double bloomFilterFalsePositiveRate,
-            ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker, ILSMIOOperationScheduler ioScheduler,
-            ILSMIOOperationCallback ioOpCallback, ILSMComponentFilterFactory filterFactory,
-            ILSMComponentFilterFrameFactory filterFrameFactory, LSMComponentFilterManager filterManager,
-            int[] rtreeFields, int[] filterFields, boolean durable, boolean isPointMBR, IBufferCache diskBufferCache)
-            throws HyracksDataException {
-        super(ioManager, virtualBufferCaches, diskBufferCache, fileManager, diskFileMapProvider,
-                bloomFilterFalsePositiveRate, mergePolicy, opTracker, ioScheduler, ioOpCallback, filterFrameFactory,
-                filterManager, filterFields, durable);
+            IBufferCache diskBufferCache, ILSMIndexFileManager fileManager, ILSMDiskComponentFactory componentFactory,
+            ILSMDiskComponentFactory bulkLoadComponentFactory, int fieldCount,
+            IBinaryComparatorFactory[] rtreeCmpFactories, IBinaryComparatorFactory[] btreeCmpFactories,
+            ILinearizeComparatorFactory linearizer, int[] comparatorFields, IBinaryComparatorFactory[] linearizerArray,
+            double bloomFilterFalsePositiveRate, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker,
+            ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallbackFactory ioOpCallbackFactory,
+            IComponentFilterHelper filterHelper, ILSMComponentFilterFrameFactory filterFrameFactory,
+            LSMComponentFilterManager filterManager, int[] rtreeFields, int[] filterFields, boolean durable,
+            boolean isPointMBR) throws HyracksDataException {
+        super(ioManager, virtualBufferCaches, diskBufferCache, fileManager, bloomFilterFalsePositiveRate, mergePolicy,
+                opTracker, ioScheduler, ioOpCallbackFactory, componentFactory, bulkLoadComponentFactory,
+                filterFrameFactory, filterManager, filterFields, durable, filterHelper, rtreeFields, ITracer.NONE);
         int i = 0;
         for (IVirtualBufferCache virtualBufferCache : virtualBufferCaches) {
-            RTree memRTree = new RTree(virtualBufferCache, virtualBufferCache.getFileMapProvider(),
-                    new VirtualFreePageManager(virtualBufferCache), rtreeInteriorFrameFactory, rtreeLeafFrameFactory,
-                    rtreeCmpFactories, fieldCount,
+            RTree memRTree = new RTree(virtualBufferCache, new VirtualFreePageManager(virtualBufferCache),
+                    rtreeInteriorFrameFactory, rtreeLeafFrameFactory, rtreeCmpFactories, fieldCount,
                     ioManager.resolveAbsolutePath(fileManager.getBaseDir() + "_virtual_r_" + i), isPointMBR);
-            BTree memBTree = new BTree(virtualBufferCache, virtualBufferCache.getFileMapProvider(),
-                    new VirtualFreePageManager(virtualBufferCache), btreeInteriorFrameFactory, btreeLeafFrameFactory,
-                    btreeCmpFactories, btreeCmpFactories.length,
+            BTree memBTree = new BTree(virtualBufferCache, new VirtualFreePageManager(virtualBufferCache),
+                    btreeInteriorFrameFactory, btreeLeafFrameFactory, btreeCmpFactories, btreeCmpFactories.length,
                     ioManager.resolveAbsolutePath(fileManager.getBaseDir() + "_virtual_b_" + i));
             LSMRTreeMemoryComponent mutableComponent =
-                    new LSMRTreeMemoryComponent(memRTree, memBTree, virtualBufferCache, i == 0 ? true : false,
-                            filterFactory == null ? null : filterFactory.createFilter());
+                    new LSMRTreeMemoryComponent(this, memRTree, memBTree, virtualBufferCache, i == 0 ? true : false,
+                            filterHelper == null ? null : filterHelper.createFilter());
             memoryComponents.add(mutableComponent);
             ++i;
         }
@@ -120,13 +108,11 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
         this.rtreeLeafFrameFactory = rtreeLeafFrameFactory;
         this.btreeInteriorFrameFactory = btreeInteriorFrameFactory;
         this.btreeLeafFrameFactory = btreeLeafFrameFactory;
-        this.componentFactory = componentFactory;
         this.btreeCmpFactories = btreeCmpFactories;
         this.rtreeCmpFactories = rtreeCmpFactories;
         this.linearizer = linearizer;
         this.comparatorFields = comparatorFields;
         this.linearizerArray = linearizerArray;
-        this.rtreeFields = rtreeFields;
         this.isPointMBR = isPointMBR;
     }
 
@@ -135,256 +121,119 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
      */
     public AbstractLSMRTree(IIOManager ioManager, ITreeIndexFrameFactory rtreeInteriorFrameFactory,
             ITreeIndexFrameFactory rtreeLeafFrameFactory, ITreeIndexFrameFactory btreeInteriorFrameFactory,
-            ITreeIndexFrameFactory btreeLeafFrameFactory, ILSMIndexFileManager fileManager,
-            ILSMDiskComponentFactory componentFactory, IFileMapProvider diskFileMapProvider,
+            ITreeIndexFrameFactory btreeLeafFrameFactory, IBufferCache diskBufferCache,
+            ILSMIndexFileManager fileManager, ILSMDiskComponentFactory componentFactory,
             IBinaryComparatorFactory[] rtreeCmpFactories, IBinaryComparatorFactory[] btreeCmpFactories,
             ILinearizeComparatorFactory linearizer, int[] comparatorFields, IBinaryComparatorFactory[] linearizerArray,
             double bloomFilterFalsePositiveRate, ILSMMergePolicy mergePolicy, ILSMOperationTracker opTracker,
-            ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallback ioOpCallback, boolean durable,
-            boolean isPointMBR, IBufferCache diskBufferCache) {
-        super(ioManager, diskBufferCache, fileManager, diskFileMapProvider, bloomFilterFalsePositiveRate, mergePolicy,
-                opTracker, ioScheduler, ioOpCallback, durable);
+            ILSMIOOperationScheduler ioScheduler, ILSMIOOperationCallbackFactory ioOpCallbackFactory, boolean durable,
+            boolean isPointMBR, ITracer tracer) throws HyracksDataException {
+        super(ioManager, diskBufferCache, fileManager, bloomFilterFalsePositiveRate, mergePolicy, opTracker,
+                ioScheduler, ioOpCallbackFactory, componentFactory, componentFactory, durable, tracer);
         this.rtreeInteriorFrameFactory = rtreeInteriorFrameFactory;
         this.rtreeLeafFrameFactory = rtreeLeafFrameFactory;
         this.btreeInteriorFrameFactory = btreeInteriorFrameFactory;
         this.btreeLeafFrameFactory = btreeLeafFrameFactory;
-        this.componentFactory = componentFactory;
         this.btreeCmpFactories = btreeCmpFactories;
         this.rtreeCmpFactories = rtreeCmpFactories;
         this.linearizer = linearizer;
         this.comparatorFields = comparatorFields;
         this.linearizerArray = linearizerArray;
-        this.rtreeFields = null;
         this.isPointMBR = isPointMBR;
     }
 
     @Override
-    public synchronized void create() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to create the index since it is activated.");
-        }
-
-        fileManager.deleteDirs();
-        fileManager.createDirs();
-        diskComponents.clear();
-    }
-
-    @Override
-    public synchronized void activate() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to activate the index since it is already activated.");
-        }
-    }
-
-    @Override
-    public synchronized void deactivate(boolean flushOnExit) throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to deactivate the index since it is already deactivated.");
-        }
-
-        if (flushOnExit) {
-            BlockingIOOperationCallbackWrapper cb = new BlockingIOOperationCallbackWrapper(ioOpCallback);
-            ILSMIndexAccessor accessor =
-                    createAccessor(NoOpOperationCallback.INSTANCE, NoOpOperationCallback.INSTANCE);
-            accessor.scheduleFlush(cb);
-            try {
-                cb.waitForIO();
-            } catch (InterruptedException e) {
-                throw new HyracksDataException(e);
-            }
-        }
-        deallocateMemoryComponents();
-    }
-
-    @Override
-    public synchronized void destroy() throws HyracksDataException {
-        if (isActivated) {
-            throw new HyracksDataException("Failed to destroy the index since it is activated.");
-        }
-    }
-
-    @Override
-    public synchronized void clear() throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to clear the index since it is not activated.");
-        }
-        clearMemoryComponents();
-    }
-
-    @Override
-    public void getOperationalComponents(ILSMIndexOperationContext ctx) throws HyracksDataException {
-        List<ILSMComponent> operationalComponents = ctx.getComponentHolder();
-        List<ILSMDiskComponent> immutableComponents = diskComponents;
-        int cmc = currentMutableComponentId.get();
-        ctx.setCurrentMutableComponentId(cmc);
-        operationalComponents.clear();
-        switch (ctx.getOperation()) {
-            case INSERT:
-            case DELETE:
-            case FLUSH:
-            case UPSERT:
-                operationalComponents.add(memoryComponents.get(cmc));
-                break;
-            case SEARCH:
-                if (memoryComponentsAllocated) {
-                    addOperationalMutableComponents(operationalComponents);
-                }
-                if (filterManager != null) {
-                    for (ILSMComponent c : immutableComponents) {
-                        if (c.getLSMComponentFilter().satisfy(
-                                ((AbstractSearchPredicate) ctx.getSearchPredicate()).getMinFilterTuple(),
-                                ((AbstractSearchPredicate) ctx.getSearchPredicate()).getMaxFilterTuple(),
-                                ((LSMRTreeOpContext) ctx).filterCmp)) {
-                            operationalComponents.add(c);
-                        }
-                    }
-                } else {
-                    operationalComponents.addAll(immutableComponents);
-                }
-                break;
-            case MERGE:
-                operationalComponents.addAll(ctx.getComponentsToBeMerged());
-                break;
-            case FULL_MERGE:
-                operationalComponents.addAll(immutableComponents);
-                break;
-            case REPLICATE:
-                operationalComponents.addAll(ctx.getComponentsToBeReplicated());
-                break;
-            default:
-                throw new UnsupportedOperationException("Operation " + ctx.getOperation() + " not supported.");
-        }
-    }
-
-    @Override
     public void search(ILSMIndexOperationContext ictx, IIndexCursor cursor, ISearchPredicate pred)
-            throws HyracksDataException, IndexException {
-        LSMRTreeOpContext ctx = (LSMRTreeOpContext) ictx;
-        cursor.open(ctx.searchInitialState, pred);
-    }
-
-    protected LSMComponentFileReferences getMergeTargetFileName(List<ILSMComponent> mergingDiskComponents)
             throws HyracksDataException {
-        RTree firstTree = ((LSMRTreeDiskComponent) mergingDiskComponents.get(0)).getRTree();
-        RTree lastTree =
-                ((LSMRTreeDiskComponent) mergingDiskComponents.get(mergingDiskComponents.size() - 1)).getRTree();
-        FileReference firstFile = firstTree.getFileReference();
-        FileReference lastFile = lastTree.getFileReference();
-        LSMComponentFileReferences fileRefs =
-                fileManager.getRelMergeFileReference(firstFile.getFile().getName(), lastFile.getFile().getName());
-        return fileRefs;
-    }
-
-    protected LSMRTreeDiskComponent createDiskComponent(ILSMDiskComponentFactory factory, FileReference insertFileRef,
-            FileReference deleteFileRef, FileReference bloomFilterFileRef, boolean createComponent)
-            throws HyracksDataException, IndexException {
-        // Create new tree instance.
-        LSMRTreeDiskComponent component = (LSMRTreeDiskComponent) factory
-                .createComponent(new LSMComponentFileReferences(insertFileRef, deleteFileRef, bloomFilterFileRef));
-        // Tree will be closed during cleanup of merge().
-        if (createComponent) {
-            component.getRTree().create();
-        }
-        component.getRTree().activate();
-        if (component.getBTree() != null) {
-            if (createComponent) {
-                component.getBTree().create();
-                component.getBloomFilter().create();
-            }
-            component.getBTree().activate();
-            component.getBloomFilter().activate();
-        }
-        if (component.getLSMComponentFilter() != null && !createComponent) {
-            filterManager.readFilter(component.getLSMComponentFilter(), component.getRTree());
-        }
-        return component;
+        LSMRTreeOpContext ctx = (LSMRTreeOpContext) ictx;
+        cursor.open(ctx.getSearchInitialState(), pred);
     }
 
     @Override
     public ITreeIndexFrameFactory getLeafFrameFactory() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getLeafFrameFactory();
+        return mutableComponent.getIndex().getLeafFrameFactory();
     }
 
     @Override
     public ITreeIndexFrameFactory getInteriorFrameFactory() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getInteriorFrameFactory();
+        return mutableComponent.getIndex().getInteriorFrameFactory();
     }
 
     @Override
     public IPageManager getPageManager() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getPageManager();
+        return mutableComponent.getIndex().getPageManager();
     }
 
     @Override
     public int getFieldCount() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getFieldCount();
+        return mutableComponent.getIndex().getFieldCount();
     }
 
     @Override
     public int getRootPageId() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getRootPageId();
+        return mutableComponent.getIndex().getRootPageId();
     }
 
     @Override
     public int getFileId() {
         LSMRTreeMemoryComponent mutableComponent =
                 (LSMRTreeMemoryComponent) memoryComponents.get(currentMutableComponentId.get());
-        return mutableComponent.getRTree().getFileId();
+        return mutableComponent.getIndex().getFileId();
     }
 
     @Override
-    public void modify(IIndexOperationContext ictx, ITupleReference tuple)
-            throws HyracksDataException, IndexException {
+    public void modify(IIndexOperationContext ictx, ITupleReference tuple) throws HyracksDataException {
         LSMRTreeOpContext ctx = (LSMRTreeOpContext) ictx;
         if (ctx.getOperation() == IndexOperation.PHYSICALDELETE) {
             throw new UnsupportedOperationException("Physical delete not supported in the LSM-RTree");
         }
 
         ITupleReference indexTuple;
-        if (ctx.indexTuple != null) {
-            ctx.indexTuple.reset(tuple);
-            indexTuple = ctx.indexTuple;
+        if (ctx.getIndexTuple() != null) {
+            ctx.getIndexTuple().reset(tuple);
+            indexTuple = ctx.getIndexTuple();
+            ctx.getCurrentMutableRTreeAccessor().getOpContext().resetNonIndexFieldsTuple(tuple);
         } else {
             indexTuple = tuple;
         }
 
         ctx.getModificationCallback().before(indexTuple);
-        ctx.getModificationCallback().found(null, indexTuple);
+        ctx.getModificationCallback().found(null, tuple);
         if (ctx.getOperation() == IndexOperation.INSERT) {
-            ctx.currentMutableRTreeAccessor.insert(indexTuple);
+            ctx.getCurrentMutableRTreeAccessor().insert(indexTuple);
         } else {
             // First remove all entries in the in-memory rtree (if any).
-            ctx.currentMutableRTreeAccessor.delete(indexTuple);
+            ctx.getCurrentMutableRTreeAccessor().delete(indexTuple);
             // Insert key into the deleted-keys BTree.
             try {
-                ctx.currentMutableBTreeAccessor.insert(indexTuple);
-            } catch (TreeIndexDuplicateKeyException e) {
-                // Do nothing, because one delete tuple is enough to indicate
-                // that all the corresponding insert tuples are deleted
+                ctx.getCurrentMutableBTreeAccessor().insert(indexTuple);
+            } catch (HyracksDataException e) {
+                if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                    // Do nothing, because one delete tuple is enough to indicate
+                    // that all the corresponding insert tuples are deleted
+                    throw e;
+                }
             }
         }
-        if (ctx.filterTuple != null) {
-            ctx.filterTuple.reset(tuple);
-            memoryComponents.get(currentMutableComponentId.get()).getLSMComponentFilter().update(ctx.filterTuple,
-                    ctx.filterCmp);
-        }
+        updateFilter(ctx, tuple);
     }
 
+    @Override
     protected LSMRTreeOpContext createOpContext(IModificationOperationCallback modCallback,
             ISearchOperationCallback searchCallback) {
-        return new LSMRTreeOpContext(memoryComponents, rtreeLeafFrameFactory, rtreeInteriorFrameFactory,
-                btreeLeafFrameFactory, modCallback, searchCallback, rtreeFields, filterFields, lsmHarness,
-                comparatorFields, linearizerArray);
+        return new LSMRTreeOpContext(this, memoryComponents, rtreeLeafFrameFactory, rtreeInteriorFrameFactory,
+                btreeLeafFrameFactory, modCallback, searchCallback, getTreeFields(), getFilterFields(), getHarness(),
+                comparatorFields, linearizerArray, getFilterCmpFactories(), tracer);
     }
 
     @Override
@@ -393,87 +242,17 @@ public abstract class AbstractLSMRTree extends AbstractLSMIndex implements ITree
     }
 
     @Override
-    public void validate() throws HyracksDataException {
-        throw new UnsupportedOperationException("Validation not implemented for LSM R-Trees.");
-    }
-
-    @Override
-    public long getMemoryAllocationSize() {
-        long size = 0;
-        for (ILSMComponent c : memoryComponents) {
-            LSMRTreeMemoryComponent mutableComponent = (LSMRTreeMemoryComponent) c;
-            IBufferCache virtualBufferCache = mutableComponent.getRTree().getBufferCache();
-            size += virtualBufferCache.getNumPages() * virtualBufferCache.getPageSize();
-        }
-        return size;
-    }
-
-    @Override
     public boolean isPrimaryIndex() {
         return false;
     }
 
     @Override
-    public String toString() {
-        return "LSMRTree [" + fileManager.getBaseDir() + "]";
-    }
-
-    @Override
-    public synchronized void allocateMemoryComponents() throws HyracksDataException {
-        if (!isActivated) {
-            throw new HyracksDataException("Failed to allocate memory components since the index is not active.");
-        }
-        if (memoryComponentsAllocated) {
-            return;
-        }
-        for (ILSMComponent c : memoryComponents) {
-            LSMRTreeMemoryComponent mutableComponent = (LSMRTreeMemoryComponent) c;
-            ((IVirtualBufferCache) mutableComponent.getRTree().getBufferCache()).open();
-            mutableComponent.getRTree().create();
-            mutableComponent.getBTree().create();
-            mutableComponent.getRTree().activate();
-            mutableComponent.getBTree().activate();
-        }
-        memoryComponentsAllocated = true;
-    }
-
-    private void addOperationalMutableComponents(List<ILSMComponent> operationalComponents) {
-        int cmc = currentMutableComponentId.get();
-        int numMutableComponents = memoryComponents.size();
-        for (int i = 0; i < numMutableComponents - 1; i++) {
-            ILSMComponent c = memoryComponents.get((cmc + i + 1) % numMutableComponents);
-            LSMRTreeMemoryComponent mutableComponent = (LSMRTreeMemoryComponent) c;
-            if (mutableComponent.isReadable()) {
-                // Make sure newest components are added first
-                operationalComponents.add(0, mutableComponent);
-            }
-        }
-        // The current mutable component is always added
-        operationalComponents.add(0, memoryComponents.get(cmc));
-    }
-
-    private synchronized void clearMemoryComponents() throws HyracksDataException {
-        if (memoryComponentsAllocated) {
-            for (ILSMComponent c : memoryComponents) {
-                LSMRTreeMemoryComponent mutableComponent = (LSMRTreeMemoryComponent) c;
-                mutableComponent.getRTree().clear();
-                mutableComponent.getBTree().clear();
-                mutableComponent.reset();
-            }
-        }
-    }
-
-    private synchronized void deallocateMemoryComponents() throws HyracksDataException {
-        if (memoryComponentsAllocated) {
-            for (ILSMComponent c : memoryComponents) {
-                LSMRTreeMemoryComponent mutableComponent = (LSMRTreeMemoryComponent) c;
-                mutableComponent.getRTree().deactivate();
-                mutableComponent.getBTree().deactivate();
-                mutableComponent.getRTree().destroy();
-                mutableComponent.getBTree().destroy();
-                ((IVirtualBufferCache) mutableComponent.getRTree().getBufferCache()).close();
-            }
-            memoryComponentsAllocated = false;
-        }
+    protected LSMComponentFileReferences getMergeFileReferences(ILSMDiskComponent firstComponent,
+            ILSMDiskComponent lastComponent) throws HyracksDataException {
+        RTree firstTree = (RTree) firstComponent.getIndex();
+        RTree lastTree = (RTree) lastComponent.getIndex();
+        FileReference firstFile = firstTree.getFileReference();
+        FileReference lastFile = lastTree.getFileReference();
+        return fileManager.getRelMergeFileReference(firstFile.getFile().getName(), lastFile.getFile().getName());
     }
 }

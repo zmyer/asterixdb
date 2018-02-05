@@ -11,7 +11,7 @@ FunctionDecl tmp1([]) {
       (
         LiteralExpr [STRING] [count_suppkey]
         :
-        FunctionCall tpch.count@1[
+        FunctionCall asterix.count@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -19,7 +19,17 @@ FunctionDecl tmp1([]) {
               Field=l_suppkey
             ]
             ]
-            FROM [              Variable [ Name=$l2 ]
+            FROM [              (
+                SELECT ELEMENT [
+                FieldAccessor [
+                  Variable [ Name=$g1 ]
+                  Field=l2
+                ]
+                ]
+                FROM [                  Variable [ Name=$g1 ]
+                  AS Variable [ Name=$g1 ]
+                ]
+              )
               AS Variable [ Name=$i ]
             ]
           )
@@ -28,7 +38,7 @@ FunctionDecl tmp1([]) {
       (
         LiteralExpr [STRING] [max_suppkey]
         :
-        FunctionCall tpch.max@1[
+        FunctionCall asterix.max@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -36,7 +46,17 @@ FunctionDecl tmp1([]) {
               Field=l_suppkey
             ]
             ]
-            FROM [              Variable [ Name=$l2 ]
+            FROM [              (
+                SELECT ELEMENT [
+                FieldAccessor [
+                  Variable [ Name=$g1 ]
+                  Field=l2
+                ]
+                ]
+                FROM [                  Variable [ Name=$g1 ]
+                  AS Variable [ Name=$g1 ]
+                ]
+              )
               AS Variable [ Name=$i ]
             ]
           )
@@ -86,6 +106,7 @@ FunctionDecl tmp1([]) {
         Variable [ Name=$l2 ]
         Field=l_orderkey
       ]
+      GROUP AS Variable [ Name=$g1 ]
 
   )
 }
@@ -102,7 +123,7 @@ FunctionDecl tmp2([]) {
       (
         LiteralExpr [STRING] [count_suppkey]
         :
-        FunctionCall tpch.count@1[
+        FunctionCall asterix.count@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -110,7 +131,17 @@ FunctionDecl tmp2([]) {
               Field=l_suppkey
             ]
             ]
-            FROM [              Variable [ Name=$l2 ]
+            FROM [              (
+                SELECT ELEMENT [
+                FieldAccessor [
+                  Variable [ Name=$g2 ]
+                  Field=l2
+                ]
+                ]
+                FROM [                  Variable [ Name=$g2 ]
+                  AS Variable [ Name=$g2 ]
+                ]
+              )
               AS Variable [ Name=$i ]
             ]
           )
@@ -119,7 +150,7 @@ FunctionDecl tmp2([]) {
       (
         LiteralExpr [STRING] [max_suppkey]
         :
-        FunctionCall tpch.max@1[
+        FunctionCall asterix.max@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -127,7 +158,17 @@ FunctionDecl tmp2([]) {
               Field=l_suppkey
             ]
             ]
-            FROM [              Variable [ Name=$l2 ]
+            FROM [              (
+                SELECT ELEMENT [
+                FieldAccessor [
+                  Variable [ Name=$g2 ]
+                  Field=l2
+                ]
+                ]
+                FROM [                  Variable [ Name=$g2 ]
+                  AS Variable [ Name=$g2 ]
+                ]
+              )
               AS Variable [ Name=$i ]
             ]
           )
@@ -189,6 +230,7 @@ FunctionDecl tmp2([]) {
         Variable [ Name=$l2 ]
         Field=l_orderkey
       ]
+      GROUP AS Variable [ Name=$g2 ]
 
   )
 }
@@ -282,8 +324,8 @@ FROM [  (
           )
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItem]
           ]
           AS Variable [ Name=$l ]
 ,
@@ -308,13 +350,13 @@ FROM [  (
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Nation]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.Nation]
               ]
               AS Variable [ Name=$n ]
 ,
-              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Supplier]
+              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [tpch.Supplier]
               ]
               AS Variable [ Name=$s ]
             ]
@@ -333,8 +375,8 @@ FROM [  (
           )
           AS Variable [ Name=$ns ]
 ,
-          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [Orders]
+          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.Orders]
           ]
           AS Variable [ Name=$o ]
 ,
@@ -432,23 +474,23 @@ Groupby
     Variable [ Name=$t4 ]
     Field=s_name
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     t4:=Variable [ Name=$t4 ]
   )
 
 Let Variable [ Name=$numwait ]
   :=
-  FunctionCall tpch.sql-count@1[
+  FunctionCall asterix.count@1[
     (
       SELECT ELEMENT [
-      FieldAccessor [
-        Variable [ Name=#2 ]
-        Field=t4
+      FunctionCall asterix.field-access-by-name@2[
+        Variable [ Name=$g ]
+        LiteralExpr [STRING] [t4]
       ]
       ]
-      FROM [        Variable [ Name=#1 ]
-        AS Variable [ Name=#2 ]
+      FROM [        Variable [ Name=$g ]
+        AS Variable [ Name=$g ]
       ]
     )
   ]

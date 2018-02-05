@@ -75,8 +75,10 @@
 
     <menu name="Get Started - Installation">
       <item name="Option 1: using NCService" href="ncservice.html"/>
-      <item name="Option 2: using Managix" href="install.html"/>
-      <item name="Option 3: using YARN" href="yarn.html"/>
+      <item name="Option 2: using Ansible" href="ansible.html"/>
+      <item name="Option 3: using Amazon Web Services" href="aws.html"/>
+      <item name="Option 4: using YARN" href="yarn.html"/>
+      <item name="Option 5: using Managix (deprecated)" href="install.html"/>
     </menu>
 
     <menu name = "AsterixDB Primer">
@@ -98,18 +100,18 @@
       <item name="Builtin Functions" href="aql/builtins.html"/>
     </menu>
 
+    <menu name="API/SDK">
+      <item name="HTTP API" href="api.html"/>
+      <item name="CSV Output" href="csv.html"/>
+    </menu>
+
     <menu name="Advanced Features">
-      <item name="Support of Similarity Queries" href="aql/similarity.html"/>
       <item name="Support of Full-text Queries" href="aql/fulltext.html"/>
       <item name="Accessing External Data" href="aql/externaldata.html"/>
       <item name="Support for Data Ingestion" href="feeds/tutorial.html"/>
       <item name="User Defined Functions" href="udf.html"/>
       <item name="Filter-Based LSM Index Acceleration" href="aql/filters.html"/>
-    </menu>
-
-    <menu name="API/SDK">
-      <item name="HTTP API" href="api.html"/>
-      <item name="CSV Output" href="csv.html"/>
+      <item name="Support of Similarity Queries" href="aql/similarity.html"/>
     </menu>
 
     <menu ref="reports"/>

@@ -19,29 +19,29 @@
 package org.apache.asterix.active.message;
 
 import java.io.Serializable;
+import java.util.Objects;
 
-import org.apache.asterix.active.ActiveLifecycleListener;
 import org.apache.asterix.active.ActiveRuntimeId;
-import org.apache.asterix.common.messaging.api.IApplicationMessage;
+import org.apache.asterix.active.IActiveNotificationHandler;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
+import org.apache.asterix.common.messaging.api.ICcAddressedMessage;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.job.JobId;
-import org.apache.hyracks.api.service.IControllerService;
 
-public class ActivePartitionMessage implements IApplicationMessage {
+public class ActivePartitionMessage implements ICcAddressedMessage {
+    public enum Event {
+        RUNTIME_REGISTERED,
+        RUNTIME_DEREGISTERED,
+        GENERIC_EVENT
+    }
 
-    public static final byte ACTIVE_RUNTIME_REGISTERED = 0x00;
-    public static final byte ACTIVE_RUNTIME_DEREGISTERED = 0x01;
     private static final long serialVersionUID = 1L;
     private final ActiveRuntimeId activeRuntimeId;
     private final JobId jobId;
     private final Serializable payload;
-    private final byte event;
+    private final Event event;
 
-    public ActivePartitionMessage(ActiveRuntimeId activeRuntimeId, JobId jobId, byte event) {
-        this(activeRuntimeId, jobId, event, null);
-    }
-
-    public ActivePartitionMessage(ActiveRuntimeId activeRuntimeId, JobId jobId, byte event, Serializable payload) {
+    public ActivePartitionMessage(ActiveRuntimeId activeRuntimeId, JobId jobId, Event event, Serializable payload) {
         this.activeRuntimeId = activeRuntimeId;
         this.jobId = jobId;
         this.event = event;
@@ -60,17 +60,36 @@ public class ActivePartitionMessage implements IApplicationMessage {
         return payload;
     }
 
-    public byte getEvent() {
+    public Event getEvent() {
         return event;
     }
 
     @Override
-    public void handle(IControllerService cs) throws HyracksDataException, InterruptedException {
-        ActiveLifecycleListener.INSTANCE.receive(this);
+    public void handle(ICcApplicationContext appCtx) throws HyracksDataException, InterruptedException {
+        IActiveNotificationHandler activeListener = (IActiveNotificationHandler) appCtx.getActiveNotificationHandler();
+        activeListener.receive(this);
     }
 
     @Override
     public String toString() {
-        return ActivePartitionMessage.class.getSimpleName();
+        return activeRuntimeId + ":" + ActivePartitionMessage.class.getSimpleName() + '-' + event;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(activeRuntimeId, jobId, payload, event);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || !(o instanceof ActivePartitionMessage)) {
+            return false;
+        }
+        if (this == o) {
+            return true;
+        }
+        ActivePartitionMessage other = (ActivePartitionMessage) o;
+        return Objects.equals(other.activeRuntimeId, activeRuntimeId) && Objects.equals(other.jobId, jobId)
+                && Objects.equals(other.payload, payload);
     }
 }

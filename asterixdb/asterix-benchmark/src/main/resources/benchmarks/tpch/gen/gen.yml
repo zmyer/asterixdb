@@ -26,14 +26,14 @@
 
 # Generates a script for each host.
 - hosts: [localhost,]
+  vars_files:
+    - ../../../conf/benchmark_setting.yml
   vars:
       partitions: "{{ groups['ncs'] | length }}"
   tasks:
-    - include_vars:  ../../../conf/benchmark_setting.yml
-
-    - name: Generate host-dependent script
+    - name: Generate host-dependent script with sf
       shell: "ansible-playbook -i {{ node.1}}, genscript.yml \
-              --extra-vars=\"partition={{ node.0 }} partitions={{ partitions }} sf={{ partitions|float * scale }} ansible_ssh_user=ec2-user\""
+              --extra-vars=\"partition={{ node.0 }} partitions={{ partitions }} sf={{ scale }} ansible_ssh_user=ec2-user\""
       with_indexed_items:  "{{ groups['ncs'] }}"
       loop_control:
           loop_var: node

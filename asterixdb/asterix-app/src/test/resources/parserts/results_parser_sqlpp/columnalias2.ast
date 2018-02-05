@@ -1,33 +1,40 @@
 Query:
 SELECT [
-FunctionCall null.sqrt@1[
-  OperatorExpr [
-    FieldAccessor [
-      FunctionCall Metadata.resolve@-1[
-        LiteralExpr [STRING] [t]
-        Variable [ Name=$u ]
-        Variable [ Name=$root ]
-        Variable [ Name=#1 ]
-        Variable [ Name=$id ]
+FunctionCall asterix.sql-sum@1[
+  (
+    SELECT ELEMENT [
+    OperatorExpr [
+      FieldAccessor [
+        FieldAccessor [
+          FieldAccessor [
+            Variable [ Name=#4 ]
+            Field=root
+          ]
+          Field=t
+        ]
+        Field=a
       ]
-      Field=a
-    ]
-    *
-    FieldAccessor [
-      FunctionCall Metadata.resolve@-1[
-        LiteralExpr [STRING] [t]
-        Variable [ Name=$u ]
-        Variable [ Name=$root ]
-        Variable [ Name=#1 ]
-        Variable [ Name=$id ]
+      *
+      FieldAccessor [
+        FieldAccessor [
+          FieldAccessor [
+            Variable [ Name=#4 ]
+            Field=root
+          ]
+          Field=t
+        ]
+        Field=b
       ]
-      Field=b
     ]
-  ]
+    ]
+    FROM [      Variable [ Name=#1 ]
+      AS Variable [ Name=#4 ]
+    ]
+  )
 ]
 root
 ]
-FROM [  FunctionCall Metadata.dataset@1[
+FROM [  FunctionCall asterix.dataset@1[
     LiteralExpr [STRING] [tbl_name]
   ]
   AS Variable [ Name=$root ]
@@ -46,15 +53,39 @@ Groupby
 
 Let Variable [ Name=$u ]
   :=
-  FieldAccessor [
-    Variable [ Name=$root ]
-    Field=time
+  FunctionCall asterix.sql-min@1[
+    (
+      SELECT ELEMENT [
+      FieldAccessor [
+        FieldAccessor [
+          Variable [ Name=#2 ]
+          Field=root
+        ]
+        Field=time
+      ]
+      ]
+      FROM [        Variable [ Name=#1 ]
+        AS Variable [ Name=#2 ]
+      ]
+    )
   ]
  HAVING
   OperatorExpr [
-    FieldAccessor [
-      Variable [ Name=$root ]
-      Field=orders
+    FunctionCall asterix.sql-count@1[
+      (
+        SELECT ELEMENT [
+        FieldAccessor [
+          FieldAccessor [
+            Variable [ Name=#3 ]
+            Field=root
+          ]
+          Field=orders
+        ]
+        ]
+        FROM [          Variable [ Name=#1 ]
+          AS Variable [ Name=#3 ]
+        ]
+      )
     ]
     >
     LiteralExpr [LONG] [0]

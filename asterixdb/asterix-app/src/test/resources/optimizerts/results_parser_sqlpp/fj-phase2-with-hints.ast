@@ -28,8 +28,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP_fuzzyjoin_078]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin_078.DBLP_fuzzyjoin_078]
   ]
   AS Variable [ Name=$paperDBLP ]
 ]
@@ -54,8 +54,8 @@ Let Variable [ Name=$tokensDBLP ]
         SELECT ELEMENT [
         Variable [ Name=$tokenGroupped ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [DBLP_fuzzyjoin_078]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [fuzzyjoin_078.DBLP_fuzzyjoin_078]
           ]
           AS Variable [ Name=$paper ]
 ,
@@ -78,7 +78,7 @@ Let Variable [ Name=$tokensDBLP ]
           )
 
         Orderby
-          FunctionCall fuzzyjoin_078.sql-count@1[
+          FunctionCall asterix.sql-count@1[
             (
               SELECT ELEMENT [
               FieldAccessor [
@@ -97,7 +97,7 @@ Let Variable [ Name=$tokensDBLP ]
 
       )
       AS Variable [ Name=$tokenRanked ]
- AT 
+ AT
 Variable [ Name=$i ]
     ]
     Where

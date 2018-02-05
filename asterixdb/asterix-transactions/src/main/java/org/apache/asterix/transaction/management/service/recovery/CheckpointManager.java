@@ -18,13 +18,13 @@
  */
 package org.apache.asterix.transaction.management.service.recovery;
 
-import java.util.logging.Logger;
-
 import org.apache.asterix.common.api.IDatasetLifecycleManager;
 import org.apache.asterix.common.transactions.CheckpointProperties;
 import org.apache.asterix.common.transactions.ICheckpointManager;
 import org.apache.asterix.common.transactions.ITransactionSubsystem;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * An implementation of {@link ICheckpointManager} that defines the logic
@@ -32,7 +32,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
  */
 public class CheckpointManager extends AbstractCheckpointManager {
 
-    private static final Logger LOGGER = Logger.getLogger(CheckpointManager.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public CheckpointManager(ITransactionSubsystem txnSubsystem, CheckpointProperties checkpointProperties) {
         super(txnSubsystem, checkpointProperties);
@@ -45,8 +45,8 @@ public class CheckpointManager extends AbstractCheckpointManager {
     @Override
     public synchronized void doSharpCheckpoint() throws HyracksDataException {
         LOGGER.info("Starting sharp checkpoint...");
-        final IDatasetLifecycleManager datasetLifecycleManager = txnSubsystem.getAsterixAppRuntimeContextProvider()
-                .getDatasetLifecycleManager();
+        final IDatasetLifecycleManager datasetLifecycleManager =
+                txnSubsystem.getApplicationContext().getDatasetLifecycleManager();
         datasetLifecycleManager.flushAllDatasets();
         capture(SHARP_CHECKPOINT_LSN, true);
         txnSubsystem.getLogManager().renewLogFiles();
@@ -66,8 +66,8 @@ public class CheckpointManager extends AbstractCheckpointManager {
         boolean checkpointSucceeded = minFirstLSN >= checkpointTargetLSN;
         if (!checkpointSucceeded) {
             // Flush datasets with indexes behind target checkpoint LSN
-            IDatasetLifecycleManager datasetLifecycleManager = txnSubsystem.getAsterixAppRuntimeContextProvider()
-                    .getDatasetLifecycleManager();
+            IDatasetLifecycleManager datasetLifecycleManager =
+                    txnSubsystem.getApplicationContext().getDatasetLifecycleManager();
             datasetLifecycleManager.scheduleAsyncFlushForLaggingDatasets(checkpointTargetLSN);
         }
         capture(minFirstLSN, false);

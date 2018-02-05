@@ -19,10 +19,10 @@
 package org.apache.asterix.external.parser.factory;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.external.api.IRecordDataParser;
 import org.apache.asterix.external.api.IRecordDataParserFactory;
 import org.apache.asterix.external.input.record.RecordWithPK;
@@ -31,6 +31,7 @@ import org.apache.asterix.external.provider.ParserFactoryProvider;
 import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.IAType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
@@ -38,7 +39,7 @@ import org.apache.hyracks.api.exceptions.HyracksDataException;
 public class TestRecordWithPKParserFactory<T> implements IRecordDataParserFactory<RecordWithPK<T>> {
 
     private static final long serialVersionUID = 1L;
-    private static final ArrayList<String> formats = new ArrayList<>();
+    private static final ArrayList<String> parserFormats = new ArrayList<>();
     private ARecordType recordType;
     private IRecordDataParserFactory<char[]> recordParserFactory;
     private String format;
@@ -48,10 +49,10 @@ public class TestRecordWithPKParserFactory<T> implements IRecordDataParserFactor
     private int[][] pkIndexes;
 
     @Override
-    public void configure(Map<String, String> configuration) throws AsterixException {
+    public void configure(Map<String, String> configuration) throws AlgebricksException {
         TreeMap<String, String> parserConf = new TreeMap<String, String>();
         format = configuration.get(ExternalDataConstants.KEY_RECORD_FORMAT);
-        formats.add(format);
+        parserFormats.add(format);
         parserConf.put(ExternalDataConstants.KEY_FORMAT, format);
         recordParserFactory =
                 (IRecordDataParserFactory<char[]>) ParserFactoryProvider.getDataParserFactory(null, parserConf);
@@ -80,8 +81,8 @@ public class TestRecordWithPKParserFactory<T> implements IRecordDataParserFactor
     }
 
     @Override
-    public String[] getFormats() {
-        return (String[]) formats.toArray();
+    public List<String> getParserFormats() {
+        return parserFormats;
     }
 
 }

@@ -20,9 +20,11 @@ package org.apache.asterix.external.input;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.asterix.common.api.IApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.external.api.AsterixInputStream;
 import org.apache.asterix.external.api.IExternalIndexer;
@@ -37,16 +39,16 @@ import org.apache.asterix.external.input.record.reader.stream.StreamRecordReader
 import org.apache.asterix.external.input.stream.HDFSInputStream;
 import org.apache.asterix.external.provider.ExternalIndexerProvider;
 import org.apache.asterix.external.provider.StreamRecordReaderProvider;
-import org.apache.asterix.external.provider.StreamRecordReaderProvider.Format;
 import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.HDFSUtils;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
+import org.apache.hyracks.api.application.ICCServiceContext;
+import org.apache.hyracks.api.application.IServiceContext;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.hdfs.dataflow.ConfFactory;
@@ -57,6 +59,7 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
 
     protected static final long serialVersionUID = 1L;
     protected transient AlgebricksAbsolutePartitionConstraint clusterLocations;
+    protected transient IServiceContext serviceCtx;
     protected String[] readSchedule;
     protected boolean read[];
     protected InputSplitsFactory inputSplitsFactory;
@@ -73,13 +76,15 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
     private JobConf conf;
     private InputSplit[] inputSplits;
     private String nodeName;
-    private Format format;
+    private Class recordReaderClazz;
+    private static final List<String> recordReaderNames = Collections.unmodifiableList(Arrays.asList("hdfs"));
 
     @Override
-    public void configure(Map<String, String> configuration) throws AsterixException {
+    public void configure(IServiceContext serviceCtx, Map<String, String> configuration) throws AsterixException {
         try {
-            init();
+            this.serviceCtx = serviceCtx;
             this.configuration = configuration;
+            init((ICCServiceContext) serviceCtx);
             JobConf conf = HDFSUtils.configureHDFSJobConf(configuration);
             confFactory = new ConfFactory(conf);
             clusterLocations = getPartitionConstraint();
@@ -105,7 +110,7 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
                 this.recordClass = reader.createValue().getClass();
                 reader.close();
             } else {
-                format = StreamRecordReaderProvider.getReaderFormat(configuration);
+                recordReaderClazz = StreamRecordReaderProvider.getRecordReaderClazz(configuration);
                 this.recordClass = char[].class;
             }
         } catch (IOException e) {
@@ -129,15 +134,19 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
     public AsterixInputStream createInputStream(IHyracksTaskContext ctx, int partition, IExternalIndexer indexer)
             throws HyracksDataException {
         try {
-            if (!configured) {
-                conf = confFactory.getConf();
-                inputSplits = inputSplitsFactory.getSplits();
-                nodeName = ctx.getJobletContext().getApplicationContext().getNodeId();
-                configured = true;
-            }
+            restoreConfig(ctx);
             return new HDFSInputStream(read, inputSplits, readSchedule, nodeName, conf, configuration, files, indexer);
         } catch (Exception e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
+        }
+    }
+
+    private void restoreConfig(IHyracksTaskContext ctx) throws HyracksDataException {
+        if (!configured) {
+            conf = confFactory.getConf();
+            inputSplits = inputSplitsFactory.getSplits();
+            nodeName = ctx.getJobletContext().getServiceContext().getNodeId();
+            configured = true;
         }
     }
 
@@ -150,7 +159,8 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
      */
     @Override
     public AlgebricksAbsolutePartitionConstraint getPartitionConstraint() {
-        clusterLocations = HDFSUtils.getPartitionConstraints(clusterLocations);
+        clusterLocations = HDFSUtils.getPartitionConstraints((IApplicationContext) serviceCtx.getApplicationContext(),
+                clusterLocations);
         return clusterLocations;
     }
 
@@ -158,12 +168,12 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
      * This method initialize the scheduler which assigns responsibility of reading different logical input splits from
      * HDFS
      */
-    private static void init() throws HyracksDataException {
+    private static void init(ICCServiceContext serviceCtx) throws HyracksDataException {
         if (!initialized) {
             synchronized (initLock) {
                 if (!initialized) {
-                    hdfsScheduler = HDFSUtils.initializeHDFSScheduler();
-                    indexingScheduler = HDFSUtils.initializeIndexingHDFSScheduler();
+                    hdfsScheduler = HDFSUtils.initializeHDFSScheduler(serviceCtx);
+                    indexingScheduler = HDFSUtils.initializeIndexingHDFSScheduler(serviceCtx);
                     initialized = true;
                 }
             }
@@ -193,20 +203,17 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
             throws HyracksDataException {
         try {
             IExternalIndexer indexer = files == null ? null : ExternalIndexerProvider.getIndexer(configuration);
-            if (format != null) {
-                StreamRecordReader streamReader = StreamRecordReaderProvider.createRecordReader(format,
-                        createInputStream(ctx, partition, indexer), configuration);
+            if (recordReaderClazz != null) {
+                StreamRecordReader streamReader = (StreamRecordReader) recordReaderClazz.getConstructor().newInstance();
+                streamReader.configure(createInputStream(ctx, partition, indexer), configuration);
                 if (indexer != null) {
                     return new IndexingStreamRecordReader(streamReader, indexer);
                 } else {
                     return streamReader;
                 }
             }
-            JobConf conf = confFactory.getConf();
-            InputSplit[] inputSplits = inputSplitsFactory.getSplits();
-            String nodeName = ctx.getJobletContext().getApplicationContext().getNodeId();
-            return new HDFSRecordReader<Object, Writable>(read, inputSplits, readSchedule, nodeName, conf, files,
-                    indexer);
+            restoreConfig(ctx);
+            return new HDFSRecordReader<>(read, inputSplits, readSchedule, nodeName, conf, files, indexer);
         } catch (Exception e) {
             throw new HyracksDataException(e);
         }
@@ -225,5 +232,10 @@ public class HDFSDataSourceFactory implements IRecordReaderFactory<Object>, IInd
     @Override
     public boolean isIndexingOp() {
         return ((files != null) && indexingOp);
+    }
+
+    @Override
+    public List<String> getRecordReaderNames() {
+        return recordReaderNames;
     }
 }

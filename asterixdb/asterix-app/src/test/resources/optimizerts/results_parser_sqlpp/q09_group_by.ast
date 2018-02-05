@@ -153,8 +153,8 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Part]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [q09_group_by.Part]
   ]
   AS Variable [ Name=$p ]
 ,
@@ -219,8 +219,8 @@ FROM [  FunctionCall Metadata.dataset@1[
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Partsupp]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [q09_group_by.Partsupp]
       ]
       AS Variable [ Name=$ps ]
 ,
@@ -306,13 +306,13 @@ FROM [  FunctionCall Metadata.dataset@1[
               )
             ]
             ]
-            FROM [              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Supplier]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [q09_group_by.Supplier]
               ]
               AS Variable [ Name=$s ]
 ,
-              FunctionCall Metadata.dataset@1[
-                LiteralExpr [STRING] [Nation]
+              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [q09_group_by.Nation]
               ]
               AS Variable [ Name=$n ]
             ]
@@ -331,8 +331,8 @@ FROM [  FunctionCall Metadata.dataset@1[
           )
           AS Variable [ Name=$s1 ]
 ,
-          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [q09_group_by.LineItem]
           ]
           AS Variable [ Name=$l ]
         ]

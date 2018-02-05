@@ -18,17 +18,17 @@
  */
 package org.apache.asterix.app.replication.message;
 
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
+import org.apache.asterix.common.messaging.api.ICcAddressedMessage;
 import org.apache.asterix.common.replication.INCLifecycleMessage;
-import org.apache.asterix.runtime.utils.AppContextInfo;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.service.IControllerService;
 
-public class NCLifecycleTaskReportMessage implements INCLifecycleMessage {
+public class NCLifecycleTaskReportMessage implements INCLifecycleMessage, ICcAddressedMessage {
 
     private static final long serialVersionUID = 1L;
     private final String nodeId;
     private final boolean success;
-    private Exception exception;
+    private Throwable exception;
 
     public NCLifecycleTaskReportMessage(String nodeId, boolean success) {
         this.nodeId = nodeId;
@@ -36,8 +36,8 @@ public class NCLifecycleTaskReportMessage implements INCLifecycleMessage {
     }
 
     @Override
-    public void handle(IControllerService cs) throws HyracksDataException, InterruptedException {
-        AppContextInfo.INSTANCE.getFaultToleranceStrategy().process(this);
+    public void handle(ICcApplicationContext appCtx) throws HyracksDataException, InterruptedException {
+        appCtx.getNcLifecycleCoordinator().process(this);
     }
 
     public String getNodeId() {
@@ -48,16 +48,16 @@ public class NCLifecycleTaskReportMessage implements INCLifecycleMessage {
         return success;
     }
 
-    public Exception getException() {
+    public Throwable getException() {
         return exception;
     }
 
-    public void setException(Exception exception) {
+    public void setException(Throwable exception) {
         this.exception = exception;
     }
 
     @Override
     public MessageType getType() {
-        return MessageType.STARTUP_TASK_RESULT;
+        return MessageType.REGISTRATION_TASKS_RESULT;
     }
 }

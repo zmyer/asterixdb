@@ -25,10 +25,8 @@ import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.btree.api.IBTreeLeafFrame;
 import org.apache.hyracks.storage.am.btree.impls.BTree.BTreeAccessor;
 import org.apache.hyracks.storage.am.btree.impls.BTreeRangeSearchCursor;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.storage.am.common.impls.NoOpIndexAccessParameters;
 import org.apache.hyracks.storage.am.common.impls.NoOpOperationCallback;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexAccessor;
@@ -38,6 +36,8 @@ import org.apache.hyracks.storage.am.lsm.invertedindex.ondisk.OnDiskInvertedInde
 import org.apache.hyracks.storage.am.lsm.invertedindex.ondisk.OnDiskInvertedIndexSearchCursor;
 import org.apache.hyracks.storage.am.lsm.invertedindex.search.InvertedIndexSearchPredicate;
 import org.apache.hyracks.storage.am.lsm.invertedindex.search.TOccurrenceSearcher;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 
 public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     // TODO: This ctx needs to go away.
@@ -52,18 +52,26 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
         this.opCtx = opCtx;
         this.index = index;
         this.searcher = createSearcher();
-        this.btreeAccessor = (BTreeAccessor) index.getBTree().createAccessor(NoOpOperationCallback.INSTANCE,
-                NoOpOperationCallback.INSTANCE);
+        this.btreeAccessor = index.getBTree().createAccessor(NoOpIndexAccessParameters.INSTANCE);
+    }
+
+    public InMemoryInvertedIndexAccessor(InMemoryInvertedIndex index, IIndexOperationContext opCtx,
+            int[] nonIndexFields) throws HyracksDataException {
+        this.opCtx = opCtx;
+        this.index = index;
+        this.searcher = createSearcher();
+        this.btreeAccessor = index.getBTree().createAccessor(NoOpOperationCallback.INSTANCE,
+                NoOpOperationCallback.INSTANCE, nonIndexFields);
     }
 
     @Override
-    public void insert(ITupleReference tuple) throws HyracksDataException, IndexException {
+    public void insert(ITupleReference tuple) throws HyracksDataException {
         opCtx.setOperation(IndexOperation.INSERT);
         index.insert(tuple, btreeAccessor, opCtx);
     }
 
     @Override
-    public void delete(ITupleReference tuple) throws HyracksDataException, IndexException {
+    public void delete(ITupleReference tuple) throws HyracksDataException {
         opCtx.setOperation(IndexOperation.DELETE);
         index.delete(tuple, btreeAccessor, opCtx);
     }
@@ -74,7 +82,7 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     }
 
     @Override
-    public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException, IndexException {
+    public void search(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException {
         searcher.search((OnDiskInvertedIndexSearchCursor) cursor, (InvertedIndexSearchPredicate) searchPred, opCtx);
     }
 
@@ -85,7 +93,7 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
 
     @Override
     public void openInvertedListCursor(IInvertedListCursor listCursor, ITupleReference searchKey)
-            throws HyracksDataException, IndexException {
+            throws HyracksDataException {
         index.openInvertedListCursor(listCursor, searchKey, opCtx);
     }
 
@@ -96,8 +104,7 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     }
 
     @Override
-    public void rangeSearch(IIndexCursor cursor, ISearchPredicate searchPred) throws IndexException,
-            HyracksDataException {
+    public void rangeSearch(IIndexCursor cursor, ISearchPredicate searchPred) throws HyracksDataException {
         btreeAccessor.search(cursor, searchPred);
     }
 
@@ -106,16 +113,21 @@ public class InMemoryInvertedIndexAccessor implements IInvertedIndexAccessor {
     }
 
     @Override
-    public void update(ITupleReference tuple) throws HyracksDataException, IndexException {
+    public void update(ITupleReference tuple) throws HyracksDataException {
         throw new UnsupportedOperationException("Update not supported by in-memory inverted index.");
     }
 
     @Override
-    public void upsert(ITupleReference tuple) throws HyracksDataException, IndexException {
+    public void upsert(ITupleReference tuple) throws HyracksDataException {
         throw new UnsupportedOperationException("Upsert not supported by in-memory inverted index.");
     }
 
     protected IInvertedIndexSearcher createSearcher() throws HyracksDataException {
         return new TOccurrenceSearcher(hyracksCtx, index);
     }
+
+    public void resetLogTuple(ITupleReference newTuple) {
+        btreeAccessor.getOpContext().resetNonIndexFieldsTuple(newTuple);
+    }
+
 }

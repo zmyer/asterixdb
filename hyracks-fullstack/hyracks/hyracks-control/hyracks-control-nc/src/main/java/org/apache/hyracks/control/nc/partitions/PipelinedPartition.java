@@ -39,9 +39,7 @@ public class PipelinedPartition implements IFrameWriter, IPartition {
 
     private IFrameWriter delegate;
 
-    private boolean pendingConnection;
-
-    private boolean failed;
+    private volatile boolean pendingConnection = true;
 
     public PipelinedPartition(IHyracksTaskContext ctx, PartitionManager manager, PartitionId pid, TaskAttemptId taId) {
         this.ctx = ctx;
@@ -73,17 +71,15 @@ public class PipelinedPartition implements IFrameWriter, IPartition {
 
     @Override
     public void open() throws HyracksDataException {
-        manager.registerPartition(pid, taId, this, PartitionState.STARTED, false);
-        failed = false;
+        manager.registerPartition(pid, ctx.getJobletContext().getJobId().getCcId(), taId, this, PartitionState.STARTED,
+                false);
         pendingConnection = true;
+        ensureConnected();
     }
 
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
-        if (!failed) {
-            ensureConnected();
-            delegate.nextFrame(buffer);
-        }
+        delegate.nextFrame(buffer);
     }
 
     private void ensureConnected() throws HyracksDataException {
@@ -93,7 +89,8 @@ public class PipelinedPartition implements IFrameWriter, IPartition {
                     try {
                         wait();
                     } catch (InterruptedException e) {
-                        throw new HyracksDataException(e);
+                        Thread.currentThread().interrupt();
+                        throw HyracksDataException.create(e);
                     }
                 }
             }
@@ -104,24 +101,21 @@ public class PipelinedPartition implements IFrameWriter, IPartition {
 
     @Override
     public void fail() throws HyracksDataException {
-        failed = true;
-        if (delegate != null) {
+        if (!pendingConnection) {
             delegate.fail();
         }
     }
 
     @Override
     public void close() throws HyracksDataException {
-        if (!failed) {
-            ensureConnected();
+        if (!pendingConnection) {
             delegate.close();
         }
     }
 
     @Override
     public void flush() throws HyracksDataException {
-        if (!failed) {
-            ensureConnected();
+        if (!pendingConnection) {
             delegate.flush();
         }
     }

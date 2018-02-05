@@ -19,18 +19,18 @@
 
 package org.apache.asterix.metadata.entitytupletranslators;
 
-import java.io.IOException;
-
+import org.apache.asterix.common.exceptions.MetadataException;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.Node;
 import org.apache.asterix.om.base.AInt64;
 import org.apache.asterix.om.base.AMutableInt64;
 import org.apache.asterix.om.types.BuiltinType;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.exceptions.NotImplementedException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 
 /**
@@ -46,8 +46,8 @@ public class NodeTupleTranslator extends AbstractTupleTranslator<Node> {
 
     private transient AMutableInt64 aInt64 = new AMutableInt64(-1);
     @SuppressWarnings("unchecked")
-    private ISerializerDeserializer<AInt64> int64Serde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.AINT64);
+    private ISerializerDeserializer<AInt64> int64Serde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.AINT64);
 
     // @SuppressWarnings("unchecked")
     // private ISerializerDeserializer<ARecord> recordSerDes =
@@ -59,7 +59,7 @@ public class NodeTupleTranslator extends AbstractTupleTranslator<Node> {
     }
 
     @Override
-    public Node getMetadataEntityFromTuple(ITupleReference frameTuple) throws IOException {
+    public Node getMetadataEntityFromTuple(ITupleReference frameTuple) {
         throw new NotImplementedException();
         // TODO: Implement this.
         // try {
@@ -85,7 +85,7 @@ public class NodeTupleTranslator extends AbstractTupleTranslator<Node> {
     }
 
     @Override
-    public ITupleReference getTupleFromMetadataEntity(Node instance) throws IOException, MetadataException {
+    public ITupleReference getTupleFromMetadataEntity(Node instance) throws HyracksDataException, AlgebricksException {
         // write the key in the first field of the tuple
         tupleBuilder.reset();
         aString.setValue(instance.getNodeName());

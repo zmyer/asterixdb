@@ -25,8 +25,11 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.apache.hyracks.util.ExitUtil;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class LifeCycleComponentManager implements ILifeCycleComponentManager {
 
@@ -34,7 +37,7 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
         public static final String DUMP_PATH_KEY = "DUMP_PATH";
     }
 
-    private static final Logger LOGGER = Logger.getLogger(LifeCycleComponentManager.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final List<ILifeCycleComponent> components;
     private boolean stopInitiated;
@@ -43,7 +46,7 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
     private boolean configured;
 
     public LifeCycleComponentManager() {
-        components = new ArrayList<ILifeCycleComponent>();
+        components = new ArrayList<>();
         stopInitiated = false;
         configured = false;
         stopped = false;
@@ -51,16 +54,10 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
 
     @Override
     public void uncaughtException(Thread t, Throwable e) {
-        if (LOGGER.isLoggable(Level.SEVERE)) {
-            LOGGER.severe("Uncaught Exception from thread " + t.getName() + " message: " + e.getMessage());
-            e.printStackTrace();
-        }
         try {
-            stopAll(true);
-        } catch (IOException e1) {
-            if (LOGGER.isLoggable(Level.SEVERE)) {
-                LOGGER.severe("Exception in stopping Asterix. " + e1.getMessage());
-            }
+            LOGGER.log(Level.ERROR, "Uncaught Exception from thread " + t.getName() + ". Calling shutdown hook", e);
+        } finally {
+            ExitUtil.exit(99);
         }
     }
 
@@ -78,32 +75,27 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
 
     @Override
     public synchronized void stopAll(boolean dumpState) throws IOException {
-        if (LOGGER.isLoggable(Level.INFO)) {
-            LOGGER.severe("Attempting to stop " + this);
-        }
         if (stopped) {
-            if (LOGGER.isLoggable(Level.INFO)) {
-                LOGGER.severe("Lifecycle management was already stopped");
-            }
+            LOGGER.info("Lifecycle management was already stopped");
             return;
         }
+        stopped = true;
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Attempting to stop " + this);
+        }
         if (stopInitiated) {
-            if (LOGGER.isLoggable(Level.INFO)) {
-                LOGGER.severe("Stop already in progress");
-            }
+            LOGGER.info("Stop already in progress");
             return;
         }
         if (!configured) {
-            if (LOGGER.isLoggable(Level.SEVERE)) {
-                LOGGER.severe("Lifecycle management not configured" + this);
+            if (LOGGER.isErrorEnabled()) {
+                LOGGER.error("Lifecycle management not configured " + this);
             }
             return;
         }
 
         stopInitiated = true;
-        if (LOGGER.isLoggable(Level.SEVERE)) {
-            LOGGER.severe("Stopping Asterix instance");
-        }
+        LOGGER.error("Stopping instance");
 
         FileOutputStream componentDumpStream = null;
         String componentDumpPath = null;
@@ -119,15 +111,13 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
                     }
                     componentDumpStream = new FileOutputStream(f);
                 }
-                if (LOGGER.isLoggable(Level.INFO)) {
-                    LOGGER.info("Stopping component instance " + component.getClass().getName() + " dump state "
-                            + dumpState + " dump path " + componentDumpPath);
+                if (LOGGER.isInfoEnabled()) {
+                    LOGGER.info("Stopping component instance " + component.getClass().getName() + "; dump state: "
+                            + dumpState + ", dump path: " + componentDumpPath);
                 }
                 component.stop(dumpState, componentDumpStream);
             } catch (Exception e) {
-                if (LOGGER.isLoggable(Level.SEVERE)) {
-                    LOGGER.severe("Exception in stopping component " + component.getClass().getName() + e.getMessage());
-                }
+                LOGGER.log(Level.ERROR, "Exception in stopping component " + component.getClass().getName(), e);
             } finally {
                 if (componentDumpStream != null) {
                     componentDumpStream.close();
@@ -143,11 +133,11 @@ public class LifeCycleComponentManager implements ILifeCycleComponentManager {
         dumpPath = configuration.get(Config.DUMP_PATH_KEY);
         if (dumpPath == null) {
             dumpPath = System.getProperty("user.dir");
-            if (LOGGER.isLoggable(Level.WARNING)) {
-                LOGGER.warning("dump path not configured. Using current directory " + dumpPath);
+            if (LOGGER.isWarnEnabled()) {
+                LOGGER.warn("dump path not configured. Using current directory " + dumpPath);
             }
         }
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("LifecycleComponentManager configured " + this);
         }
         configured = true;

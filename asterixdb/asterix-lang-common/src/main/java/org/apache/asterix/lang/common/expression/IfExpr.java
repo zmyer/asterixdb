@@ -18,12 +18,14 @@
  */
 package org.apache.asterix.lang.common.expression;
 
+import java.util.Objects;
+
 import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.lang.common.base.AbstractExpression;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
-import org.apache.commons.lang3.ObjectUtils;
 
-public class IfExpr implements Expression {
+public class IfExpr extends AbstractExpression {
     private Expression condExpr;
     private Expression thenExpr;
     private Expression elseExpr;
@@ -74,7 +76,7 @@ public class IfExpr implements Expression {
 
     @Override
     public int hashCode() {
-        return ObjectUtils.hashCodeMulti(condExpr, elseExpr, thenExpr);
+        return Objects.hash(condExpr, elseExpr, thenExpr);
     }
 
     @Override
@@ -86,8 +88,8 @@ public class IfExpr implements Expression {
             return false;
         }
         IfExpr target = (IfExpr) object;
-        return ObjectUtils.equals(condExpr, target.condExpr) && ObjectUtils.equals(elseExpr, target.elseExpr)
-                && ObjectUtils.equals(thenExpr, target.thenExpr);
+        return Objects.equals(condExpr, target.condExpr) && Objects.equals(elseExpr, target.elseExpr)
+                && Objects.equals(thenExpr, target.thenExpr);
     }
 
     @Override

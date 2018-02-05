@@ -22,11 +22,12 @@ package org.apache.hyracks.storage.am.lsm.rtree.impls;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparator;
 import org.apache.hyracks.api.dataflow.value.ILinearizeComparatorFactory;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
-import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilter;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexOperationContext;
+import org.apache.hyracks.storage.common.ICursorInitialState;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 
 public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
 
@@ -37,12 +38,12 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
     private int foundIn = -1;
     private PermutingTupleReference btreeTuple;
 
-    public LSMRTreeSortedCursor(ILSMIndexOperationContext opCtx, ILinearizeComparatorFactory linearizer, int[] buddyBTreeFields)
-            throws HyracksDataException {
+    public LSMRTreeSortedCursor(ILSMIndexOperationContext opCtx, ILinearizeComparatorFactory linearizer,
+            int[] buddyBTreeFields) throws HyracksDataException {
         super(opCtx);
         this.linearizeCmp = linearizer.createBinaryComparator();
         this.btreeTuple = new PermutingTupleReference(buddyBTreeFields);
-        reset();
+        close();
     }
 
     public ILSMIndexOperationContext getOpCtx() {
@@ -50,17 +51,13 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
     }
 
     @Override
-    public void reset() throws HyracksDataException {
+    public void close() throws HyracksDataException {
         depletedRtreeCursors = new boolean[numberOfTrees];
         foundNext = false;
         try {
             for (int i = 0; i < numberOfTrees; i++) {
-                rtreeCursors[i].reset();
-                try {
-                    rtreeAccessors[i].search(rtreeCursors[i], rtreeSearchPredicate);
-                } catch (IndexException e) {
-                    throw new HyracksDataException(e);
-                }
+                rtreeCursors[i].close();
+                rtreeAccessors[i].search(rtreeCursors[i], rtreeSearchPredicate);
                 if (rtreeCursors[i].hasNext()) {
                     rtreeCursors[i].next();
                 } else {
@@ -75,7 +72,23 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
     }
 
     @Override
-    public boolean hasNext() throws HyracksDataException, IndexException {
+    public ITupleReference getFilterMinTuple() {
+        ILSMComponentFilter filter = getFilter();
+        return filter == null ? null : filter.getMinTuple();
+    }
+
+    @Override
+    public ITupleReference getFilterMaxTuple() {
+        ILSMComponentFilter filter = getFilter();
+        return filter == null ? null : filter.getMaxTuple();
+    }
+
+    private ILSMComponentFilter getFilter() {
+        return foundIn < 0 ? null : operationalComponents.get(foundIn).getLSMComponentFilter();
+    }
+
+    @Override
+    public boolean hasNext() throws HyracksDataException {
         while (!foundNext) {
             frameTuple = null;
 
@@ -89,8 +102,9 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
 
             foundIn = -1;
             for (int i = 0; i < numberOfTrees; i++) {
-                if (depletedRtreeCursors[i])
+                if (depletedRtreeCursors[i]) {
                     continue;
+                }
 
                 if (frameTuple == null) {
                     frameTuple = rtreeCursors[i].getTuple();
@@ -99,35 +113,32 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
                 }
 
                 if (linearizeCmp.compare(frameTuple.getFieldData(0), frameTuple.getFieldStart(0),
-                        frameTuple.getFieldLength(0) * linearizeCmp.getDimensions(), rtreeCursors[i].getTuple()
-                                .getFieldData(0), rtreeCursors[i].getTuple().getFieldStart(0), rtreeCursors[i]
-                                .getTuple().getFieldLength(0) * linearizeCmp.getDimensions()) > 0) {
+                        frameTuple.getFieldLength(0) * linearizeCmp.getDimensions(),
+                        rtreeCursors[i].getTuple().getFieldData(0), rtreeCursors[i].getTuple().getFieldStart(0),
+                        rtreeCursors[i].getTuple().getFieldLength(0) * linearizeCmp.getDimensions()) > 0) {
                     frameTuple = rtreeCursors[i].getTuple();
                     foundIn = i;
                 }
             }
 
-            if (foundIn == -1)
+            if (foundIn == -1) {
                 return false;
+            }
 
             boolean killed = false;
             btreeTuple.reset(frameTuple);
             for (int i = 0; i < foundIn; i++) {
-                try {
-                    btreeCursors[i].reset();
-                    btreeRangePredicate.setHighKey(btreeTuple, true);
-                    btreeRangePredicate.setLowKey(btreeTuple, true);
-                    btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
-                } catch (IndexException e) {
-                    throw new HyracksDataException(e);
-                }
+                btreeCursors[i].close();
+                btreeRangePredicate.setHighKey(btreeTuple, true);
+                btreeRangePredicate.setLowKey(btreeTuple, true);
+                btreeAccessors[i].search(btreeCursors[i], btreeRangePredicate);
                 try {
                     if (btreeCursors[i].hasNext()) {
                         killed = true;
                         break;
                     }
                 } finally {
-                    btreeCursors[i].close();
+                    btreeCursors[i].destroy();
                 }
             }
             if (!killed) {
@@ -150,12 +161,8 @@ public class LSMRTreeSortedCursor extends LSMRTreeAbstractCursor {
         depletedRtreeCursors = new boolean[numberOfTrees];
         foundNext = false;
         for (int i = 0; i < numberOfTrees; i++) {
-            rtreeCursors[i].reset();
-            try {
-                rtreeAccessors[i].search(rtreeCursors[i], rtreeSearchPredicate);
-            } catch (IndexException e) {
-                throw new HyracksDataException(e);
-            }
+            rtreeCursors[i].close();
+            rtreeAccessors[i].search(rtreeCursors[i], rtreeSearchPredicate);
             if (rtreeCursors[i].hasNext()) {
                 rtreeCursors[i].next();
             } else {

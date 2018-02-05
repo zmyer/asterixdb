@@ -41,7 +41,16 @@ public class TopKSorterOperatorDescriptor extends AbstractSorterOperatorDescript
     public TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int topK, int[] sortFields,
             INormalizedKeyComputerFactory firstKeyNormalizerFactory, IBinaryComparatorFactory[] comparatorFactories,
             RecordDescriptor recordDescriptor) {
-        super(spec, framesLimit, sortFields, firstKeyNormalizerFactory, comparatorFactories, recordDescriptor);
+        this(spec, framesLimit, topK,
+                sortFields, firstKeyNormalizerFactory != null
+                        ? new INormalizedKeyComputerFactory[] { firstKeyNormalizerFactory } : null,
+                comparatorFactories, recordDescriptor);
+    }
+
+    public TopKSorterOperatorDescriptor(IOperatorDescriptorRegistry spec, int framesLimit, int topK, int[] sortFields,
+            INormalizedKeyComputerFactory[] keyNormalizerFactories, IBinaryComparatorFactory[] comparatorFactories,
+            RecordDescriptor recordDescriptor) {
+        super(spec, framesLimit, sortFields, keyNormalizerFactories, comparatorFactories, recordDescriptor);
         this.topK = topK;
     }
 
@@ -53,8 +62,8 @@ public class TopKSorterOperatorDescriptor extends AbstractSorterOperatorDescript
             @Override
             protected AbstractSortRunGenerator getRunGenerator(IHyracksTaskContext ctx,
                     IRecordDescriptorProvider recordDescProvider) {
-                return new HybridTopKSortRunGenerator(ctx, framesLimit, topK, sortFields, firstKeyNormalizerFactory,
-                        comparatorFactories, recordDescriptors[0]);
+                return new HybridTopKSortRunGenerator(ctx, framesLimit, topK, sortFields, keyNormalizerFactories,
+                        comparatorFactories, outRecDescs[0]);
 
             }
         };
@@ -71,7 +80,7 @@ public class TopKSorterOperatorDescriptor extends AbstractSorterOperatorDescript
                     List<GeneratedRunFileReader> runs, IBinaryComparator[] comparators,
                     INormalizedKeyComputer nmkComputer, int necessaryFrames) {
                 return new ExternalSortRunMerger(ctx, sorter, runs, sortFields, comparators, nmkComputer,
-                        recordDescriptors[0], necessaryFrames, topK, writer);
+                        outRecDescs[0], necessaryFrames, topK, writer);
             }
         };
     }

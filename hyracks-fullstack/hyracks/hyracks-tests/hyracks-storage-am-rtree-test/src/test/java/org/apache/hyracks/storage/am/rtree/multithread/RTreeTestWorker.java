@@ -26,14 +26,13 @@ import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.common.AbstractIndexTestWorker;
 import org.apache.hyracks.storage.am.common.TestOperationSelector;
 import org.apache.hyracks.storage.am.common.TestOperationSelector.TestOperation;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
 import org.apache.hyracks.storage.am.common.api.ITreeIndexCursor;
-import org.apache.hyracks.storage.am.common.api.IndexException;
 import org.apache.hyracks.storage.am.common.datagen.DataGenThread;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.rtree.impls.RTree;
 import org.apache.hyracks.storage.am.rtree.impls.SearchPredicate;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 public class RTreeTestWorker extends AbstractIndexTestWorker {
 
@@ -51,11 +50,11 @@ public class RTreeTestWorker extends AbstractIndexTestWorker {
     }
 
     @Override
-    public void performOp(ITupleReference tuple, TestOperation op) throws HyracksDataException, IndexException {
+    public void performOp(ITupleReference tuple, TestOperation op) throws HyracksDataException {
         RTree.RTreeAccessor accessor = (RTree.RTreeAccessor) indexAccessor;
         IIndexCursor searchCursor = accessor.createSearchCursor(false);
         ITreeIndexCursor diskOrderScanCursor = accessor.createDiskOrderScanCursor();
-        MultiComparator cmp = accessor.getOpContext().cmp;
+        MultiComparator cmp = accessor.getOpContext().getCmp();
         SearchPredicate rangePred = new SearchPredicate(tuple, cmp);
 
         switch (op) {
@@ -70,14 +69,14 @@ public class RTreeTestWorker extends AbstractIndexTestWorker {
                 break;
 
             case SCAN:
-                searchCursor.reset();
+                searchCursor.close();
                 rangePred.setSearchKey(null);
                 accessor.search(searchCursor, rangePred);
                 consumeCursorTuples(searchCursor);
                 break;
 
             case DISKORDER_SCAN:
-                diskOrderScanCursor.reset();
+                diskOrderScanCursor.close();
                 accessor.diskOrderScan(diskOrderScanCursor);
                 consumeCursorTuples(diskOrderScanCursor);
                 break;

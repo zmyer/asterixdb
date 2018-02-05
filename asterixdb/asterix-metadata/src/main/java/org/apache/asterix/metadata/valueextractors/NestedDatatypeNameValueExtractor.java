@@ -24,9 +24,10 @@ import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.asterix.common.transactions.JobId;
-import org.apache.asterix.metadata.MetadataException;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.metadata.api.IValueExtractor;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.util.string.UTF8StringReader;
 
@@ -48,19 +49,23 @@ public class NestedDatatypeNameValueExtractor implements IValueExtractor<String>
     private final UTF8StringReader reader = new UTF8StringReader();
 
     @Override
-    public String getValue(JobId jobId, ITupleReference tuple) throws MetadataException, IOException {
+    public String getValue(TxnId txnId, ITupleReference tuple) throws AlgebricksException, HyracksDataException {
         byte[] serRecord = tuple.getFieldData(2);
         int recordStartOffset = tuple.getFieldStart(2);
         int recordLength = tuple.getFieldLength(2);
         ByteArrayInputStream stream = new ByteArrayInputStream(serRecord, recordStartOffset, recordLength);
         DataInput in = new DataInputStream(stream);
-        String nestedType = reader.readUTF(in);
-        if (nestedType.equals(datatypeName)) {
-            recordStartOffset = tuple.getFieldStart(1);
-            recordLength = tuple.getFieldLength(1);
-            stream = new ByteArrayInputStream(serRecord, recordStartOffset, recordLength);
-            in = new DataInputStream(stream);
-            return reader.readUTF(in);
+        try {
+            String nestedType = reader.readUTF(in);
+            if (nestedType.equals(datatypeName)) {
+                recordStartOffset = tuple.getFieldStart(1);
+                recordLength = tuple.getFieldLength(1);
+                stream = new ByteArrayInputStream(serRecord, recordStartOffset, recordLength);
+                in = new DataInputStream(stream);
+                return reader.readUTF(in);
+            }
+        } catch (IOException e) {
+            throw HyracksDataException.create(e);
         }
         return null;
     }

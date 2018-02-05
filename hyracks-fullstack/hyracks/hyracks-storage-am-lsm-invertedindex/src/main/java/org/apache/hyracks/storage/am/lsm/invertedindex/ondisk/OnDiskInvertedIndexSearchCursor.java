@@ -25,11 +25,11 @@ import java.util.List;
 import org.apache.hyracks.api.comm.IFrameTupleAccessor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.ICursorInitialState;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.ISearchPredicate;
 import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearcher;
+import org.apache.hyracks.storage.common.ICursorInitialState;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchPredicate;
 
 public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
 
@@ -94,7 +94,7 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
     }
 
     @Override
-    public void reset() {
+    public void close() {
         currentBufferIndex = 0;
         tupleIndex = 0;
         invIndexSearcher.reset();
@@ -103,7 +103,7 @@ public class OnDiskInvertedIndexSearchCursor implements IIndexCursor {
     }
 
     @Override
-    public void close() throws HyracksDataException {
+    public void destroy() throws HyracksDataException {
         currentBufferIndex = 0;
         tupleIndex = 0;
         resultBuffers = null;

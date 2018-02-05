@@ -20,6 +20,7 @@ package org.apache.hyracks.storage.am.lsm.invertedindex.inmemory;
 
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
@@ -27,23 +28,17 @@ import org.apache.hyracks.storage.am.btree.frames.BTreeLeafFrameType;
 import org.apache.hyracks.storage.am.btree.impls.BTree;
 import org.apache.hyracks.storage.am.btree.impls.BTree.BTreeAccessor;
 import org.apache.hyracks.storage.am.btree.util.BTreeUtils;
-import org.apache.hyracks.storage.am.common.api.IIndexAccessor;
-import org.apache.hyracks.storage.am.common.api.IIndexBulkLoader;
 import org.apache.hyracks.storage.am.common.api.IIndexOperationContext;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
 import org.apache.hyracks.storage.am.common.api.IPageManager;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.exceptions.TreeIndexDuplicateKeyException;
-import org.apache.hyracks.storage.am.common.exceptions.TreeIndexNonExistentKeyException;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
-import org.apache.hyracks.storage.am.lsm.common.api.IVirtualBufferCache;
-import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndex;
+import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInPlaceInvertedIndex;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedListCursor;
 import org.apache.hyracks.storage.am.lsm.invertedindex.tokenizers.IBinaryTokenizerFactory;
+import org.apache.hyracks.storage.common.IIndexAccessParameters;
+import org.apache.hyracks.storage.common.IIndexBulkLoader;
 import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 
-public class InMemoryInvertedIndex implements IInvertedIndex {
+public class InMemoryInvertedIndex implements IInPlaceInvertedIndex {
 
     protected final BTree btree;
     protected final ITypeTraits[] tokenTypeTraits;
@@ -76,9 +71,8 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
             btreeTypeTraits[tokenTypeTraits.length + i] = invListTypeTraits[i];
             btreeCmpFactories[tokenTypeTraits.length + i] = invListCmpFactories[i];
         }
-        this.btree = BTreeUtils.createBTree(virtualBufferCache, virtualFreePageManager,
-                ((IVirtualBufferCache) virtualBufferCache).getFileMapProvider(), btreeTypeTraits, btreeCmpFactories,
-                BTreeLeafFrameType.REGULAR_NSM, btreeFileRef);
+        this.btree = BTreeUtils.createBTree(virtualBufferCache, virtualFreePageManager, btreeTypeTraits,
+                btreeCmpFactories, BTreeLeafFrameType.REGULAR_NSM, btreeFileRef, false);
     }
 
     @Override
@@ -112,33 +106,39 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
     }
 
     public void insert(ITupleReference tuple, BTreeAccessor btreeAccessor, IIndexOperationContext ictx)
-            throws HyracksDataException, IndexException {
+            throws HyracksDataException {
         InMemoryInvertedIndexOpContext ctx = (InMemoryInvertedIndexOpContext) ictx;
-        ctx.tupleIter.reset(tuple);
-        while (ctx.tupleIter.hasNext()) {
-            ctx.tupleIter.next();
-            ITupleReference insertTuple = ctx.tupleIter.getTuple();
+        ctx.getTupleIter().reset(tuple);
+        while (ctx.getTupleIter().hasNext()) {
+            ctx.getTupleIter().next();
+            ITupleReference insertTuple = ctx.getTupleIter().getTuple();
             try {
                 btreeAccessor.insert(insertTuple);
-            } catch (TreeIndexDuplicateKeyException e) {
-                // This exception may be caused by duplicate tokens in the same insert "document".
-                // We ignore such duplicate tokens in all inverted-index implementations, hence
-                // we can safely ignore this exception.
+            } catch (HyracksDataException e) {
+                if (e.getErrorCode() != ErrorCode.DUPLICATE_KEY) {
+                    // This exception may be caused by duplicate tokens in the same insert "document".
+                    // We ignore such duplicate tokens in all inverted-index implementations, hence
+                    // we can safely ignore this exception.
+                    throw e;
+                }
             }
         }
     }
 
     public void delete(ITupleReference tuple, BTreeAccessor btreeAccessor, IIndexOperationContext ictx)
-            throws HyracksDataException, IndexException {
+            throws HyracksDataException {
         InMemoryInvertedIndexOpContext ctx = (InMemoryInvertedIndexOpContext) ictx;
-        ctx.tupleIter.reset(tuple);
-        while (ctx.tupleIter.hasNext()) {
-            ctx.tupleIter.next();
-            ITupleReference deleteTuple = ctx.tupleIter.getTuple();
+        ctx.getTupleIter().reset(tuple);
+        while (ctx.getTupleIter().hasNext()) {
+            ctx.getTupleIter().next();
+            ITupleReference deleteTuple = ctx.getTupleIter().getTuple();
             try {
                 btreeAccessor.delete(deleteTuple);
-            } catch (TreeIndexNonExistentKeyException e) {
-                // Ignore this exception, since a document may have duplicate tokens.
+            } catch (HyracksDataException e) {
+                if (e.getErrorCode() != ErrorCode.UPDATE_OR_DELETE_NON_EXISTENT_KEY) {
+                    // Ignore this exception, since a document may have duplicate tokens.
+                    throw e;
+                }
             }
         }
     }
@@ -146,7 +146,7 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
     @Override
     public long getMemoryAllocationSize() {
         IBufferCache virtualBufferCache = btree.getBufferCache();
-        return virtualBufferCache.getNumPages() * virtualBufferCache.getPageSize();
+        return (long) virtualBufferCache.getPageBudget() * virtualBufferCache.getPageSize();
     }
 
     @Override
@@ -156,19 +156,23 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
 
     @Override
     public void openInvertedListCursor(IInvertedListCursor listCursor, ITupleReference searchKey,
-            IIndexOperationContext ictx) throws HyracksDataException, IndexException {
+            IIndexOperationContext ictx) throws HyracksDataException {
         InMemoryInvertedIndexOpContext ctx = (InMemoryInvertedIndexOpContext) ictx;
         ctx.setOperation(IndexOperation.SEARCH);
         InMemoryInvertedListCursor inMemListCursor = (InMemoryInvertedListCursor) listCursor;
-        inMemListCursor.prepare(ctx.btreeAccessor, ctx.btreePred, ctx.tokenFieldsCmp, ctx.btreeCmp);
+        inMemListCursor.prepare(ctx.getBtreeAccessor(), ctx.getBtreePred(), ctx.getTokenFieldsCmp(), ctx.getBtreeCmp());
         inMemListCursor.reset(searchKey);
     }
 
     @Override
-    public IIndexAccessor createAccessor(IModificationOperationCallback modificationCallback,
-            ISearchOperationCallback searchCallback) throws HyracksDataException {
+    public InMemoryInvertedIndexAccessor createAccessor(IIndexAccessParameters iap) throws HyracksDataException {
         return new InMemoryInvertedIndexAccessor(this,
                 new InMemoryInvertedIndexOpContext(btree, tokenCmpFactories, tokenizerFactory));
+    }
+
+    public InMemoryInvertedIndexAccessor createAccessor(int[] nonIndexFields) throws HyracksDataException {
+        return new InMemoryInvertedIndexAccessor(this,
+                new InMemoryInvertedIndexOpContext(btree, tokenCmpFactories, tokenizerFactory), nonIndexFields);
     }
 
     @Override
@@ -192,7 +196,7 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
 
     @Override
     public IIndexBulkLoader createBulkLoader(float fillFactor, boolean verifyInput, long numElementsHint,
-            boolean checkIfEmptyIndex) throws IndexException {
+            boolean checkIfEmptyIndex) throws HyracksDataException {
         throw new UnsupportedOperationException("Bulk load not supported by in-memory inverted index.");
     }
 
@@ -207,7 +211,12 @@ public class InMemoryInvertedIndex implements IInvertedIndex {
     }
 
     @Override
-    public boolean hasMemoryComponents() {
-        return true;
+    public int getNumOfFilterFields() {
+        return 0;
+    }
+
+    @Override
+    public void purge() throws HyracksDataException {
+        btree.purge();
     }
 }

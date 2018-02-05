@@ -31,7 +31,7 @@ create type feeds_09.TwitterUserType as
   status_count : integer,
   name : string,
   followers_count : integer
-}
+};
 
 create type feeds_09.TweetMessageType as
  closed {
@@ -42,10 +42,17 @@ create type feeds_09.TweetMessageType as
   message_text : string,
   created_at : string,
   country : string
-}
+};
 create  dataset SyntheticTweets(TweetMessageType) primary key id;
 create  index message_text  on SyntheticTweets (message_text) type btree;
-create  feed SyntheticTweetFeed using stream ((`duration`=`5`),
-(`tps`=`50`),(`tput-duration`=`5`),(`type-name`=`TweetMessageType`),
-(`dataverse-dataset`=`feeds:SyntheticTweets`),(`format`=`adm`),
-(`stream-source`=`org.apache.asterix.external.input.stream.TwitterFirehoseStreamFactory`),(`mode`=`controlled`));
+
+create  feed SyntheticTweetFeed with {
+ "adapter-name" : "stream",
+ "duration" : "5",
+ "tps" : "50","tput-duration" : "5",
+ "type-name" : "TweetMessageType",
+ "dataverse-dataset" : "feeds:SyntheticTweets",
+ "format" : "adm",
+ "stream-source" : "org.apache.asterix.external.input.stream.factory.TwitterFirehoseStreamFactory",
+ "mode" : "controlled"
+};

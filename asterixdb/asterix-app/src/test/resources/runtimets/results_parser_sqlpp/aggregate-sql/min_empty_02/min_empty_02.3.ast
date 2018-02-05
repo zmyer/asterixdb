@@ -1,7 +1,7 @@
 DataverseUse test
 Query:
 SELECT ELEMENT [
-FunctionCall test.sql-min@1[
+FunctionCall asterix.sql-min@1[
   (
     SELECT ELEMENT [
     FieldAccessor [
@@ -9,8 +9,8 @@ FunctionCall test.sql-min@1[
       Field=val
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Test]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.Test]
       ]
       AS Variable [ Name=$x ]
     ]

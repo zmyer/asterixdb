@@ -26,19 +26,12 @@ import org.apache.hyracks.api.job.JobSpecification;
 
 public class PartitionConstraintHelper {
     public static void addPartitionCountConstraint(JobSpecification spec, IOperatorDescriptor op, int count) {
-        spec.addUserConstraint(new Constraint(new PartitionCountExpression(op.getOperatorId()), new ConstantExpression(
-                count)));
+        spec.addUserConstraint(
+                new Constraint(new PartitionCountExpression(op.getOperatorId()), new ConstantExpression(count)));
     }
 
-    public static void addLocationChoiceConstraint(JobSpecification spec, IOperatorDescriptor op, String[][] choices) {
-        addPartitionCountConstraint(spec, op, choices.length);
-        for (int i = 0; i < choices.length; ++i) {
-            spec.addUserConstraint(new Constraint(new PartitionLocationExpression(op.getOperatorId(), i),
-                    new ConstantExpression(choices[i])));
-        }
-    }
-
-    public static void addAbsoluteLocationConstraint(JobSpecification spec, IOperatorDescriptor op, String... locations) {
+    public static void addAbsoluteLocationConstraint(JobSpecification spec, IOperatorDescriptor op,
+            String... locations) {
         addPartitionCountConstraint(spec, op, locations.length);
         for (int i = 0; i < locations.length; ++i) {
             spec.addUserConstraint(new Constraint(new PartitionLocationExpression(op.getOperatorId(), i),

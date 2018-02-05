@@ -18,14 +18,15 @@
  */
 package org.apache.hyracks.dataflow.std.base;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.hyracks.api.application.ICCApplicationContext;
+import org.apache.hyracks.api.application.ICCServiceContext;
 import org.apache.hyracks.api.constraints.IConstraintAcceptor;
 import org.apache.hyracks.api.dataflow.IOperatorDescriptor;
 import org.apache.hyracks.api.dataflow.OperatorDescriptorId;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.job.IOperatorDescriptorRegistry;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor {
     private static final long serialVersionUID = 1L;
@@ -34,7 +35,7 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
 
     protected String[] partitions;
 
-    protected final RecordDescriptor[] recordDescriptors;
+    protected final RecordDescriptor[] outRecDescs;
 
     protected final int inputArity;
 
@@ -46,7 +47,7 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
         odId = spec.createOperatorDescriptorId(this);
         this.inputArity = inputArity;
         this.outputArity = outputArity;
-        recordDescriptors = new RecordDescriptor[outputArity];
+        outRecDescs = new RecordDescriptor[outputArity];
         displayName = getClass().getName() + "[" + odId + "]";
     }
 
@@ -72,7 +73,7 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
 
     @Override
     public RecordDescriptor[] getOutputRecordDescriptors() {
-        return recordDescriptors;
+        return outRecDescs;
     }
 
     @Override
@@ -86,12 +87,12 @@ public abstract class AbstractOperatorDescriptor implements IOperatorDescriptor 
     }
 
     @Override
-    public void contributeSchedulingConstraints(IConstraintAcceptor constraintAcceptor, ICCApplicationContext appCtx) {
+    public void contributeSchedulingConstraints(IConstraintAcceptor constraintAcceptor, ICCServiceContext serviceCtx) {
         // do nothing
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         ObjectMapper om = new ObjectMapper();
         ObjectNode jop = om.createObjectNode();
         jop.put("id", String.valueOf(getOperatorId()));

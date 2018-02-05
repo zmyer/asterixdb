@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.BitSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.hyracks.api.comm.IChannelControlBlock;
 import org.apache.hyracks.api.comm.IChannelInterfaceFactory;
@@ -33,6 +31,8 @@ import org.apache.hyracks.api.comm.MuxDemuxCommand;
 import org.apache.hyracks.api.exceptions.NetException;
 import org.apache.hyracks.net.protocols.tcp.ITCPConnectionEventListener;
 import org.apache.hyracks.net.protocols.tcp.TCPConnection;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link MultiplexedConnection} can be used by clients to create multiple "channels"
@@ -41,7 +41,7 @@ import org.apache.hyracks.net.protocols.tcp.TCPConnection;
  * @author vinayakb
  */
 public class MultiplexedConnection implements ITCPConnectionEventListener {
-    private static final Logger LOGGER = Logger.getLogger(MultiplexedConnection.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final int MAX_CHUNKS_READ_PER_CYCLE = 4;
 
@@ -110,8 +110,9 @@ public class MultiplexedConnection implements ITCPConnectionEventListener {
         notifyAll();
     }
 
-    synchronized void setConnectionFailure() {
+    synchronized void setConnectionFailure(Exception e) {
         this.connectionFailure = true;
+        this.error = e;
         notifyAll();
     }
 
@@ -120,7 +121,7 @@ public class MultiplexedConnection implements ITCPConnectionEventListener {
             wait();
         }
         if (connectionFailure) {
-            throw new NetException("Connection failure");
+            throw new NetException("Connection failure", error);
         }
     }
 
@@ -264,8 +265,8 @@ public class MultiplexedConnection implements ITCPConnectionEventListener {
                     pendingWriteEventsCounter.decrement();
                 }
                 BitSet pendingChannelCreditsBitmap = cSet.getPendingChannelCreditsBitmap();
-                for (int j = pendingChannelCreditsBitmap.nextSetBit(0); j >= 0; j = pendingChannelCreditsBitmap
-                        .nextSetBit(j)) {
+                for (int j = pendingChannelCreditsBitmap.nextSetBit(0); j >= 0; j =
+                        pendingChannelCreditsBitmap.nextSetBit(j)) {
                     writerState.command.setChannelId(j);
                     writerState.command.setCommandType(MuxDemuxCommand.CommandType.ADD_CREDITS);
                     ChannelControlBlock ccb = cSet.getCCB(j);
@@ -365,8 +366,8 @@ public class MultiplexedConnection implements ITCPConnectionEventListener {
                 }
                 readerState.readBuffer.flip();
                 readerState.command.read(readerState.readBuffer);
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("Received command: " + readerState.command);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Received command: " + readerState.command);
                 }
                 ChannelControlBlock ccb = null;
                 switch (readerState.command.getCommandType()) {
@@ -408,8 +409,8 @@ public class MultiplexedConnection implements ITCPConnectionEventListener {
                         muxDemux.getChannelOpenListener().channelOpened(ccb);
                     }
                 }
-                if (LOGGER.isLoggable(Level.FINE)) {
-                    LOGGER.fine("Applied command: " + readerState.command + " on " + ccb);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Applied command: " + readerState.command + " on " + ccb);
                 }
             }
             if (readerState.pendingReadSize > 0) {

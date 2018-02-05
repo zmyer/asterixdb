@@ -25,7 +25,6 @@ import java.util.Date;
 
 import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.common.exceptions.RuntimeDataException;
-import org.apache.asterix.external.operators.ExternalLookupOperatorDescriptor;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
 import org.apache.asterix.om.base.ADateTime;
 import org.apache.asterix.om.base.AInt64;
@@ -41,13 +40,13 @@ import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleReference;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
 import org.apache.hyracks.storage.am.btree.util.BTreeUtils;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
-import org.apache.hyracks.storage.am.lsm.btree.dataflow.ExternalBTreeDataflowHelper;
+import org.apache.hyracks.storage.am.common.api.IIndexDataflowHelper;
+import org.apache.hyracks.storage.am.common.api.ISearchOperationCallbackFactory;
 import org.apache.hyracks.storage.am.lsm.btree.impls.ExternalBTree;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 /*
  * This class was created specifically to facilitate accessing
@@ -55,11 +54,7 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
  */
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public class ExternalFileIndexAccessor {
-
-    private final FilesIndexDescription filesIndexDescription = new FilesIndexDescription();
-    private ExternalBTreeDataflowHelper indexDataflowHelper;
-    private ExternalLookupOperatorDescriptor opDesc;
-
+    private IIndexDataflowHelper indexDataflowHelper;
     private IHyracksTaskContext ctx;
     private ExternalBTree index;
     private ArrayTupleBuilder searchKeyTupleBuilder;
@@ -70,11 +65,15 @@ public class ExternalFileIndexAccessor {
     private RangePredicate searchPredicate;
     private ILSMIndexAccessor fileIndexAccessor;
     private IIndexCursor fileIndexSearchCursor;
+    private ISearchOperationCallbackFactory searchCallbackFactory;
+    private int version;
+    private ISerializerDeserializer externalFileRecordSerde = FilesIndexDescription.createExternalFileRecordSerde();
 
-    public ExternalFileIndexAccessor(ExternalBTreeDataflowHelper indexDataflowHelper,
-            ExternalLookupOperatorDescriptor opDesc) {
+    public ExternalFileIndexAccessor(IIndexDataflowHelper indexDataflowHelper,
+            ISearchOperationCallbackFactory searchCallbackFactory, int version) {
         this.indexDataflowHelper = indexDataflowHelper;
-        this.opDesc = opDesc;
+        this.searchCallbackFactory = searchCallbackFactory;
+        this.version = version;
     }
 
     public void open() throws HyracksDataException {
@@ -91,19 +90,19 @@ public class ExternalFileIndexAccessor {
         searchPredicate = new RangePredicate(searchKey, searchKey, true, true, searchCmp, searchCmp);
 
         // create the accessor  and the cursor using the passed version
-        ISearchOperationCallback searchCallback = opDesc.getSearchOpCallbackFactory()
+        ISearchOperationCallback searchCallback = searchCallbackFactory
                 .createSearchOperationCallback(indexDataflowHelper.getResource().getId(), ctx, null);
-        fileIndexAccessor = index.createAccessor(searchCallback, indexDataflowHelper.getVersion());
+        fileIndexAccessor = index.createAccessor(searchCallback, version);
         fileIndexSearchCursor = fileIndexAccessor.createSearchCursor(false);
     }
 
-    public void lookup(int fileId, ExternalFile file) throws HyracksDataException, IndexException {
+    public void lookup(int fileId, ExternalFile file) throws HyracksDataException {
         // Set search parameters
         currentFileNumber.setValue(fileId);
         searchKeyTupleBuilder.reset();
         searchKeyTupleBuilder.addField(intSerde, currentFileNumber);
         searchKey.reset(searchKeyTupleBuilder.getFieldEndOffsets(), searchKeyTupleBuilder.getByteArray());
-        fileIndexSearchCursor.reset();
+        fileIndexSearchCursor.close();
 
         // Perform search
         fileIndexAccessor.search(fileIndexSearchCursor, searchPredicate);
@@ -116,7 +115,7 @@ public class ExternalFileIndexAccessor {
             int recordLength = tuple.getFieldLength(FilesIndexDescription.FILE_PAYLOAD_INDEX);
             ByteArrayInputStream stream = new ByteArrayInputStream(serRecord, recordStartOffset, recordLength);
             DataInput in = new DataInputStream(stream);
-            ARecord externalFileRecord = (ARecord) filesIndexDescription.EXTERNAL_FILE_RECORD_SERDE.deserialize(in);
+            ARecord externalFileRecord = (ARecord) externalFileRecordSerde.deserialize(in);
             setFile(externalFileRecord, file);
         } else {
             // This should never happen
@@ -130,14 +129,15 @@ public class ExternalFileIndexAccessor {
                         .getStringValue());
         file.setSize(((AInt64) externalFileRecord.getValueByPos(FilesIndexDescription.EXTERNAL_FILE_SIZE_FIELD_INDEX))
                 .getLongValue());
-        file.setLastModefiedTime(new Date(((ADateTime) externalFileRecord
-                .getValueByPos(FilesIndexDescription.EXTERNAL_FILE_MOD_DATE_FIELD_INDEX)).getChrononTime()));
+        file.setLastModefiedTime(new Date(
+                ((ADateTime) externalFileRecord.getValueByPos(FilesIndexDescription.EXTERNAL_FILE_MOD_DATE_FIELD_INDEX))
+                        .getChrononTime()));
     }
 
     public void close() throws HyracksDataException {
         if (index != null) {
             try {
-                fileIndexSearchCursor.close();
+                fileIndexSearchCursor.destroy();
             } finally {
                 indexDataflowHelper.close();
             }

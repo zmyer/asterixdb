@@ -19,11 +19,14 @@
 package org.apache.hyracks.maven.license;
 
 import java.io.File;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,10 +39,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.ProjectBuildingException;
 
-@Mojo(name = "licensedownload",
-        requiresProject = true,
-        requiresDependencyResolution = ResolutionScope.TEST,
-        defaultPhase = LifecyclePhase.GENERATE_RESOURCES)
+@Mojo(name = "licensedownload", requiresProject = true, requiresDependencyResolution = ResolutionScope.TEST, defaultPhase = LifecyclePhase.GENERATE_RESOURCES)
 public class DownloadLicensesMojo extends LicenseMojo {
 
     @Parameter(required = true)
@@ -70,20 +70,20 @@ public class DownloadLicensesMojo extends LicenseMojo {
 
     private void doDownload(int timeoutMillis, int id, String url, String fileName) {
         try {
-            HttpURLConnection conn = (HttpURLConnection)new URL(url).openConnection();
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
             conn.setConnectTimeout(timeoutMillis);
             conn.setReadTimeout(timeoutMillis);
             conn.setRequestMethod("GET");
             final File outFile = new File(downloadDir, fileName);
             getLog().info("[" + id + "] " + url + " -> " + outFile);
             final InputStream is = conn.getInputStream();
-            FileWriter writer = new FileWriter(outFile);
-            IOUtils.copy(is, writer, conn.getContentEncoding());
-            writer.close();
+            try (FileOutputStream fos = new FileOutputStream(outFile);
+                    Writer writer = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
+                IOUtils.copy(is, writer, conn.getContentEncoding());
+            }
             getLog().info("[" + id + "] ...done!");
         } catch (IOException e) {
             getLog().warn("[" + id + "] ...error downloading " + url + ": " + e);
         }
     }
 }
-

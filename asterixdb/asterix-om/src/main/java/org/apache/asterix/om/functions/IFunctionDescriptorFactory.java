@@ -26,5 +26,13 @@ public interface IFunctionDescriptorFactory {
      *
      * @return a new IFunctionDescriptor instance
      */
-    public IFunctionDescriptor createFunctionDescriptor();
+    IFunctionDescriptor createFunctionDescriptor();
+
+    /**
+     * Creates type inferer for this function
+     * @return an new instance of the type inferer or {@code null} if not provided
+     */
+    default IFunctionTypeInferer createFunctionTypeInferer() {
+        return null;
+    }
 }

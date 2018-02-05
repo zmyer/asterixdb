@@ -38,6 +38,9 @@ import org.apache.asterix.metadata.entities.Dataset;
 import org.apache.asterix.metadata.entities.Index;
 import org.apache.asterix.om.functions.BuiltinFunctions;
 import org.apache.asterix.om.types.ARecordType;
+import org.apache.asterix.om.types.AUnionType;
+import org.apache.asterix.om.types.IAType;
+import org.apache.asterix.om.utils.NonTaggedFormatUtil;
 import org.apache.asterix.optimizer.rules.util.EquivalenceClassUtils;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -84,12 +87,8 @@ public class BTreeAccessMethod implements IAccessMethod {
     }
 
     private static final List<FunctionIdentifier> FUNC_IDENTIFIERS =
-            Collections.unmodifiableList(Arrays.asList(
-                    AlgebricksBuiltinFunctions.EQ,
-                    AlgebricksBuiltinFunctions.LE,
-                    AlgebricksBuiltinFunctions.GE,
-                    AlgebricksBuiltinFunctions.LT,
-                    AlgebricksBuiltinFunctions.GT));
+            Collections.unmodifiableList(Arrays.asList(AlgebricksBuiltinFunctions.EQ, AlgebricksBuiltinFunctions.LE,
+                    AlgebricksBuiltinFunctions.GE, AlgebricksBuiltinFunctions.LT, AlgebricksBuiltinFunctions.GT));
 
     public static final BTreeAccessMethod INSTANCE = new BTreeAccessMethod();
 
@@ -99,14 +98,13 @@ public class BTreeAccessMethod implements IAccessMethod {
     }
 
     @Override
-    public boolean analyzeFuncExprArgs(AbstractFunctionCallExpression funcExpr,
+    public boolean analyzeFuncExprArgsAndUpdateAnalysisCtx(AbstractFunctionCallExpression funcExpr,
             List<AbstractLogicalOperator> assignsAndUnnests, AccessMethodAnalysisContext analysisCtx,
             IOptimizationContext context, IVariableTypeEnvironment typeEnvironment) throws AlgebricksException {
-        boolean matches =
-                AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVar(
-                        funcExpr, analysisCtx, context, typeEnvironment);
+        boolean matches = AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVarAndUpdateAnalysisCtx(funcExpr,
+                analysisCtx, context, typeEnvironment);
         if (!matches) {
-            matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVars(funcExpr, analysisCtx);
+            matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVarsAndUpdateAnalysisCtx(funcExpr, analysisCtx);
         }
         return matches;
     }
@@ -128,13 +126,13 @@ public class BTreeAccessMethod implements IAccessMethod {
         SelectOperator select = (SelectOperator) selectRef.getValue();
         Mutable<ILogicalExpression> conditionRef = select.getCondition();
 
-        ILogicalOperator primaryIndexUnnestOp = createSecondaryToPrimaryPlan(conditionRef, subTree, null, chosenIndex,
-                analysisCtx,
-                AccessMethodUtils.retainInputs(subTree.getDataSourceVariables(), subTree.getDataSourceRef().getValue(),
-                        afterSelectRefs),
-                false, subTree.getDataSourceRef().getValue().getInputs().get(0).getValue()
-                        .getExecutionMode() == ExecutionMode.UNPARTITIONED,
-                context);
+        ILogicalOperator primaryIndexUnnestOp =
+                createSecondaryToPrimaryPlan(conditionRef, subTree, null, chosenIndex, analysisCtx,
+                        AccessMethodUtils.retainInputs(subTree.getDataSourceVariables(),
+                                subTree.getDataSourceRef().getValue(), afterSelectRefs),
+                        false, subTree.getDataSourceRef().getValue().getInputs().get(0).getValue()
+                                .getExecutionMode() == ExecutionMode.UNPARTITIONED,
+                        context);
 
         if (primaryIndexUnnestOp == null) {
             return false;
@@ -175,7 +173,7 @@ public class BTreeAccessMethod implements IAccessMethod {
         Mutable<ILogicalExpression> conditionRef = joinOp.getCondition();
         // Determine if the index is applicable on the left or right side
         // (if both, we arbitrarily prefer the left side).
-        Dataset dataset = analysisCtx.indexDatasetMap.get(chosenIndex);
+        Dataset dataset = analysisCtx.getDatasetFromIndexDatasetMap(chosenIndex);
         OptimizableOperatorSubTree indexSubTree;
         OptimizableOperatorSubTree probeSubTree;
         // We assume that the left subtree is the outer branch and the right subtree is the inner branch.
@@ -225,17 +223,16 @@ public class BTreeAccessMethod implements IAccessMethod {
     @Override
     public ILogicalOperator createSecondaryToPrimaryPlan(Mutable<ILogicalExpression> conditionRef,
             OptimizableOperatorSubTree indexSubTree, OptimizableOperatorSubTree probeSubTree, Index chosenIndex,
-            AccessMethodAnalysisContext analysisCtx, boolean retainInput, boolean retainNull,
-            boolean requiresBroadcast, IOptimizationContext context) throws AlgebricksException {
+            AccessMethodAnalysisContext analysisCtx, boolean retainInput, boolean retainNull, boolean requiresBroadcast,
+            IOptimizationContext context) throws AlgebricksException {
         Dataset dataset = indexSubTree.getDataset();
         ARecordType recordType = indexSubTree.getRecordType();
         ARecordType metaRecordType = indexSubTree.getMetaRecordType();
         // we made sure indexSubTree has datasource scan
         AbstractDataSourceOperator dataSourceOp =
                 (AbstractDataSourceOperator) indexSubTree.getDataSourceRef().getValue();
-        List<Pair<Integer, Integer>> exprAndVarList = analysisCtx.indexExprsAndVars.get(chosenIndex);
-        List<IOptimizableFuncExpr> matchedFuncExprs = analysisCtx.matchedFuncExprs;
-        int numSecondaryKeys = analysisCtx.indexNumMatchedKeys.get(chosenIndex);
+        List<Pair<Integer, Integer>> exprAndVarList = analysisCtx.getIndexExprsFromIndexExprsAndVars(chosenIndex);
+        int numSecondaryKeys = analysisCtx.getNumberOfMatchedKeys(chosenIndex);
         // List of function expressions that will be replaced by the secondary-index search.
         // These func exprs will be removed from the select condition at the very end of this method.
         Set<ILogicalExpression> replacedFuncExprs = new HashSet<>();
@@ -260,53 +257,37 @@ public class BTreeAccessMethod implements IAccessMethod {
         BitSet setHighKeys = new BitSet(numSecondaryKeys);
         // Go through the func exprs listed as optimizable by the chosen index,
         // and formulate a range predicate on the secondary-index keys.
-
-        // checks whether a type casting happened from a real (FLOAT, DOUBLE) value to an INT value
-        // since we have a round issues when dealing with LT(<) OR GT(>) operator.
-        boolean realTypeConvertedToIntegerType;
-
         for (Pair<Integer, Integer> exprIndex : exprAndVarList) {
             // Position of the field of matchedFuncExprs.get(exprIndex) in the chosen index's indexed exprs.
-            IOptimizableFuncExpr optFuncExpr = matchedFuncExprs.get(exprIndex.first);
+            IOptimizableFuncExpr optFuncExpr = analysisCtx.getMatchedFuncExpr(exprIndex.first);
             int keyPos = indexOf(optFuncExpr.getFieldName(0), chosenIndex.getKeyFieldNames());
             if (keyPos < 0 && optFuncExpr.getNumLogicalVars() > 1) {
                 // If we are optimizing a join, the matching field may be the second field name.
                 keyPos = indexOf(optFuncExpr.getFieldName(1), chosenIndex.getKeyFieldNames());
             }
             if (keyPos < 0) {
-                throw new AlgebricksException(
-                        "Could not match optimizable function expression to any index field name.");
+                throw CompilationException.create(ErrorCode.NO_INDEX_FIELD_NAME_FOR_GIVEN_FUNC_EXPR);
             }
-            Pair<ILogicalExpression, Boolean> returnedSearchKeyExpr =
-                    AccessMethodUtils.createSearchKeyExpr(optFuncExpr, indexSubTree, probeSubTree);
+            IAType indexedFieldType = chosenIndex.getKeyFieldTypes().get(keyPos);
+            Pair<ILogicalExpression, Boolean> returnedSearchKeyExpr = AccessMethodUtils.createSearchKeyExpr(chosenIndex,
+                    optFuncExpr, indexedFieldType, indexSubTree, probeSubTree);
             ILogicalExpression searchKeyExpr = returnedSearchKeyExpr.first;
             if (searchKeyExpr.getExpressionTag() == LogicalExpressionTag.FUNCTION_CALL) {
                 constantAtRuntimeExpressions[keyPos] = searchKeyExpr;
                 constAtRuntimeExprVars[keyPos] = context.newVar();
                 searchKeyExpr = new VariableReferenceExpression(constAtRuntimeExprVars[keyPos]);
-
             }
-            realTypeConvertedToIntegerType = returnedSearchKeyExpr.second;
 
             LimitType limit = getLimitType(optFuncExpr, probeSubTree);
+            if (limit == null) {
+                return null;
+            }
 
-            // If a DOUBLE or FLOAT constant is converted to an INT type value,
-            // we need to check a corner case where two real values are located between an INT value.
-            // For example, for the following query,
-            //
-            // for $emp in dataset empDataset
-            // where $emp.age > double("2.3") and $emp.age < double("3.3")
-            // return $emp.id
-            //
-            // It should generate a result if there is a tuple that satisfies the condition, which is 3,
-            // however, it does not generate the desired result since finding candidates
-            // fail after truncating the fraction part (there is no INT whose value is greater than 2 and less than 3.)
-            //
-            // Therefore, we convert LT(<) to LE(<=) and GT(>) to GE(>=) to find candidates.
-            // This does not change the result of an actual comparison since this conversion is only applied
-            // for finding candidates from an index.
-            //
-            if (realTypeConvertedToIntegerType) {
+            // checks whether a type casting happened from a real (FLOAT, DOUBLE) value to an INT value
+            // since we have a round issues when dealing with LT(<) OR GT(>) operator.
+            boolean realTypeConvertedToIntegerType = returnedSearchKeyExpr.second;
+
+            if (relaxLimitTypeToInclusive(chosenIndex, keyPos, realTypeConvertedToIntegerType)) {
                 if (limit == LimitType.HIGH_EXCLUSIVE) {
                     limit = LimitType.HIGH_INCLUSIVE;
                 } else if (limit == LimitType.LOW_EXCLUSIVE) {
@@ -420,7 +401,7 @@ public class BTreeAccessMethod implements IAccessMethod {
             }
             if (!couldntFigureOut) {
                 // Remember to remove this funcExpr later.
-                replacedFuncExprs.add(matchedFuncExprs.get(exprIndex.first).getFuncExpr());
+                replacedFuncExprs.add(analysisCtx.getMatchedFuncExpr(exprIndex.first).getFuncExpr());
             }
             if (doneWithExprs) {
                 break;
@@ -430,22 +411,21 @@ public class BTreeAccessMethod implements IAccessMethod {
             return null;
         }
 
-        // If the select condition contains mixed open/closed intervals on multiple keys, then we make all intervals
-        // closed to obtain a superset of answers and leave the original selection in place.
+        // if we have composite search keys, we should always need a post-processing to ensure the correctness
+        // of search results because of the way a BTree is searched, unless only the last key is a range search.
+        // During a BTree search, we iterate from the start index
+        // (based on the low keys) to the end index (based on the high keys). During the iteration,
+        // we can encounter a lot of false positives
         boolean primaryIndexPostProccessingIsNeeded = false;
-        for (int i = 1; i < numSecondaryKeys; ++i) {
-            if (lowKeyInclusive[i] != lowKeyInclusive[0]) {
-                Arrays.fill(lowKeyInclusive, true);
+        for (int i = 0; i < numSecondaryKeys - 1; i++) {
+            if (!LimitType.EQUAL.equals(lowKeyLimits[i]) || !LimitType.EQUAL.equals(highKeyLimits[i])) {
                 primaryIndexPostProccessingIsNeeded = true;
-                break;
             }
         }
-        for (int i = 1; i < numSecondaryKeys; ++i) {
-            if (highKeyInclusive[i] != highKeyInclusive[0]) {
-                Arrays.fill(highKeyInclusive, true);
-                primaryIndexPostProccessingIsNeeded = true;
-                break;
-            }
+
+        if (primaryIndexPostProccessingIsNeeded) {
+            Arrays.fill(lowKeyInclusive, true);
+            Arrays.fill(highKeyInclusive, true);
         }
 
         // determine cases when prefix search could be applied
@@ -484,15 +464,21 @@ public class BTreeAccessMethod implements IAccessMethod {
         jobGenParams.setLowKeyVarList(keyVarList, 0, numLowKeys);
         jobGenParams.setHighKeyVarList(keyVarList, numLowKeys, numHighKeys);
 
-        ILogicalOperator inputOp = null;
+        ILogicalOperator inputOp;
         if (!assignKeyVarList.isEmpty()) {
             // Assign operator that sets the constant secondary-index search-key fields if necessary.
-            AssignOperator assignConstantSearchKeys = new AssignOperator(assignKeyVarList, assignKeyExprList);
-            // Input to this assign is the EmptyTupleSource (which the dataSourceScan also must have had as input).
-            assignConstantSearchKeys.getInputs().add(new MutableObject<>(
-                    OperatorManipulationUtil.deepCopy(dataSourceOp.getInputs().get(0).getValue())));
-            assignConstantSearchKeys.setExecutionMode(dataSourceOp.getExecutionMode());
-            inputOp = assignConstantSearchKeys;
+            AssignOperator assignSearchKeys = new AssignOperator(assignKeyVarList, assignKeyExprList);
+            if (probeSubTree == null) {
+                // We are optimizing a selection query.
+                // Input to this assign is the EmptyTupleSource (which the dataSourceScan also must have had as input).
+                assignSearchKeys.getInputs().add(new MutableObject<>(
+                        OperatorManipulationUtil.deepCopy(dataSourceOp.getInputs().get(0).getValue())));
+                assignSearchKeys.setExecutionMode(dataSourceOp.getExecutionMode());
+            } else {
+                // We are optimizing a join, place the assign op top of the probe subtree.
+                assignSearchKeys.getInputs().add(probeSubTree.getRootRef());
+            }
+            inputOp = assignSearchKeys;
         } else if (probeSubTree == null) {
             //nonpure case
             //Make sure that the nonpure function is unpartitioned
@@ -717,6 +703,50 @@ public class BTreeAccessMethod implements IAccessMethod {
             }
         }
         return limit;
+    }
+
+    private boolean relaxLimitTypeToInclusive(Index chosenIndex, int keyPos, boolean realTypeConvertedToIntegerType) {
+        // If a DOUBLE or FLOAT constant is converted to an INT type value,
+        // we need to check a corner case where two real values are located between an INT value.
+        // For example, for the following query,
+        //
+        // for $emp in dataset empDataset
+        // where $emp.age > double("2.3") and $emp.age < double("3.3")
+        // return $emp.id
+        //
+        // It should generate a result if there is a tuple that satisfies the condition, which is 3,
+        // however, it does not generate the desired result since finding candidates
+        // fail after truncating the fraction part (there is no INT whose value is greater than 2 and less than 3.)
+        //
+        // Therefore, we convert LT(<) to LE(<=) and GT(>) to GE(>=) to find candidates.
+        // This does not change the result of an actual comparison since this conversion is only applied
+        // for finding candidates from an index.
+        //
+        // We also need to do this for a non-enforced index that overrides key field type (for a numeric type)
+
+        if (realTypeConvertedToIntegerType) {
+            return true;
+        }
+
+        if (chosenIndex.isOverridingKeyFieldTypes() && !chosenIndex.isEnforced()) {
+            IAType indexedKeyType = chosenIndex.getKeyFieldTypes().get(keyPos);
+            if (NonTaggedFormatUtil.isOptional(indexedKeyType)) {
+                indexedKeyType = ((AUnionType) indexedKeyType).getActualType();
+            }
+            switch (indexedKeyType.getTypeTag()) {
+                case TINYINT:
+                case SMALLINT:
+                case INTEGER:
+                case BIGINT:
+                case FLOAT:
+                case DOUBLE:
+                    return true;
+                default:
+                    break;
+            }
+        }
+
+        return false;
     }
 
     private boolean probeIsOnLhs(IOptimizableFuncExpr optFuncExpr, OptimizableOperatorSubTree probeSubTree) {

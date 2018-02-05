@@ -39,14 +39,14 @@ public class LimitOperatorDescriptor extends AbstractSingleActivityOperatorDescr
 
     public LimitOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc, int outputLimit) {
         super(spec, 1, 1);
-        recordDescriptors[0] = rDesc;
+        outRecDescs[0] = rDesc;
         this.outputLimit = outputLimit;
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
-                    throws HyracksDataException {
+            throws HyracksDataException {
 
         return new AbstractUnaryInputUnaryOutputOperatorNodePushable() {
             private FrameTupleAccessor fta;
@@ -55,7 +55,7 @@ public class LimitOperatorDescriptor extends AbstractSingleActivityOperatorDescr
 
             @Override
             public void open() throws HyracksDataException {
-                fta = new FrameTupleAccessor(recordDescriptors[0]);
+                fta = new FrameTupleAccessor(outRecDescs[0]);
                 currentSize = 0;
                 finished = false;
                 writer.open();

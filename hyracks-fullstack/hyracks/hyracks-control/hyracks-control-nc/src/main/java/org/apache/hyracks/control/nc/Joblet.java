@@ -25,9 +25,8 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Logger;
 
-import org.apache.hyracks.api.application.INCApplicationContext;
+import org.apache.hyracks.api.application.INCServiceContext;
 import org.apache.hyracks.api.comm.IPartitionCollector;
 import org.apache.hyracks.api.comm.PartitionChannel;
 import org.apache.hyracks.api.context.IHyracksJobletContext;
@@ -53,19 +52,22 @@ import org.apache.hyracks.api.resources.IDeallocatable;
 import org.apache.hyracks.control.common.deployment.DeploymentUtils;
 import org.apache.hyracks.control.common.job.PartitionRequest;
 import org.apache.hyracks.control.common.job.PartitionState;
+import org.apache.hyracks.control.common.job.profiling.StatsCollector;
 import org.apache.hyracks.control.common.job.profiling.counters.Counter;
 import org.apache.hyracks.control.common.job.profiling.om.JobletProfile;
 import org.apache.hyracks.control.common.job.profiling.om.TaskProfile;
 import org.apache.hyracks.control.nc.io.WorkspaceFileFactory;
 import org.apache.hyracks.control.nc.resources.DefaultDeallocatableRegistry;
 import org.apache.hyracks.control.nc.resources.memory.FrameManager;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class Joblet implements IHyracksJobletContext, ICounterContext {
-    private static final Logger LOGGER = Logger.getLogger(Joblet.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final NodeControllerService nodeController;
 
-    private final INCApplicationContext appCtx;
+    private final INCServiceContext serviceCtx;
 
     private final DeploymentId deploymentId;
 
@@ -99,10 +101,13 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
 
     private boolean cleanupPending;
 
+    private final IJobletEventListenerFactory jobletEventListenerFactory;
+
     public Joblet(NodeControllerService nodeController, DeploymentId deploymentId, JobId jobId,
-            INCApplicationContext appCtx, ActivityClusterGraph acg) {
+            INCServiceContext serviceCtx, ActivityClusterGraph acg,
+            IJobletEventListenerFactory jobletEventListenerFactory) {
         this.nodeController = nodeController;
-        this.appCtx = appCtx;
+        this.serviceCtx = serviceCtx;
         this.deploymentId = deploymentId;
         this.jobId = jobId;
         this.frameManager = new FrameManager(acg.getFrameSize());
@@ -114,11 +119,11 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
         taskMap = new HashMap<>();
         counterMap = new HashMap<>();
         deallocatableRegistry = new DefaultDeallocatableRegistry();
-        fileFactory = new WorkspaceFileFactory(this, appCtx.getIoManager());
+        fileFactory = new WorkspaceFileFactory(this, serviceCtx.getIoManager());
         cleanupPending = false;
-        IJobletEventListenerFactory jelf = acg.getJobletEventListenerFactory();
-        if (jelf != null) {
-            IJobletEventListener listener = jelf.createListener(this);
+        this.jobletEventListenerFactory = jobletEventListenerFactory;
+        if (jobletEventListenerFactory != null) {
+            IJobletEventListener listener = jobletEventListenerFactory.createListener(this);
             this.jobletEventListener = listener;
             listener.jobletStart();
         } else {
@@ -131,6 +136,11 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
     @Override
     public JobId getJobId() {
         return jobId;
+    }
+
+    @Override
+    public IJobletEventListenerFactory getJobletEventListenerFactory() {
+        return jobletEventListenerFactory;
     }
 
     public ActivityClusterGraph getActivityClusterGraph() {
@@ -185,20 +195,18 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
 
     public void dumpProfile(JobletProfile jProfile) {
         Map<String, Long> counters = jProfile.getCounters();
-        for (Map.Entry<String, Counter> e : counterMap.entrySet()) {
-            counters.put(e.getKey(), e.getValue().get());
-        }
+        counterMap.forEach((key, value) -> counters.put(key, value.get()));
         for (Task task : taskMap.values()) {
             TaskProfile taskProfile = new TaskProfile(task.getTaskAttemptId(),
-                    new Hashtable<>(task.getPartitionSendProfile()));
+                    new Hashtable<>(task.getPartitionSendProfile()), new StatsCollector());
             task.dumpProfile(taskProfile);
             jProfile.getTaskProfiles().put(task.getTaskAttemptId(), taskProfile);
         }
     }
 
     @Override
-    public INCApplicationContext getApplicationContext() {
-        return appCtx;
+    public INCServiceContext getServiceContext() {
+        return serviceCtx;
     }
 
     @Override
@@ -214,15 +222,10 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
     public void close() {
         long stillAllocated = memoryAllocation.get();
         if (stillAllocated > 0) {
-            LOGGER.warning("Freeing leaked " + stillAllocated + " bytes");
-            appCtx.getMemoryManager().deallocate(stillAllocated);
+            LOGGER.info(() -> "Freeing leaked " + stillAllocated + " bytes");
+            serviceCtx.getMemoryManager().deallocate(stillAllocated);
         }
-        nodeController.getExecutorService().execute(new Runnable() {
-            @Override
-            public void run() {
-                deallocatableRegistry.close();
-            }
-        });
+        nodeController.getExecutor().execute(() -> deallocatableRegistry.close());
     }
 
     ByteBuffer allocateFrame() throws HyracksDataException {
@@ -230,7 +233,7 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
     }
 
     ByteBuffer allocateFrame(int bytes) throws HyracksDataException {
-        if (appCtx.getMemoryManager().allocate(bytes)) {
+        if (serviceCtx.getMemoryManager().allocate(bytes)) {
             memoryAllocation.addAndGet(bytes);
             return frameManager.allocateFrame(bytes);
         }
@@ -244,7 +247,7 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
 
     void deallocateFrames(int bytes) {
         memoryAllocation.addAndGet(bytes);
-        appCtx.getMemoryManager().deallocate(bytes);
+        serviceCtx.getMemoryManager().deallocate(bytes);
         frameManager.deallocateFrames(bytes);
     }
 
@@ -253,7 +256,7 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
     }
 
     public IIOManager getIOManager() {
-        return appCtx.getIoManager();
+        return serviceCtx.getIoManager();
     }
 
     @Override
@@ -290,7 +293,7 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
         for (PartitionId pid : pids) {
             partitionRequestMap.put(pid, collector);
             PartitionRequest req = new PartitionRequest(pid, nodeController.getId(), taId, minState);
-            nodeController.getClusterController().registerPartitionRequest(req);
+            nodeController.getClusterController(jobId.getCcId()).registerPartitionRequest(req);
         }
     }
 
@@ -318,7 +321,7 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
         close();
         cleanupPending = false;
         try {
-            nodeController.getClusterController().notifyJobletCleanup(jobId, nodeController.getId());
+            nodeController.getClusterController(jobId.getCcId()).notifyJobletCleanup(jobId, nodeController.getId());
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -326,11 +329,12 @@ public class Joblet implements IHyracksJobletContext, ICounterContext {
 
     @Override
     public Class<?> loadClass(String className) throws HyracksException {
-        return DeploymentUtils.loadClass(className, deploymentId, appCtx);
+        return DeploymentUtils.loadClass(className, deploymentId, serviceCtx);
     }
 
     @Override
     public ClassLoader getClassLoader() throws HyracksException {
-        return DeploymentUtils.getClassLoader(deploymentId, appCtx);
+        return DeploymentUtils.getClassLoader(deploymentId, serviceCtx);
     }
+
 }

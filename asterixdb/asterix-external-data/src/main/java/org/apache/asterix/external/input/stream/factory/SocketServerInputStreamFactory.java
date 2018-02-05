@@ -22,13 +22,17 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
+import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.external.api.AsterixInputStream;
 import org.apache.asterix.external.api.IInputStreamFactory;
 import org.apache.asterix.external.input.stream.SocketServerInputStream;
@@ -37,6 +41,7 @@ import org.apache.asterix.runtime.utils.RuntimeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.api.application.IServiceContext;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 
@@ -52,21 +57,22 @@ public class SocketServerInputStreamFactory implements IInputStreamFactory {
     }
 
     @Override
-    public void configure(Map<String, String> configuration) throws AsterixException {
+    public void configure(IServiceContext serviceCtx, Map<String, String> configuration)
+            throws AsterixException, CompilationException {
         try {
-            sockets = new ArrayList<Pair<String, Integer>>();
+            sockets = new ArrayList<>();
             String modeValue = configuration.get(ExternalDataConstants.KEY_MODE);
             if (modeValue != null) {
                 mode = Mode.valueOf(modeValue.trim().toUpperCase());
             }
             String socketsValue = configuration.get(ExternalDataConstants.KEY_SOCKETS);
             if (socketsValue == null) {
-                throw new IllegalArgumentException(
-                        "\'sockets\' parameter not specified as part of adapter configuration");
+                throw new CompilationException(ErrorCode.FEED_METADATA_SOCKET_ADAPTOR_SOCKET_NOT_PROPERLY_CONFIGURED);
             }
             Map<InetAddress, Set<String>> ncMap;
-            ncMap = RuntimeUtils.getNodeControllerMap();
-            List<String> ncs = RuntimeUtils.getAllNodeControllers();
+            ncMap = RuntimeUtils.getNodeControllerMap((ICcApplicationContext) serviceCtx.getApplicationContext());
+            List<String> ncs =
+                    RuntimeUtils.getAllNodeControllers((ICcApplicationContext) serviceCtx.getApplicationContext());
             String[] socketsArray = socketsValue.split(",");
             Random random = new Random();
             for (String socket : socketsArray) {
@@ -78,29 +84,33 @@ public class SocketServerInputStreamFactory implements IInputStreamFactory {
                     case IP:
                         Set<String> ncsOnIp = ncMap.get(InetAddress.getByName(host));
                         if ((ncsOnIp == null) || ncsOnIp.isEmpty()) {
-                            throw new IllegalArgumentException("Invalid host " + host
-                                    + " as it is not part of the AsterixDB cluster. Valid choices are "
-                                    + StringUtils.join(ncMap.keySet(), ", "));
+                            throw new CompilationException(
+                                    ErrorCode.FEED_METADATA_SOCKET_ADAPTOR_SOCKET_INVALID_HOST_NC, "host", host,
+                                    StringUtils.join(ncMap.keySet(), ", "));
                         }
                         String[] ncArray = ncsOnIp.toArray(new String[] {});
                         String nc = ncArray[random.nextInt(ncArray.length)];
-                        p = new Pair<String, Integer>(nc, port);
+                        p = new Pair<>(nc, port);
                         break;
 
                     case NC:
-                        p = new Pair<String, Integer>(host, port);
+                        p = new Pair<>(host, port);
                         if (!ncs.contains(host)) {
-                            throw new IllegalArgumentException("Invalid NC " + host
-                                    + " as it is not part of the AsterixDB cluster. Valid choices are "
-                                    + StringUtils.join(ncs, ", "));
+                            throw new CompilationException(
+                                    ErrorCode.FEED_METADATA_SOCKET_ADAPTOR_SOCKET_INVALID_HOST_NC, "NC", host,
+                                    StringUtils.join(ncs, ", "));
 
                         }
                         break;
                 }
                 sockets.add(p);
             }
-        } catch (Exception e) {
+        } catch (CompilationException e) {
+            throw e;
+        } catch (HyracksDataException | UnknownHostException e) {
             throw new AsterixException(e);
+        } catch (Exception e) {
+            throw new CompilationException(ErrorCode.FEED_METADATA_SOCKET_ADAPTOR_SOCKET_NOT_PROPERLY_CONFIGURED);
         }
     }
 
@@ -114,13 +124,13 @@ public class SocketServerInputStreamFactory implements IInputStreamFactory {
             server.bind(new InetSocketAddress(socket.second));
             return new SocketServerInputStream(server);
         } catch (IOException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
     @Override
     public AlgebricksAbsolutePartitionConstraint getPartitionConstraint() {
-        List<String> locations = new ArrayList<String>();
+        List<String> locations = new ArrayList<>();
         for (Pair<String, Integer> socket : sockets) {
             locations.add(socket.first);
         }

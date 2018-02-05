@@ -25,6 +25,8 @@
 
 use dataverse test;
 
+set "compiler.groupmemory" "32MB"
+
 for $i in dataset('Line')
 group by $partkey := $i.l_partkey with $i
 order by $partkey

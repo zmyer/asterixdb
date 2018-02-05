@@ -1,13 +1,13 @@
 DataverseUse TinySocial
 Query:
 SELECT ELEMENT [
-FunctionCall TinySocial.count@1[
+FunctionCall asterix.count@1[
   (
     SELECT ELEMENT [
     Variable [ Name=$fbu ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [FacebookUsers]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [TinySocial.FacebookUsers]
       ]
       AS Variable [ Name=$fbu ]
     ]

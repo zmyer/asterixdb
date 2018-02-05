@@ -19,16 +19,11 @@
 package org.apache.asterix.tools.datagen;
 
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,14 +46,12 @@ import org.apache.asterix.common.annotations.RecordDataGenAnnotation;
 import org.apache.asterix.common.annotations.TypeDataGen;
 import org.apache.asterix.common.annotations.UndeclaredFieldsDataGen;
 import org.apache.asterix.common.exceptions.ACIDException;
-import org.apache.asterix.common.exceptions.AsterixException;
-import org.apache.asterix.common.transactions.JobId;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.lang.aql.parser.AQLParserFactory;
 import org.apache.asterix.lang.aql.parser.ParseException;
 import org.apache.asterix.lang.common.base.IParser;
 import org.apache.asterix.lang.common.base.IParserFactory;
 import org.apache.asterix.lang.common.base.Statement;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.MetadataTransactionContext;
 import org.apache.asterix.om.types.ARecordType;
 import org.apache.asterix.om.types.ATypeTag;
@@ -68,6 +61,7 @@ import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.types.TypeSignature;
 import org.apache.asterix.om.utils.NonTaggedFormatUtil;
+import org.apache.asterix.test.base.AsterixTestHelper;
 import org.apache.asterix.tools.translator.ADGenDmlTranslator;
 import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.exceptions.NotImplementedException;
@@ -221,7 +215,7 @@ public class AdmDataGen {
             this.act = act;
             this.min = min;
             this.max = max;
-            if (act.getTypeTag() == ATypeTag.ORDEREDLIST) {
+            if (act.getTypeTag() == ATypeTag.ARRAY) {
                 startList = "[";
                 endList = "]";
             } else {
@@ -244,7 +238,7 @@ public class AdmDataGen {
         public void init(PrintStream out, DataGeneratorContext ctx) throws Exception {
             super.init(out, ctx);
             IAType t = act.getItemType();
-            if (t.getTypeTag() != ATypeTag.RECORD) {
+            if (t.getTypeTag() != ATypeTag.OBJECT) {
                 throw new NotImplementedException("list annotation only works with record item types for now.");
             }
             ARecordType rt = (ARecordType) t;
@@ -678,7 +672,7 @@ public class AdmDataGen {
                     }
                     IRecordFieldDataGen rfdg = annot.getDeclaredFieldsDatagen()[i];
                     if (rfdg == null) {
-                        if (ti.getTypeTag() == ATypeTag.RECORD) {
+                        if (ti.getTypeTag() == ATypeTag.OBJECT) {
                             ARecordType rt = (ARecordType) ti;
                             RecordDataGenAnnotation dga = null;
                             for (IRecordTypeAnnotation annot : rt.getAnnotations()) {
@@ -726,13 +720,13 @@ public class AdmDataGen {
                                 a = readFileAsStringArray(lvf.getFile());
                                 ctx.getFileToLoadedDataMap().put(lvf.getFile(), a);
                             }
-                            if (ti.getTypeTag() != ATypeTag.ORDEREDLIST && ti.getTypeTag() != ATypeTag.UNORDEREDLIST) {
+                            if (ti.getTypeTag() != ATypeTag.ARRAY && ti.getTypeTag() != ATypeTag.MULTISET) {
                                 throw new Exception(
                                         "list-val-file annotation cannot be used for field of type " + ti.getTypeTag());
                             }
                             AbstractCollectionType act = (AbstractCollectionType) ti;
-                            declaredFieldsGenerators[i] = new ListFromArrayGenerator(act, a, lvf.getMin(),
-                                    lvf.getMax());
+                            declaredFieldsGenerators[i] =
+                                    new ListFromArrayGenerator(act, a, lvf.getMin(), lvf.getMax());
                             break;
                         }
                         case VALFILESAMEINDEX: {
@@ -778,9 +772,9 @@ public class AdmDataGen {
                             }
                             switch (fi.getValueType()) {
                                 case INT: {
-                                    declaredFieldsGenerators[i] = new IntIntervalGenerator(
-                                            Integer.parseInt(fi.getMin()), Integer.parseInt(fi.getMax()), prefix,
-                                            suffix);
+                                    declaredFieldsGenerators[i] =
+                                            new IntIntervalGenerator(Integer.parseInt(fi.getMin()),
+                                                    Integer.parseInt(fi.getMax()), prefix, suffix);
                                     break;
                                 }
                                 case LONG: {
@@ -789,9 +783,9 @@ public class AdmDataGen {
                                     break;
                                 }
                                 case DOUBLE: {
-                                    declaredFieldsGenerators[i] = new DoubleIntervalGenerator(
-                                            Double.parseDouble(fi.getMin()), Double.parseDouble(fi.getMax()), prefix,
-                                            suffix);
+                                    declaredFieldsGenerators[i] =
+                                            new DoubleIntervalGenerator(Double.parseDouble(fi.getMin()),
+                                                    Double.parseDouble(fi.getMax()), prefix, suffix);
                                     break;
                                 }
                                 default: {
@@ -807,7 +801,7 @@ public class AdmDataGen {
                         }
                         case LIST: {
                             ListDataGen l = (ListDataGen) rfdg;
-                            if (ti.getTypeTag() != ATypeTag.ORDEREDLIST && ti.getTypeTag() != ATypeTag.UNORDEREDLIST) {
+                            if (ti.getTypeTag() != ATypeTag.ARRAY && ti.getTypeTag() != ATypeTag.MULTISET) {
                                 throw new Exception(
                                         "list-val-file annotation cannot be used for field of type " + ti.getTypeTag());
                             }
@@ -817,14 +811,14 @@ public class AdmDataGen {
                         }
                         case DATEBETWEENYEARS: {
                             DateBetweenYearsDataGen dby = (DateBetweenYearsDataGen) rfdg;
-                            declaredFieldsGenerators[i] = new DateBetweenYearsGenerator(dby.getMinYear(),
-                                    dby.getMaxYear());
+                            declaredFieldsGenerators[i] =
+                                    new DateBetweenYearsGenerator(dby.getMinYear(), dby.getMaxYear());
                             break;
                         }
                         case DATETIMEBETWEENYEARS: {
                             DatetimeBetweenYearsDataGen dtby = (DatetimeBetweenYearsDataGen) rfdg;
-                            declaredFieldsGenerators[i] = new DatetimeBetweenYearsGenerator(dtby.getMinYear(),
-                                    dtby.getMaxYear());
+                            declaredFieldsGenerators[i] =
+                                    new DatetimeBetweenYearsGenerator(dtby.getMinYear(), dtby.getMaxYear());
                             break;
                         }
                         case DATETIMEADDRANDHOURS: {
@@ -846,21 +840,21 @@ public class AdmDataGen {
                                 throw new Exception("Couldn't find field " + dtarh.getAddToField() + " before field "
                                         + recType.getFieldNames()[i]);
                             }
-                            declaredFieldsGenerators[i] = new DatetimeAddRandHoursGenerator(dtarh.getMinHour(),
-                                    dtarh.getMaxHour(), adtg);
+                            declaredFieldsGenerators[i] =
+                                    new DatetimeAddRandHoursGenerator(dtarh.getMinHour(), dtarh.getMaxHour(), adtg);
                             break;
                         }
                         case AUTO: {
                             AutoDataGen auto = (AutoDataGen) rfdg;
                             switch (ti.getTypeTag()) {
-                                case INT32: {
-                                    declaredFieldsGenerators[i] = new IntAutoGenerator(
-                                            Integer.parseInt(auto.getInitValueStr()));
+                                case INTEGER: {
+                                    declaredFieldsGenerators[i] =
+                                            new IntAutoGenerator(Integer.parseInt(auto.getInitValueStr()));
                                     break;
                                 }
-                                case INT64: {
-                                    declaredFieldsGenerators[i] = new LongAutoGenerator(
-                                            Long.parseLong(auto.getInitValueStr()));
+                                case BIGINT: {
+                                    declaredFieldsGenerators[i] =
+                                            new LongAutoGenerator(Long.parseLong(auto.getInitValueStr()));
                                     break;
                                 }
                                 default: {
@@ -885,9 +879,9 @@ public class AdmDataGen {
                     if (!recType.isOpen()) {
                         throw new Exception("Cannot generate undeclared fields for closed type " + recType);
                     }
-                    undeclaredFieldsGenerator = new GenFieldsIntGenerator(declaredFieldsGenerators.length,
-                            ufdg.getMinUndeclaredFields(), ufdg.getMaxUndeclaredFields(),
-                            ufdg.getUndeclaredFieldsPrefix());
+                    undeclaredFieldsGenerator =
+                            new GenFieldsIntGenerator(declaredFieldsGenerators.length, ufdg.getMinUndeclaredFields(),
+                                    ufdg.getMaxUndeclaredFields(), ufdg.getUndeclaredFieldsPrefix());
                 }
             }
             if (undeclaredFieldsGenerator != null) {
@@ -941,14 +935,13 @@ public class AdmDataGen {
         this.outputDir = outputDir;
     }
 
-    public void init() throws IOException, ParseException, AsterixException, ACIDException, MetadataException,
-            AlgebricksException {
+    public void init() throws IOException, ParseException, ACIDException, AlgebricksException {
         FileReader aql = new FileReader(schemaFile);
         IParser parser = parserFactory.createParser(aql);
         List<Statement> statements = parser.parse();
         aql.close();
         // TODO: Need to fix how to use transactions here.
-        MetadataTransactionContext mdTxnCtx = new MetadataTransactionContext(new JobId(-1));
+        MetadataTransactionContext mdTxnCtx = new MetadataTransactionContext(new TxnId(-1));
         ADGenDmlTranslator dmlt = new ADGenDmlTranslator(mdTxnCtx, statements);
         dmlt.translate();
         typeMap = dmlt.getTypeMap();
@@ -963,7 +956,7 @@ public class AdmDataGen {
             if (tdg.isDataGen()) {
                 IAType t = me.getValue();
 
-                if (t.getTypeTag() != ATypeTag.RECORD) {
+                if (t.getTypeTag() != ATypeTag.OBJECT) {
                     throw new NotImplementedException();
                 }
                 ARecordType rt = (ARecordType) t;
@@ -993,16 +986,7 @@ public class AdmDataGen {
     }
 
     private static String[] readFileAsStringArray(File file) throws IOException {
-        List<String> tmp = new ArrayList<String>();
-        FileInputStream fstream = new FileInputStream(file);
-        DataInputStream in = new DataInputStream(fstream);
-        BufferedReader br = new BufferedReader(new InputStreamReader(in));
-        String strLine;
-        while ((strLine = br.readLine()) != null) {
-            tmp.add(strLine);
-        }
-        in.close();
-        return tmp.toArray(new String[0]);
+        return AsterixTestHelper.readTestListFile(file).toArray(new String[0]);
     }
 
     private static String getConstructor(IAType t) throws Exception {

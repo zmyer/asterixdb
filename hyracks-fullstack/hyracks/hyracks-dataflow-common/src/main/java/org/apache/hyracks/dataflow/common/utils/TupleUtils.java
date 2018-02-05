@@ -36,7 +36,8 @@ import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDese
 public class TupleUtils {
     @SuppressWarnings("unchecked")
     public static void createTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple,
-            ISerializerDeserializer[] fieldSerdes, final Object... fields) throws HyracksDataException {
+            ISerializerDeserializer[] fieldSerdes, boolean filtered, final Object... fields)
+            throws HyracksDataException {
         DataOutput dos = tupleBuilder.getDataOutput();
         tupleBuilder.reset();
         int numFields = Math.min(tupleBuilder.getFieldEndOffsets().length, fields.length);
@@ -44,7 +45,17 @@ public class TupleUtils {
             fieldSerdes[i].serialize(fields[i], dos);
             tupleBuilder.addFieldEndOffset();
         }
+        if (filtered) {
+            fieldSerdes[0].serialize(fields[0], dos);
+            tupleBuilder.addFieldEndOffset();
+        }
         tuple.reset(tupleBuilder.getFieldEndOffsets(), tupleBuilder.getByteArray());
+    }
+
+    public static void createTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple,
+            ISerializerDeserializer[] fieldSerdes, final Object... fields) throws HyracksDataException {
+        createTuple(tupleBuilder, tuple, fieldSerdes, false, fields);
+
     }
 
     public static ITupleReference createTuple(ISerializerDeserializer[] fieldSerdes, final Object... fields)
@@ -55,7 +66,7 @@ public class TupleUtils {
         return tuple;
     }
 
-    public static void createIntegerTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple,
+    public static void createIntegerTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple, boolean filtered,
             final int... fields) throws HyracksDataException {
         DataOutput dos = tupleBuilder.getDataOutput();
         tupleBuilder.reset();
@@ -63,14 +74,29 @@ public class TupleUtils {
             IntegerSerializerDeserializer.INSTANCE.serialize(i, dos);
             tupleBuilder.addFieldEndOffset();
         }
+        if (filtered) {
+            IntegerSerializerDeserializer.INSTANCE.serialize(fields[0], dos);
+            tupleBuilder.addFieldEndOffset();
+        }
         tuple.reset(tupleBuilder.getFieldEndOffsets(), tupleBuilder.getByteArray());
     }
 
-    public static ITupleReference createIntegerTuple(final int... fields) throws HyracksDataException {
-        ArrayTupleBuilder tupleBuilder = new ArrayTupleBuilder(fields.length);
+    public static void createIntegerTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple,
+            final int... fields) throws HyracksDataException {
+        createIntegerTuple(tupleBuilder, tuple, false, fields);
+    }
+
+    public static ITupleReference createIntegerTuple(boolean filtered, final int... fields)
+            throws HyracksDataException {
+        ArrayTupleBuilder tupleBuilder =
+                filtered ? new ArrayTupleBuilder(fields.length + 1) : new ArrayTupleBuilder(fields.length);
         ArrayTupleReference tuple = new ArrayTupleReference();
         createIntegerTuple(tupleBuilder, tuple, fields);
         return tuple;
+    }
+
+    public static ITupleReference createIntegerTuple(final int... fields) throws HyracksDataException {
+        return createIntegerTuple(false, fields);
     }
 
     public static void createDoubleTuple(ArrayTupleBuilder tupleBuilder, ArrayTupleReference tuple,
@@ -96,8 +122,8 @@ public class TupleUtils {
         StringBuilder strBuilder = new StringBuilder();
         int numPrintFields = Math.min(tuple.getFieldCount(), fields.length);
         for (int i = 0; i < numPrintFields; i++) {
-            ByteArrayInputStream inStream = new ByteArrayInputStream(tuple.getFieldData(i), tuple.getFieldStart(i),
-                    tuple.getFieldLength(i));
+            ByteArrayInputStream inStream =
+                    new ByteArrayInputStream(tuple.getFieldData(i), tuple.getFieldStart(i), tuple.getFieldLength(i));
             DataInput dataIn = new DataInputStream(inStream);
             Object o = fields[i].deserialize(dataIn);
             strBuilder.append(o.toString());
@@ -113,8 +139,8 @@ public class TupleUtils {
         int numFields = Math.min(tuple.getFieldCount(), fields.length);
         Object[] objs = new Object[numFields];
         for (int i = 0; i < numFields; i++) {
-            ByteArrayInputStream inStream = new ByteArrayInputStream(tuple.getFieldData(i), tuple.getFieldStart(i),
-                    tuple.getFieldLength(i));
+            ByteArrayInputStream inStream =
+                    new ByteArrayInputStream(tuple.getFieldData(i), tuple.getFieldStart(i), tuple.getFieldLength(i));
             DataInput dataIn = new DataInputStream(inStream);
             objs[i] = fields[i].deserialize(dataIn);
         }
@@ -131,7 +157,8 @@ public class TupleUtils {
         return tupleCopy;
     }
 
-    public static void copyTuple(ArrayTupleBuilder tupleBuilder, ITupleReference tuple, int numFields) throws HyracksDataException {
+    public static void copyTuple(ArrayTupleBuilder tupleBuilder, ITupleReference tuple, int numFields)
+            throws HyracksDataException {
         tupleBuilder.reset();
         for (int i = 0; i < numFields; i++) {
             tupleBuilder.addField(tuple.getFieldData(i), tuple.getFieldStart(i), tuple.getFieldLength(i));

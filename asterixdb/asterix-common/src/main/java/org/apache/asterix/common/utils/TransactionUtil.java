@@ -29,32 +29,27 @@ import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 
 public class TransactionUtil {
 
-    public static final boolean PROFILE_MODE = false;
-
     private TransactionUtil() {
     }
 
     public static void formJobTerminateLogRecord(ITransactionContext txnCtx, LogRecord logRecord, boolean isCommit) {
         logRecord.setTxnCtx(txnCtx);
-        TransactionUtil.formJobTerminateLogRecord(logRecord, txnCtx.getJobId().getId(), isCommit);
+        TransactionUtil.formJobTerminateLogRecord(logRecord, txnCtx.getTxnId().getId(), isCommit);
     }
 
-    public static void formJobTerminateLogRecord(LogRecord logRecord, int jobId, boolean isCommit) {
+    public static void formJobTerminateLogRecord(LogRecord logRecord, long txnId, boolean isCommit) {
         logRecord.setLogType(isCommit ? LogType.JOB_COMMIT : LogType.ABORT);
         logRecord.setDatasetId(-1);
         logRecord.setPKHashValue(-1);
-        logRecord.setJobId(jobId);
+        logRecord.setTxnId(txnId);
         logRecord.computeAndSetLogSize();
     }
 
-    public static void formFlushLogRecord(LogRecord logRecord, int datasetId, PrimaryIndexOperationTracker opTracker,
-            String nodeId, int numberOfIndexes) {
+    public static void formFlushLogRecord(LogRecord logRecord, int datasetId, PrimaryIndexOperationTracker opTracker) {
         logRecord.setLogType(LogType.FLUSH);
-        logRecord.setJobId(-1);
+        logRecord.setTxnId(-1);
         logRecord.setDatasetId(datasetId);
         logRecord.setOpTracker(opTracker);
-        logRecord.setNumOfFlushedIndexes(numberOfIndexes);
-        logRecord.setNodeId(nodeId);
         logRecord.computeAndSetLogSize();
     }
 
@@ -62,7 +57,7 @@ public class TransactionUtil {
             int PKHashValue, ITupleReference PKValue, int[] PKFields, int resourcePartition, byte entityCommitType) {
         logRecord.setTxnCtx(txnCtx);
         logRecord.setLogType(entityCommitType);
-        logRecord.setJobId(txnCtx.getJobId().getId());
+        logRecord.setTxnId(txnCtx.getTxnId().getId());
         logRecord.setDatasetId(datasetId);
         logRecord.setPKHashValue(PKHashValue);
         logRecord.setPKFieldCnt(PKFields.length);
@@ -78,7 +73,7 @@ public class TransactionUtil {
         logRecord.setTxnCtx(txnCtx);
         logRecord.setLogSource(LogSource.LOCAL);
         logRecord.setLogType(LogType.MARKER);
-        logRecord.setJobId(txnCtx.getJobId().getId());
+        logRecord.setTxnId(txnCtx.getTxnId().getId());
         logRecord.setDatasetId(datasetId);
         logRecord.setResourcePartition(resourcePartition);
         marker.get(); // read the first byte since it is not part of the marker object

@@ -1,4 +1,0 @@
-use dataverse experiments;
-
-let $count := count(for $t in dataset Tweets return $t.tweetid)
-return $count;

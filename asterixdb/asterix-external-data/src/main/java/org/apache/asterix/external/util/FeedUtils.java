@@ -24,11 +24,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.asterix.common.api.IClusterManagementWork;
 import org.apache.asterix.common.cluster.ClusterPartition;
-import org.apache.asterix.common.config.ClusterProperties;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.common.utils.StoragePathUtil;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksPartitionConstraint.PartitionConstraintType;
@@ -63,9 +63,9 @@ public class FeedUtils {
     }
 
     public enum Mode {
-        PROCESS,            // There is memory
-        SPILL,              // Memory budget has been consumed. Now we're writing to disk
-        DISCARD             // Memory and Disk space budgets have been consumed. Now we're discarding
+        PROCESS, // There is memory
+        SPILL, // Memory budget has been consumed. Now we're writing to disk
+        DISCARD // Memory and Disk space budgets have been consumed. Now we're discarding
     }
 
     private FeedUtils() {
@@ -78,16 +78,14 @@ public class FeedUtils {
     public static FileSplit splitsForAdapter(String dataverseName, String feedName, String nodeName,
             ClusterPartition partition) {
         File relPathFile = new File(prepareDataverseFeedName(dataverseName, feedName));
-        String storageDirName = ClusterProperties.INSTANCE.getStorageDirectoryName();
-        String storagePartitionPath =
-                StoragePathUtil.prepareStoragePartitionPath(storageDirName, partition.getPartitionId());
+        String storagePartitionPath = StoragePathUtil.prepareStoragePartitionPath(partition.getPartitionId());
         // Note: feed adapter instances in a single node share the feed logger
         // format: 'storage dir name'/partition_#/dataverse/feed/node
         File f = new File(storagePartitionPath + File.separator + relPathFile + File.separator + nodeName);
         return StoragePathUtil.getFileSplitForClusterPartition(partition, f.getPath());
     }
 
-    public static FileSplit[] splitsForAdapter(String dataverseName, String feedName,
+    public static FileSplit[] splitsForAdapter(ICcApplicationContext appCtx, String dataverseName, String feedName,
             AlgebricksPartitionConstraint partitionConstraints) throws AsterixException {
         if (partitionConstraints.getPartitionConstraintType() == PartitionConstraintType.COUNT) {
             throw new AsterixException("Can't create file splits for adapter with count partitioning constraints");
@@ -96,7 +94,7 @@ public class FeedUtils {
         List<FileSplit> splits = new ArrayList<>();
         for (String nd : locations) {
             splits.add(splitsForAdapter(dataverseName, feedName, nd,
-                    ClusterStateManager.INSTANCE.getNodePartitions(nd)[0]));
+                    appCtx.getClusterStateManager().getNodePartitions(nd)[0]));
         }
         return splits.toArray(new FileSplit[] {});
     }
@@ -108,13 +106,13 @@ public class FeedUtils {
     public static FeedLogManager getFeedLogManager(IHyracksTaskContext ctx, int partition,
             FileSplit[] feedLogFileSplits) throws HyracksDataException {
         return new FeedLogManager(
-                FeedUtils.getAbsoluteFileRef(feedLogFileSplits[partition].getPath(), 0, ctx.getIOManager()).getFile());
+                FeedUtils.getAbsoluteFileRef(feedLogFileSplits[partition].getPath(), 0, ctx.getIoManager()).getFile());
     }
 
     public static FeedLogManager getFeedLogManager(IHyracksTaskContext ctx, FileSplit feedLogFileSplit)
             throws HyracksDataException {
-        return new FeedLogManager(FeedUtils.getAbsoluteFileRef(feedLogFileSplit.getPath(),
-                0, ctx.getIOManager()).getFile());
+        return new FeedLogManager(
+                FeedUtils.getAbsoluteFileRef(feedLogFileSplit.getPath(), 0, ctx.getIoManager()).getFile());
     }
 
     public static void processFeedMessage(ByteBuffer input, VSizeFrame message, FrameTupleAccessor fta)

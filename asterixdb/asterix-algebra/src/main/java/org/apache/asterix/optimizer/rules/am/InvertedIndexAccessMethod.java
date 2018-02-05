@@ -27,7 +27,8 @@ import java.util.Map;
 
 import org.apache.asterix.common.annotations.SkipSecondaryIndexSearchExpressionAnnotation;
 import org.apache.asterix.common.config.DatasetConfig.IndexType;
-import org.apache.asterix.common.exceptions.AsterixException;
+import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.dataflow.data.common.ExpressionTypeComputer;
 import org.apache.asterix.formats.nontagged.BinaryTokenizerFactoryProvider;
 import org.apache.asterix.lang.common.util.FunctionUtil;
@@ -80,6 +81,7 @@ import org.apache.hyracks.algebricks.core.algebra.operators.logical.UnnestOperat
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.LogicalOperatorDeepCopyWithNewVariablesVisitor;
 import org.apache.hyracks.algebricks.core.algebra.operators.logical.visitors.VariableUtilities;
 import org.apache.hyracks.algebricks.core.algebra.util.OperatorManipulationUtil;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedIndexSearchModifierFactory;
 import org.apache.hyracks.storage.am.lsm.invertedindex.search.ConjunctiveEditDistanceSearchModifierFactory;
 import org.apache.hyracks.storage.am.lsm.invertedindex.search.ConjunctiveListEditDistanceSearchModifierFactory;
@@ -135,17 +137,17 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     @Override
-    public boolean analyzeFuncExprArgs(AbstractFunctionCallExpression funcExpr,
+    public boolean analyzeFuncExprArgsAndUpdateAnalysisCtx(AbstractFunctionCallExpression funcExpr,
             List<AbstractLogicalOperator> assignsAndUnnests, AccessMethodAnalysisContext analysisCtx,
             IOptimizationContext context, IVariableTypeEnvironment typeEnvironment) throws AlgebricksException {
 
         if (funcExpr.getFunctionIdentifier() == BuiltinFunctions.STRING_CONTAINS
                 || funcExpr.getFunctionIdentifier() == BuiltinFunctions.FULLTEXT_CONTAINS
                 || funcExpr.getFunctionIdentifier() == BuiltinFunctions.FULLTEXT_CONTAINS_WO_OPTION) {
-            boolean matches = AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVar(funcExpr, analysisCtx, context,
-                    typeEnvironment);
+            boolean matches = AccessMethodUtils.analyzeFuncExprArgsForOneConstAndVarAndUpdateAnalysisCtx(funcExpr,
+                    analysisCtx, context, typeEnvironment);
             if (!matches) {
-                matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVars(funcExpr, analysisCtx);
+                matches = AccessMethodUtils.analyzeFuncExprArgsForTwoVarsAndUpdateAnalysisCtx(funcExpr, analysisCtx);
             }
             return matches;
         }
@@ -154,7 +156,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
 
     public boolean analyzeGetItemFuncExpr(AbstractFunctionCallExpression funcExpr,
             List<AbstractLogicalOperator> assignsAndUnnests, AccessMethodAnalysisContext analysisCtx)
-                    throws AlgebricksException {
+            throws AlgebricksException {
         if (funcExpr.getFunctionIdentifier() != BuiltinFunctions.GET_ITEM) {
             return false;
         }
@@ -211,8 +213,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                         if (unnestFuncExpr.getFunctionIdentifier() != BuiltinFunctions.SCAN_COLLECTION) {
                             return false;
                         }
-                        matchedFuncExpr = (AbstractFunctionCallExpression) unnestFuncExpr.getArguments().get(0)
-                                .getValue();
+                        matchedFuncExpr =
+                                (AbstractFunctionCallExpression) unnestFuncExpr.getArguments().get(0).getValue();
                     }
                 }
                 // We've already found a match.
@@ -252,26 +254,26 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                 || arg2.getExpressionTag() == LogicalExpressionTag.CONSTANT) {
             return false;
         }
-        LogicalVariable fieldVarExpr1 = getNonConstArgFieldExprPair(arg1, funcExpr, assignsAndUnnests,
-                matchedAssignOrUnnestIndex);
+        LogicalVariable fieldVarExpr1 =
+                getNonConstArgFieldExprPair(arg1, funcExpr, assignsAndUnnests, matchedAssignOrUnnestIndex);
         if (fieldVarExpr1 == null) {
             return false;
         }
-        LogicalVariable fieldVarExpr2 = getNonConstArgFieldExprPair(arg2, funcExpr, assignsAndUnnests,
-                matchedAssignOrUnnestIndex);
+        LogicalVariable fieldVarExpr2 =
+                getNonConstArgFieldExprPair(arg2, funcExpr, assignsAndUnnests, matchedAssignOrUnnestIndex);
         if (fieldVarExpr2 == null) {
             return false;
         }
         OptimizableFuncExpr newOptFuncExpr = new OptimizableFuncExpr(funcExpr,
                 new LogicalVariable[] { fieldVarExpr1, fieldVarExpr2 }, new ILogicalExpression[] { arg3 },
                 new IAType[] { (IAType) ExpressionTypeComputer.INSTANCE.getType(arg3, null, null) });
-        for (IOptimizableFuncExpr optFuncExpr : analysisCtx.matchedFuncExprs) {
+        for (IOptimizableFuncExpr optFuncExpr : analysisCtx.getMatchedFuncExprs()) {
             //avoid additional optFuncExpressions in case of a join
             if (optFuncExpr.getFuncExpr().equals(funcExpr)) {
                 return true;
             }
         }
-        analysisCtx.matchedFuncExprs.add(newOptFuncExpr);
+        analysisCtx.addMatchedFuncExpr(newOptFuncExpr);
         return true;
     }
 
@@ -305,8 +307,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         } else {
             return false;
         }
-        LogicalVariable fieldVarExpr = getNonConstArgFieldExprPair(nonConstArg, funcExpr, assignsAndUnnests,
-                matchedAssignOrUnnestIndex);
+        LogicalVariable fieldVarExpr =
+                getNonConstArgFieldExprPair(nonConstArg, funcExpr, assignsAndUnnests, matchedAssignOrUnnestIndex);
         if (fieldVarExpr == null) {
             return false;
         }
@@ -315,13 +317,13 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                 new ILogicalExpression[] { constArg, arg3 },
                 new IAType[] { (IAType) ExpressionTypeComputer.INSTANCE.getType(constArg, null, null),
                         (IAType) ExpressionTypeComputer.INSTANCE.getType(arg3, null, null) });
-        for (IOptimizableFuncExpr optFuncExpr : analysisCtx.matchedFuncExprs) {
+        for (IOptimizableFuncExpr optFuncExpr : analysisCtx.getMatchedFuncExprs()) {
             //avoid additional optFuncExpressions in case of a join
             if (optFuncExpr.getFuncExpr().equals(funcExpr)) {
                 return true;
             }
         }
-        analysisCtx.matchedFuncExprs.add(newOptFuncExpr);
+        analysisCtx.addMatchedFuncExpr(newOptFuncExpr);
         return true;
     }
 
@@ -386,9 +388,9 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         // we made sure indexSubTree has datasource scan
         DataSourceScanOperator dataSourceScan = (DataSourceScanOperator) indexSubTree.getDataSourceRef().getValue();
 
-        InvertedIndexJobGenParams jobGenParams = new InvertedIndexJobGenParams(chosenIndex.getIndexName(),
-                chosenIndex.getIndexType(), dataset.getDataverseName(), dataset.getDatasetName(), retainInput,
-                requiresBroadcast);
+        InvertedIndexJobGenParams jobGenParams =
+                new InvertedIndexJobGenParams(chosenIndex.getIndexName(), chosenIndex.getIndexType(),
+                        dataset.getDataverseName(), dataset.getDatasetName(), retainInput, requiresBroadcast);
         // Add function-specific args such as search modifier, and possibly a similarity threshold.
         addFunctionSpecificArgs(optFuncExpr, jobGenParams);
         // Add the type of search key from the optFuncExpr.
@@ -422,9 +424,9 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                 metaRecordType, chosenIndex, inputOp, jobGenParams, context, true, retainInput, retainNull);
 
         // Generate the rest of the upstream plan which feeds the search results into the primary index.
-        AbstractUnnestMapOperator primaryIndexUnnestOp = AccessMethodUtils.createPrimaryIndexUnnestMap(dataSourceScan,
-                dataset, recordType, metaRecordType, secondaryIndexUnnestOp, context, true, retainInput, retainNull,
-                false);
+        AbstractUnnestMapOperator primaryIndexUnnestOp =
+                AccessMethodUtils.createPrimaryIndexUnnestMap(dataSourceScan, dataset, recordType, metaRecordType,
+                        secondaryIndexUnnestOp, context, true, retainInput, retainNull, false);
 
         return primaryIndexUnnestOp;
     }
@@ -466,7 +468,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             AccessMethodAnalysisContext analysisCtx, IOptimizationContext context, boolean isLeftOuterJoin,
             boolean hasGroupBy) throws AlgebricksException {
         // Figure out if the index is applicable on the left or right side (if both, we arbitrarily prefer the left side).
-        Dataset dataset = analysisCtx.indexDatasetMap.get(chosenIndex);
+        Dataset dataset = analysisCtx.getDatasetFromIndexDatasetMap(chosenIndex);
         OptimizableOperatorSubTree indexSubTree;
         OptimizableOperatorSubTree probeSubTree;
 
@@ -524,8 +526,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         Mutable<ILogicalOperator> panicJoinRef = null;
         Map<LogicalVariable, LogicalVariable> panicVarMap = null;
         if (optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CHECK
-                || optFuncExpr.getFuncExpr()
-                        .getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
+                || optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
             panicJoinRef = new MutableObject<>(joinRef.getValue());
             panicVarMap = new HashMap<>();
             Mutable<ILogicalOperator> newProbeRootRef = createPanicNestedLoopJoinPlan(panicJoinRef, indexSubTree,
@@ -575,8 +576,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         // Place a top-level equi-join on top to retrieve the missing variables from the original probe subtree.
         // The inner (build) branch of the join is the subtree with the data scan, since the result of the similarity join could potentially be big.
         // This choice may not always be the most efficient, but it seems more robust than the alternative.
-        Mutable<ILogicalExpression> eqJoinConditionRef = createPrimaryKeysEqJoinCondition(originalSubTreePKs,
-                surrogateSubTreePKs);
+        Mutable<ILogicalExpression> eqJoinConditionRef =
+                createPrimaryKeysEqJoinCondition(originalSubTreePKs, surrogateSubTreePKs);
         InnerJoinOperator topEqJoin = new InnerJoinOperator(eqJoinConditionRef, originalProbeSubTreeRootRef,
                 new MutableObject<ILogicalOperator>(topOp));
         topEqJoin.setExecutionMode(ExecutionMode.PARTITIONED);
@@ -595,7 +596,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             ILogicalExpression joinCond, IOptimizableFuncExpr optFuncExpr, List<LogicalVariable> originalSubTreePKs,
             List<LogicalVariable> surrogateSubTreePKs, IOptimizationContext context) throws AlgebricksException {
 
-        probeSubTree.getPrimaryKeyVars(originalSubTreePKs);
+        probeSubTree.getPrimaryKeyVars(null, originalSubTreePKs);
 
         // Create two copies of the original probe subtree.
         // The first copy, which becomes the new probe subtree, will retain the primary-key and secondary-search key variables,
@@ -626,14 +627,14 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         }
 
         // Create first copy.
-        LogicalOperatorDeepCopyWithNewVariablesVisitor firstDeepCopyVisitor = new LogicalOperatorDeepCopyWithNewVariablesVisitor(
-                context, context, newProbeSubTreeVarMap);
+        LogicalOperatorDeepCopyWithNewVariablesVisitor firstDeepCopyVisitor =
+                new LogicalOperatorDeepCopyWithNewVariablesVisitor(context, context, newProbeSubTreeVarMap, true);
         ILogicalOperator newProbeSubTree = firstDeepCopyVisitor.deepCopy(probeSubTree.getRoot());
         inferTypes(newProbeSubTree, context);
         Mutable<ILogicalOperator> newProbeSubTreeRootRef = new MutableObject<ILogicalOperator>(newProbeSubTree);
         // Create second copy.
-        LogicalOperatorDeepCopyWithNewVariablesVisitor secondDeepCopyVisitor = new LogicalOperatorDeepCopyWithNewVariablesVisitor(
-                context, context, joinInputSubTreeVarMap);
+        LogicalOperatorDeepCopyWithNewVariablesVisitor secondDeepCopyVisitor =
+                new LogicalOperatorDeepCopyWithNewVariablesVisitor(context, context, joinInputSubTreeVarMap, true);
         ILogicalOperator joinInputSubTree = secondDeepCopyVisitor.deepCopy(probeSubTree.getRoot());
         inferTypes(joinInputSubTree, context);
         probeSubTree.getRootRef().setValue(joinInputSubTree);
@@ -651,11 +652,11 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         // Replace the variables in the join condition based on the mapping of variables
         // in the new probe subtree.
         Map<LogicalVariable, LogicalVariable> varMapping = firstDeepCopyVisitor.getInputToOutputVariableMapping();
-        for (Map.Entry<LogicalVariable, LogicalVariable> varMapEntry : varMapping.entrySet()) {
-            if (varMapEntry.getKey() != varMapEntry.getValue()) {
-                joinCond.substituteVar(varMapEntry.getKey(), varMapEntry.getValue());
+        varMapping.forEach((key, value) -> {
+            if (key != value) {
+                joinCond.substituteVar(key, value);
             }
-        }
+        });
         return originalProbeSubTreeRootRef;
     }
 
@@ -668,8 +669,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             args.add(
                     new MutableObject<ILogicalExpression>(new VariableReferenceExpression(surrogateSubTreePKs.get(i))));
             args.add(new MutableObject<ILogicalExpression>(new VariableReferenceExpression(originalSubTreePKs.get(i))));
-            ILogicalExpression eqFunc = new ScalarFunctionCallExpression(
-                    FunctionUtil.getFunctionInfo(AlgebricksBuiltinFunctions.EQ), args);
+            ILogicalExpression eqFunc =
+                    new ScalarFunctionCallExpression(FunctionUtil.getFunctionInfo(AlgebricksBuiltinFunctions.EQ), args);
             eqExprs.add(new MutableObject<ILogicalExpression>(eqFunc));
         }
         if (eqExprs.size() == 1) {
@@ -696,7 +697,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         // Create select ops for removing tuples that are filterable and not filterable, respectively.
         IVariableTypeEnvironment probeTypeEnv = context.getOutputTypeEnvironment(probeSubTree.getRoot());
         IAType inputSearchVarType;
-        if (chosenIndex.isEnforcingKeyFileds()) {
+        if (chosenIndex.isEnforced()) {
             inputSearchVarType = optFuncExpr.getFieldType(optFuncExpr.findLogicalVar(inputSearchVar));
         } else {
             inputSearchVarType = (IAType) probeTypeEnv.getVarType(inputSearchVar);
@@ -710,8 +711,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         VariableUtilities.getLiveVariables(indexSubTree.getRoot(), originalLiveVars);
 
         // Copy the scan subtree in indexSubTree.
-        LogicalOperatorDeepCopyWithNewVariablesVisitor deepCopyVisitor = new LogicalOperatorDeepCopyWithNewVariablesVisitor(
-                context, context);
+        LogicalOperatorDeepCopyWithNewVariablesVisitor deepCopyVisitor =
+                new LogicalOperatorDeepCopyWithNewVariablesVisitor(context, context);
         ILogicalOperator scanSubTree = deepCopyVisitor.deepCopy(indexSubTree.getRoot());
 
         Map<LogicalVariable, LogicalVariable> copyVarMap = deepCopyVisitor.getInputToOutputVariableMapping();
@@ -724,9 +725,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         // condition since we deep-copied one of the scanner subtrees which
         // changed variables.
         AbstractBinaryJoinOperator joinOp = (AbstractBinaryJoinOperator) joinRef.getValue();
-        for (Map.Entry<LogicalVariable, LogicalVariable> entry : copyVarMap.entrySet()) {
-            joinOp.getCondition().getValue().substituteVar(entry.getKey(), entry.getValue());
-        }
+        copyVarMap.forEach((key, value) -> joinOp.getCondition().getValue().substituteVar(key, value));
         joinOp.getInputs().clear();
         joinOp.getInputs().add(new MutableObject<ILogicalOperator>(scanSubTree));
         // Make sure that the build input (which may be materialized causing blocking) comes from
@@ -762,8 +761,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                         isFilterableArgs);
                 break;
             }
-            case UNORDEREDLIST:
-            case ORDEREDLIST: {
+            case MULTISET:
+            case ARRAY:
                 List<Mutable<ILogicalExpression>> isFilterableArgs = new ArrayList<Mutable<ILogicalExpression>>(2);
                 isFilterableArgs
                         .add(new MutableObject<ILogicalExpression>(new VariableReferenceExpression(inputSearchVar)));
@@ -773,14 +772,12 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                         FunctionUtil.getFunctionInfo(BuiltinFunctions.EDIT_DISTANCE_LIST_IS_FILTERABLE),
                         isFilterableArgs);
                 break;
-            }
-            default: {
-                throw new AlgebricksException("Only strings, ordered and unordered list types supported.");
-            }
+            default:
+                throw CompilationException.create(ErrorCode.NO_SUPPORTED_TYPE);
         }
 
-        SelectOperator isFilterableSelectOp = new SelectOperator(
-                new MutableObject<ILogicalExpression>(isFilterableExpr), false, null);
+        SelectOperator isFilterableSelectOp =
+                new SelectOperator(new MutableObject<ILogicalExpression>(isFilterableExpr), false, null);
         isFilterableSelectOp.getInputs().add(new MutableObject<ILogicalOperator>(inputOp));
         isFilterableSelectOp.setExecutionMode(ExecutionMode.LOCAL);
         context.computeAndSetTypeEnvironmentForOperator(isFilterableSelectOp);
@@ -790,8 +787,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         isNotFilterableArgs.add(new MutableObject<ILogicalExpression>(isFilterableExpr));
         ILogicalExpression isNotFilterableExpr = new ScalarFunctionCallExpression(
                 FunctionUtil.getFunctionInfo(BuiltinFunctions.NOT), isNotFilterableArgs);
-        SelectOperator isNotFilterableSelectOp = new SelectOperator(
-                new MutableObject<ILogicalExpression>(isNotFilterableExpr), false, null);
+        SelectOperator isNotFilterableSelectOp =
+                new SelectOperator(new MutableObject<ILogicalExpression>(isNotFilterableExpr), false, null);
         isNotFilterableSelectOp.getInputs().add(new MutableObject<ILogicalOperator>(inputOp));
         isNotFilterableSelectOp.setExecutionMode(ExecutionMode.LOCAL);
         context.computeAndSetTypeEnvironmentForOperator(isNotFilterableSelectOp);
@@ -827,8 +824,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                 // If this is a nullable field, then we need to get the actual type tag.
                 typeTag = ((AUnionType) type).getActualType().getTypeTag();
             }
-            if (typeTag != ATypeTag.ORDEREDLIST && typeTag != ATypeTag.STRING && typeTag != ATypeTag.UNORDEREDLIST) {
-                throw new AlgebricksException("Only ordered lists, string, and unordered lists types supported.");
+            if (typeTag != ATypeTag.ARRAY && typeTag != ATypeTag.STRING && typeTag != ATypeTag.MULTISET) {
+                throw CompilationException.create(ErrorCode.NO_SUPPORTED_TYPE);
             }
         }
         jobGenParams.setSearchKeyType(typeTag);
@@ -849,8 +846,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             return;
         }
         if (optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CHECK
-                || optFuncExpr.getFuncExpr()
-                        .getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
+                || optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
             if (optFuncExpr.containsPartialField()) {
                 jobGenParams.setSearchModifierType(SearchModifierType.CONJUNCTIVE_EDIT_DISTANCE);
             } else {
@@ -879,7 +875,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     private static SearchModifierType getFullTextOption(AbstractFunctionCallExpression funcExpr) {
         if (funcExpr.getArguments().size() < 3 || funcExpr.getArguments().size() % 2 != 0) {
             // If no parameters or incorrect number of parameters are given, the default search type is returned.
-            return SearchModifierType.DISJUNCTIVE;
+            return SearchModifierType.CONJUNCTIVE;
         }
         // From the third argument, it contains full-text search options.
         for (int i = 2; i < funcExpr.getArguments().size(); i = i + 2) {
@@ -898,7 +894,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
 
     private void addKeyVarsAndExprs(IOptimizableFuncExpr optFuncExpr, ArrayList<LogicalVariable> keyVarList,
             ArrayList<Mutable<ILogicalExpression>> keyExprList, IOptimizationContext context)
-                    throws AlgebricksException {
+            throws AlgebricksException {
         // For now we are assuming a single secondary index key.
         // Add a variable and its expr to the lists which will be passed into an assign op.
         LogicalVariable keyVar = context.newVar();
@@ -915,8 +911,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
         }
 
         if (optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CHECK
-                || optFuncExpr.getFuncExpr()
-                        .getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
+                || optFuncExpr.getFuncExpr().getFunctionIdentifier() == BuiltinFunctions.EDIT_DISTANCE_CONTAINS) {
             return isEditDistanceFuncOptimizable(index, optFuncExpr);
         }
 
@@ -946,7 +941,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     private boolean isEditDistanceFuncJoinOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
-        if (index.isEnforcingKeyFileds()) {
+        if (index.isEnforced()) {
             return isEditDistanceFuncCompatible(index.getKeyFieldTypes().get(0).getTypeTag(), index.getIndexType());
         } else {
             return isEditDistanceFuncCompatible(optFuncExpr.getFieldType(0).getTypeTag(), index.getIndexType());
@@ -960,7 +955,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             return true;
         }
         // We can only optimize edit distance on lists using a word index.
-        if ((typeTag == ATypeTag.ORDEREDLIST) && (indexType == IndexType.SINGLE_PARTITION_WORD_INVIX
+        if ((typeTag == ATypeTag.ARRAY) && (indexType == IndexType.SINGLE_PARTITION_WORD_INVIX
                 || indexType == IndexType.LENGTH_PARTITIONED_WORD_INVIX)) {
             return true;
         }
@@ -972,8 +967,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
 
         // Check for panic in selection query.
         // TODO: Panic also depends on prePost which is currently hardcoded to be true.
-        AsterixConstantValue listOrStrConstVal = (AsterixConstantValue) ((ConstantExpression) optFuncExpr
-                .getConstantExpr(0)).getValue();
+        AsterixConstantValue listOrStrConstVal =
+                (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(0)).getValue();
         IAObject listOrStrObj = listOrStrConstVal.getObject();
         ATypeTag typeTag = listOrStrObj.getType().getTypeTag();
 
@@ -981,15 +976,15 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             return false;
         }
 
-        AsterixConstantValue intConstVal = (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(1))
-                .getValue();
+        AsterixConstantValue intConstVal =
+                (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(1)).getValue();
         IAObject intObj = intConstVal.getObject();
 
         AInt32 edThresh = null;
-        // Apply type casting based on numeric types of the input to INT32 type.
+        // Apply type casting based on numeric types of the input to INTEGER type.
         try {
-            edThresh = (AInt32) ATypeHierarchy.convertNumericTypeObject(intObj, ATypeTag.INT32);
-        } catch (AsterixException e) {
+            edThresh = (AInt32) ATypeHierarchy.convertNumericTypeObject(intObj, ATypeTag.INTEGER);
+        } catch (HyracksDataException e) {
             throw new AlgebricksException(e);
         }
         int mergeThreshold = 0;
@@ -1006,7 +1001,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             }
         }
 
-        if ((typeTag == ATypeTag.ORDEREDLIST) && (index.getIndexType() == IndexType.SINGLE_PARTITION_WORD_INVIX
+        if ((typeTag == ATypeTag.ARRAY) && (index.getIndexType() == IndexType.SINGLE_PARTITION_WORD_INVIX
                 || index.getIndexType() == IndexType.LENGTH_PARTITIONED_WORD_INVIX)) {
             IACollection alist = (IACollection) listOrStrObj;
             // Compute merge threshold.
@@ -1064,7 +1059,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
 
     private boolean isFullTextContainsFuncCompatible(ATypeTag typeTag, IndexType indexType) {
         //We can only optimize contains with full-text indexes.
-        return (typeTag == ATypeTag.STRING || typeTag == ATypeTag.ORDEREDLIST || typeTag == ATypeTag.UNORDEREDLIST)
+        return (typeTag == ATypeTag.STRING || typeTag == ATypeTag.ARRAY || typeTag == ATypeTag.MULTISET)
                 && indexType == IndexType.SINGLE_PARTITION_WORD_INVIX;
     }
 
@@ -1078,7 +1073,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     // Checks whether the given index is compatible with full-text search and
-    // the type of the constant search predicate is STRING, ORDEREDLIST, or UNORDEREDLIST
+    // the type of the constant search predicate is STRING, ARRAY, or MULTISET
     private boolean isFullTextContainsFuncSelectOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
         AsterixConstantValue strConstVal =
                 (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(0)).getValue();
@@ -1089,7 +1084,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     private boolean isFullTextContainsFuncJoinOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
-        if (index.isEnforcingKeyFileds()) {
+        if (index.isEnforced()) {
             return isFullTextContainsFuncCompatible(index.getKeyFieldTypes().get(0).getTypeTag(), index.getIndexType());
         } else {
             return isFullTextContainsFuncCompatible(optFuncExpr.getFieldType(0).getTypeTag(), index.getIndexType());
@@ -1154,15 +1149,11 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             }
         }
 
-        if (nonConstArg.getExpressionTag() == LogicalExpressionTag.VARIABLE) {
-            if ((typeTag == ATypeTag.ORDEREDLIST || typeTag == ATypeTag.UNORDEREDLIST)
-                    && (indexType == IndexType.SINGLE_PARTITION_WORD_INVIX
-                            || indexType == IndexType.LENGTH_PARTITIONED_WORD_INVIX)) {
-                return true;
-            }
-            // We assume that the given list variable doesn't have ngram list in it since it is unrealistic.
-        }
-        return false;
+        // We assume that the given list variable doesn't have ngram list in it since it is unrealistic.
+        boolean isVar = nonConstArg.getExpressionTag() == LogicalExpressionTag.VARIABLE;
+        return isVar && (typeTag == ATypeTag.ARRAY || typeTag == ATypeTag.MULTISET)
+                && (indexType == IndexType.SINGLE_PARTITION_WORD_INVIX
+                        || indexType == IndexType.LENGTH_PARTITIONED_WORD_INVIX);
     }
 
     private boolean isContainsFuncOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
@@ -1174,8 +1165,8 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     private boolean isContainsFuncSelectOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
-        AsterixConstantValue strConstVal = (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(0))
-                .getValue();
+        AsterixConstantValue strConstVal =
+                (AsterixConstantValue) ((ConstantExpression) optFuncExpr.getConstantExpr(0)).getValue();
         IAObject strObj = strConstVal.getObject();
         ATypeTag typeTag = strObj.getType().getTypeTag();
 
@@ -1194,7 +1185,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
     }
 
     private boolean isContainsFuncJoinOptimizable(Index index, IOptimizableFuncExpr optFuncExpr) {
-        if (index.isEnforcingKeyFileds()) {
+        if (index.isEnforced()) {
             return isContainsFuncCompatible(index.getKeyFieldTypes().get(0).getTypeTag(), index.getIndexType());
         } else {
             return isContainsFuncCompatible(optFuncExpr.getFieldType(0).getTypeTag(), index.getIndexType());
@@ -1226,7 +1217,7 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                         index.getGramLength(), prePost, false);
             }
             default: {
-                throw new AlgebricksException("Tokenizer not applicable to index kind '" + index.getIndexType() + "'.");
+                throw CompilationException.create(ErrorCode.NO_TOKENIZER_FOR_TYPE, index.getIndexType());
             }
         }
     }
@@ -1245,9 +1236,9 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
             case CONJUNCTIVE_EDIT_DISTANCE:
                 int edThresh = 0;
                 try {
-                    edThresh = ((AInt32) ATypeHierarchy.convertNumericTypeObject(simThresh, ATypeTag.INT32))
+                    edThresh = ((AInt32) ATypeHierarchy.convertNumericTypeObject(simThresh, ATypeTag.INTEGER))
                             .getIntegerValue();
-                } catch (AsterixException e) {
+                } catch (HyracksDataException e) {
                     throw new AlgebricksException(e);
                 }
 
@@ -1271,12 +1262,12 @@ public class InvertedIndexAccessMethod implements IAccessMethod {
                         }
                     }
                     default: {
-                        throw new AlgebricksException("Incompatible search modifier '" + searchModifierType
-                                + "' for index type '" + index.getIndexType() + "'");
+                        throw CompilationException.create(ErrorCode.INCOMPATIBLE_SEARCH_MODIFIER, searchModifierType,
+                                index.getIndexType());
                     }
                 }
             default:
-                throw new AlgebricksException("Unknown search modifier type '" + searchModifierType + "'.");
+                throw CompilationException.create(ErrorCode.UNKNOWN_SEARCH_MODIFIER, searchModifierType);
         }
     }
 

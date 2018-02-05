@@ -1,3 +1,0 @@
-use dataverse experiments;
-
-compact dataset Tweets;

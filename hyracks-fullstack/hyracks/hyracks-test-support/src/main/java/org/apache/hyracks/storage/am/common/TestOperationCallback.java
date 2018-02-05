@@ -22,10 +22,10 @@ import java.util.Random;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.IModificationOperationCallback;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
 
-public enum TestOperationCallback implements ISearchOperationCallback,IModificationOperationCallback {
+public enum TestOperationCallback implements ISearchOperationCallback, IModificationOperationCallback {
     INSTANCE;
 
     private static final int RANDOM_SEED = 50;
@@ -65,10 +65,4 @@ public enum TestOperationCallback implements ISearchOperationCallback,IModificat
     public void complete(ITupleReference tuple) throws HyracksDataException {
         // Do nothing.
     }
-
-    @Override
-    public void setOp(Operation op) throws HyracksDataException {
-        // Do nothing.
-    }
-
 }

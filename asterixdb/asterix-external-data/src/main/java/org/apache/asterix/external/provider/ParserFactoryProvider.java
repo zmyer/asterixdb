@@ -21,10 +21,11 @@ package org.apache.asterix.external.provider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.asterix.common.exceptions.AsterixException;
@@ -89,17 +90,19 @@ public class ParserFactoryProvider {
     protected static Map<String, Class> initFactories() throws AsterixException {
         Map<String, Class> factories = new HashMap<>();
         ClassLoader cl = ParserFactoryProvider.class.getClassLoader();
-        final Charset encoding = Charset.forName("UTF-8");
         try {
             Enumeration<URL> urls = cl.getResources(RESOURCE);
             for (URL url : Collections.list(urls)) {
-                InputStream is = url.openStream();
-                String config = IOUtils.toString(is, encoding);
-                is.close();
-                String[] classNames = config.split("\n");
+                List<String> classNames;
+                try (InputStream is = url.openStream()) {
+                    classNames = IOUtils.readLines(is, StandardCharsets.UTF_8);
+                }
                 for (String className : classNames) {
+                    if (className.startsWith("#")) {
+                        continue;
+                    }
                     final Class<?> clazz = Class.forName(className);
-                    String[] formats = ((IDataParserFactory) clazz.newInstance()).getFormats();
+                    List<String> formats = ((IDataParserFactory) clazz.newInstance()).getParserFormats();
                     for (String format : formats) {
                         if (factories.containsKey(format)) {
                             throw new AsterixException("Duplicate format " + format);
@@ -108,8 +111,7 @@ public class ParserFactoryProvider {
                     }
                 }
             }
-        } catch (IOException | ClassNotFoundException | InstantiationException
-                | IllegalAccessException e) {
+        } catch (IOException | ClassNotFoundException | InstantiationException | IllegalAccessException e) {
             throw new AsterixException(e);
         }
         return factories;

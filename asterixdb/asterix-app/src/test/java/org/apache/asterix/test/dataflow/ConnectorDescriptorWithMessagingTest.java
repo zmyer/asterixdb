@@ -49,6 +49,8 @@ import org.apache.hyracks.dataflow.common.utils.TaskUtil;
 import org.apache.hyracks.dataflow.std.connectors.MToNPartitioningWithMessageConnectorDescriptor;
 import org.apache.hyracks.dataflow.std.connectors.PartitionWithMessageDataWriter;
 import org.apache.hyracks.test.support.TestUtils;
+import org.apache.hyracks.util.trace.ITraceCategoryRegistry;
+import org.apache.hyracks.util.trace.ITracer;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -72,7 +74,7 @@ public class ConnectorDescriptorWithMessagingTest {
             IHyracksTaskContext ctx = TestUtils.create(DEFAULT_FRAME_SIZE);
             VSizeFrame message = new VSizeFrame(ctx);
             VSizeFrame tempBuffer = new VSizeFrame(ctx);
-            TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+            TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
             message.getBuffer().clear();
             message.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
             message.getBuffer().flip();
@@ -81,8 +83,9 @@ public class ConnectorDescriptorWithMessagingTest {
                     BooleanSerializerDeserializer.INSTANCE, new UTF8StringSerializerDeserializer() };
             RecordDescriptor rDesc = new RecordDescriptor(serdes);
             TestPartitionWriterFactory partitionWriterFactory = new TestPartitionWriterFactory();
-            IFrameWriter partitioner = connector.createPartitioner(ctx, rDesc, partitionWriterFactory,
-                    CURRENT_PRODUCER, NUMBER_OF_CONSUMERS, NUMBER_OF_CONSUMERS);
+            PartitionWithMessageDataWriter partitioner =
+                    (PartitionWithMessageDataWriter) connector.createPartitioner(ctx, rDesc, partitionWriterFactory,
+                            CURRENT_PRODUCER, NUMBER_OF_CONSUMERS, NUMBER_OF_CONSUMERS);
             List<TestFrameWriter> recipients = new ArrayList<>();
             try {
                 partitioner.open();
@@ -90,7 +93,7 @@ public class ConnectorDescriptorWithMessagingTest {
                 for (IFrameWriter writer : partitionWriterFactory.getWriters().values()) {
                     recipients.add((TestFrameWriter) writer);
                 }
-                partitioner.flush();
+                partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);
                 for (TestFrameWriter writer : recipients) {
                     Assert.assertEquals(writer.nextFrameCount(), 1);
                     fta.reset(writer.getLastFrame());
@@ -102,7 +105,7 @@ public class ConnectorDescriptorWithMessagingTest {
                 message.getBuffer().clear();
                 message.getBuffer().put(MessagingFrameTupleAppender.ACK_REQ_FEED_MESSAGE);
                 message.getBuffer().flip();
-                partitioner.flush();
+                partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
                 for (TestFrameWriter writer : recipients) {
                     Assert.assertEquals(writer.nextFrameCount(), 2);
                     fta.reset(writer.getLastFrame());
@@ -115,7 +118,7 @@ public class ConnectorDescriptorWithMessagingTest {
                 message.getBuffer().clear();
                 message.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
                 message.getBuffer().flip();
-                partitioner.flush();
+                partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
                 for (TestFrameWriter writer : recipients) {
                     Assert.assertEquals(writer.nextFrameCount(), 3);
                     fta.reset(writer.getLastFrame());
@@ -152,22 +155,23 @@ public class ConnectorDescriptorWithMessagingTest {
             IHyracksTaskContext ctx = TestUtils.create(DEFAULT_FRAME_SIZE);
             VSizeFrame message = new VSizeFrame(ctx);
             VSizeFrame tempBuffer = new VSizeFrame(ctx);
-            TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+            TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
             writeRandomMessage(message, MessagingFrameTupleAppender.MARKER_MESSAGE, DEFAULT_FRAME_SIZE + 1);
             ISerializerDeserializer<?>[] serdes = new ISerializerDeserializer<?>[] {
                     Integer64SerializerDeserializer.INSTANCE, DoubleSerializerDeserializer.INSTANCE,
                     BooleanSerializerDeserializer.INSTANCE, new UTF8StringSerializerDeserializer() };
             RecordDescriptor rDesc = new RecordDescriptor(serdes);
             TestPartitionWriterFactory partitionWriterFactory = new TestPartitionWriterFactory();
-            IFrameWriter partitioner = connector.createPartitioner(ctx, rDesc, partitionWriterFactory,
-                    CURRENT_PRODUCER, NUMBER_OF_CONSUMERS, NUMBER_OF_CONSUMERS);
+            PartitionWithMessageDataWriter partitioner =
+                    (PartitionWithMessageDataWriter) connector.createPartitioner(ctx, rDesc, partitionWriterFactory,
+                            CURRENT_PRODUCER, NUMBER_OF_CONSUMERS, NUMBER_OF_CONSUMERS);
             partitioner.open();
             FrameTupleAccessor fta = new FrameTupleAccessor(rDesc);
             List<TestFrameWriter> recipients = new ArrayList<>();
             for (IFrameWriter writer : partitionWriterFactory.getWriters().values()) {
                 recipients.add((TestFrameWriter) writer);
             }
-            partitioner.flush();
+            partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
             for (TestFrameWriter writer : recipients) {
                 Assert.assertEquals(writer.nextFrameCount(), 1);
                 fta.reset(writer.getLastFrame());
@@ -179,7 +183,7 @@ public class ConnectorDescriptorWithMessagingTest {
             message.getBuffer().clear();
             message.getBuffer().put(MessagingFrameTupleAppender.ACK_REQ_FEED_MESSAGE);
             message.getBuffer().flip();
-            partitioner.flush();
+            partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
             for (TestFrameWriter writer : recipients) {
                 Assert.assertEquals(writer.nextFrameCount(), 2);
                 fta.reset(writer.getLastFrame());
@@ -191,7 +195,7 @@ public class ConnectorDescriptorWithMessagingTest {
             message.getBuffer().clear();
             message.getBuffer().put(MessagingFrameTupleAppender.NULL_FEED_MESSAGE);
             message.getBuffer().flip();
-            partitioner.flush();
+            partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
             for (TestFrameWriter writer : recipients) {
                 Assert.assertEquals(writer.nextFrameCount(), 3);
                 fta.reset(writer.getLastFrame());
@@ -236,7 +240,7 @@ public class ConnectorDescriptorWithMessagingTest {
             IHyracksTaskContext ctx = TestUtils.create(DEFAULT_FRAME_SIZE);
             VSizeFrame message = new VSizeFrame(ctx);
             VSizeFrame tempBuffer = new VSizeFrame(ctx);
-            TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+            TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
             message.getBuffer().clear();
             writeRandomMessage(message, MessagingFrameTupleAppender.MARKER_MESSAGE, DEFAULT_FRAME_SIZE);
             ISerializerDeserializer<?>[] serdes = new ISerializerDeserializer<?>[] {
@@ -262,12 +266,12 @@ public class ConnectorDescriptorWithMessagingTest {
                 tuple = ttg.next();
             }
             partitioner.nextFrame(frame.getBuffer());
-            partitioner.flush();
-            Assert.assertEquals(partitionWriterFactory.getWriters().get(0).nextFrameCount(), 1);
-            Assert.assertEquals(partitionWriterFactory.getWriters().get(1).nextFrameCount(), 2);
-            Assert.assertEquals(partitionWriterFactory.getWriters().get(2).nextFrameCount(), 1);
-            Assert.assertEquals(partitionWriterFactory.getWriters().get(3).nextFrameCount(), 2);
-            Assert.assertEquals(partitionWriterFactory.getWriters().get(4).nextFrameCount(), 2);
+            partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
+            Assert.assertEquals(1, partitionWriterFactory.getWriters().get(0).nextFrameCount());
+            Assert.assertEquals(2, partitionWriterFactory.getWriters().get(1).nextFrameCount());
+            Assert.assertEquals(1, partitionWriterFactory.getWriters().get(2).nextFrameCount());
+            Assert.assertEquals(2, partitionWriterFactory.getWriters().get(3).nextFrameCount());
+            Assert.assertEquals(2, partitionWriterFactory.getWriters().get(4).nextFrameCount());
             for (TestFrameWriter writer : recipients) {
                 fta.reset(writer.getLastFrame());
                 Assert.assertEquals(fta.getTupleCount(), 1);
@@ -294,7 +298,7 @@ public class ConnectorDescriptorWithMessagingTest {
             IHyracksTaskContext ctx = TestUtils.create(DEFAULT_FRAME_SIZE);
             VSizeFrame message = new VSizeFrame(ctx);
             VSizeFrame tempBuffer = new VSizeFrame(ctx);
-            TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+            TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
             message.getBuffer().clear();
             message.getBuffer().put(MessagingFrameTupleAppender.ACK_REQ_FEED_MESSAGE);
             message.getBuffer().flip();
@@ -321,7 +325,7 @@ public class ConnectorDescriptorWithMessagingTest {
                 appender.append(tuple);
             }
             partitioner.nextFrame(frame.getBuffer());
-            partitioner.flush();
+            partitioner.flush(ITracer.NONE, null, ITraceCategoryRegistry.CATEGORIES_NONE, null);;
             Assert.assertEquals(partitionWriterFactory.getWriters().get(0).nextFrameCount(), 1);
             Assert.assertEquals(partitionWriterFactory.getWriters().get(1).nextFrameCount(), 1);
             Assert.assertEquals(partitionWriterFactory.getWriters().get(2).nextFrameCount(), 1);

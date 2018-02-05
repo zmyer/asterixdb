@@ -33,20 +33,15 @@ public class VariableReferenceExpression extends AbstractLogicalExpression {
     private LogicalVariable variable;
 
     public VariableReferenceExpression(int tupleRef, LogicalVariable variable) {
+        if (variable == null) {
+            throw new NullPointerException();
+        }
         this.tupleRef = tupleRef;
         this.variable = variable;
     }
 
     public VariableReferenceExpression(LogicalVariable variable) {
         this(0, variable);
-    }
-
-    public int getTupleRef() {
-        return tupleRef;
-    }
-
-    public void setTupleRef(int tupleRef) {
-        this.tupleRef = tupleRef;
     }
 
     public LogicalVariable getVariableReference() {
@@ -64,7 +59,7 @@ public class VariableReferenceExpression extends AbstractLogicalExpression {
 
     @Override
     public String toString() {
-        return "%" + tupleRef + "->" + variable.toString();
+        return variable.toString();
     }
 
     @Override
@@ -81,17 +76,16 @@ public class VariableReferenceExpression extends AbstractLogicalExpression {
 
     @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof VariableReferenceExpression)) {
-            return false;
-        } else {
-            return tupleRef == ((VariableReferenceExpression) obj).tupleRef
-                    && variable.equals(((VariableReferenceExpression) obj).getVariableReference());
+        if (obj instanceof VariableReferenceExpression) {
+            final VariableReferenceExpression varRefExpr = (VariableReferenceExpression) obj;
+            return tupleRef == varRefExpr.tupleRef && variable.equals(varRefExpr.getVariableReference());
         }
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return tupleRef + variable.getId();
+        return tupleRef + variable.hashCode();
     }
 
     @Override

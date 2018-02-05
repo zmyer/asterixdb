@@ -22,10 +22,13 @@
  * Date         : Apr 5th 2013
  */
 
-use test;
-
-
-select element x
-from  `Metadata.Function` as x
-where (x.DataverseName = 'test')
+select element {
+'DataverseName': l.DataverseName,
+'Name': l.Name,
+'Arity': l.Arity,
+'ReturnType': l.ReturnType,
+'Definition': l.`Definition`
+}
+from  `Metadata`.`Function` as l
+where (l.DataverseName = 'test')
 ;

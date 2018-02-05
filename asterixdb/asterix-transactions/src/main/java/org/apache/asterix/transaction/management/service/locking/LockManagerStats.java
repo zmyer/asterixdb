@@ -20,8 +20,9 @@
 package org.apache.asterix.transaction.management.service.locking;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 
 final class LockManagerStats {
     private final int loggingPeriod;
@@ -37,27 +38,39 @@ final class LockManagerStats {
         this.loggingPeriod = loggingPeriod;
     }
 
-    final void lock()           { lCnt.incrementAndGet(); }
-    final void instantLock()    { ilCnt.incrementAndGet(); }
-    final void tryLock()        { tlCnt.incrementAndGet(); }
-    final void instantTryLock() { itlCnt.incrementAndGet(); }
-    final void unlock()         { ulCnt.incrementAndGet(); }
-    final void releaseLocks()   { rlCnt.incrementAndGet(); }
+    final void lock() {
+        lCnt.incrementAndGet();
+    }
+
+    final void instantLock() {
+        ilCnt.incrementAndGet();
+    }
+
+    final void tryLock() {
+        tlCnt.incrementAndGet();
+    }
+
+    final void instantTryLock() {
+        itlCnt.incrementAndGet();
+    }
+
+    final void unlock() {
+        ulCnt.incrementAndGet();
+    }
+
+    final void releaseLocks() {
+        rlCnt.incrementAndGet();
+    }
 
     final int requestSum() {
-        return lCnt.intValue() + ilCnt.intValue() + tlCnt.intValue()
-                + itlCnt.intValue() + ulCnt.intValue() + rlCnt.intValue();
+        return lCnt.intValue() + ilCnt.intValue() + tlCnt.intValue() + itlCnt.intValue() + ulCnt.intValue()
+                + rlCnt.intValue();
     }
 
     final StringBuilder append(StringBuilder sb) {
-        sb.append("{")
-        .append(" lock : ").append(lCnt)
-        .append(", instantLock : ").append(ilCnt)
-        .append(", tryLock : ").append(tlCnt)
-        .append(", instantTryLock : ").append(itlCnt)
-        .append(", unlock : ").append(ulCnt)
-        .append(", releaseLocks : ").append(rlCnt)
-        .append(" }");
+        sb.append("{").append(" lock : ").append(lCnt).append(", instantLock : ").append(ilCnt).append(", tryLock : ")
+                .append(tlCnt).append(", instantTryLock : ").append(itlCnt).append(", unlock : ").append(ulCnt)
+                .append(", releaseLocks : ").append(rlCnt).append(" }");
         return sb;
     }
 
@@ -67,8 +80,7 @@ final class LockManagerStats {
     }
 
     final void logCounters(final Logger logger, final Level lvl, boolean always) {
-        if (logger.isLoggable(lvl)
-            && (always || requestSum()  % loggingPeriod == 0)) {
+        if (logger.isEnabled(lvl) && (always || requestSum() % loggingPeriod == 0)) {
             logger.log(lvl, toString());
         }
     }

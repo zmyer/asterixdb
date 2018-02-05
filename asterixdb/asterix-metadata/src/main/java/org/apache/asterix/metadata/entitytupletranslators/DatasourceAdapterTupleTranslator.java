@@ -22,19 +22,19 @@ package org.apache.asterix.metadata.entitytupletranslators;
 import java.io.ByteArrayInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.Calendar;
 
 import org.apache.asterix.external.api.IDataSourceAdapter;
 import org.apache.asterix.external.dataset.adapter.AdapterIdentifier;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
-import org.apache.asterix.metadata.MetadataException;
 import org.apache.asterix.metadata.bootstrap.MetadataPrimaryIndexes;
 import org.apache.asterix.metadata.bootstrap.MetadataRecordTypes;
 import org.apache.asterix.metadata.entities.DatasourceAdapter;
 import org.apache.asterix.om.base.ARecord;
 import org.apache.asterix.om.base.AString;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
 
 public class DatasourceAdapterTupleTranslator extends AbstractTupleTranslator<DatasourceAdapter> {
@@ -57,7 +57,8 @@ public class DatasourceAdapterTupleTranslator extends AbstractTupleTranslator<Da
     }
 
     @Override
-    public DatasourceAdapter getMetadataEntityFromTuple(ITupleReference tuple) throws MetadataException, IOException {
+    public DatasourceAdapter getMetadataEntityFromTuple(ITupleReference tuple)
+            throws AlgebricksException, HyracksDataException {
         byte[] serRecord = tuple.getFieldData(ADAPTER_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordStartOffset = tuple.getFieldStart(ADAPTER_PAYLOAD_TUPLE_FIELD_INDEX);
         int recordLength = tuple.getFieldLength(ADAPTER_PAYLOAD_TUPLE_FIELD_INDEX);
@@ -84,7 +85,8 @@ public class DatasourceAdapterTupleTranslator extends AbstractTupleTranslator<Da
     }
 
     @Override
-    public ITupleReference getTupleFromMetadataEntity(DatasourceAdapter adapter) throws IOException, MetadataException {
+    public ITupleReference getTupleFromMetadataEntity(DatasourceAdapter adapter)
+            throws HyracksDataException, AlgebricksException {
         // write the key in the first 2 fields of the tuple
         tupleBuilder.reset();
         aString.setValue(adapter.getAdapterIdentifier().getNamespace());

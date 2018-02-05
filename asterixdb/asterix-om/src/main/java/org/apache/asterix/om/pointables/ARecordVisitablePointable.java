@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.dataflow.data.nontagged.serde.AInt32SerializerDeserializer;
 import org.apache.asterix.om.pointables.base.IVisitablePointable;
 import org.apache.asterix.om.pointables.visitor.IVisitablePointableVisitor;
@@ -36,6 +35,7 @@ import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.util.container.IObjectFactory;
 import org.apache.asterix.om.utils.NonTaggedFormatUtil;
 import org.apache.asterix.om.utils.ResettableByteArrayOutputStream;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.util.string.UTF8StringWriter;
 
 /**
@@ -65,8 +65,6 @@ public class ARecordVisitablePointable extends AbstractVisitablePointable {
     private final PointableAllocator allocator = new PointableAllocator();
 
     private final ResettableByteArrayOutputStream typeBos = new ResettableByteArrayOutputStream();
-    private final DataOutputStream typeDos = new DataOutputStream(typeBos);
-    private final UTF8StringWriter utf8Writer = new UTF8StringWriter();
 
     private final ResettableByteArrayOutputStream dataBos = new ResettableByteArrayOutputStream();
     private final DataOutputStream dataDos = new DataOutputStream(dataBos);
@@ -95,8 +93,9 @@ public class ARecordVisitablePointable extends AbstractVisitablePointable {
 
         // initialize the buffer for closed parts(fieldName bytes+ type bytes) +
         // constant(null bytes)
-        typeBos.reset();
         try {
+            final DataOutputStream typeDos = new DataOutputStream(typeBos);
+            final UTF8StringWriter utf8Writer = new UTF8StringWriter();
             for (int i = 0; i < numberOfSchemaFields; i++) {
                 ATypeTag ftypeTag = fieldTypes[i].getTypeTag();
 
@@ -228,8 +227,8 @@ public class ARecordVisitablePointable extends AbstractVisitablePointable {
                         }
                     } else {
                         typeTag = fieldTypes[fieldNumber].getTypeTag();
-                        fieldValueLength = NonTaggedFormatUtil.getFieldValueLength(b, fieldOffsets[fieldNumber],
-                                typeTag, false);
+                        fieldValueLength =
+                                NonTaggedFormatUtil.getFieldValueLength(b, fieldOffsets[fieldNumber], typeTag, false);
                     }
                     // set field value (including the type tag)
                     int fstart = dataBos.size();
@@ -247,8 +246,8 @@ public class ARecordVisitablePointable extends AbstractVisitablePointable {
                 for (int i = 0; i < numberOfOpenFields; i++) {
                     // set the field name (including a type tag, which is
                     // astring)
-                    int fieldValueLength = NonTaggedFormatUtil.getFieldValueLength(b, fieldOffset, ATypeTag.STRING,
-                            false);
+                    int fieldValueLength =
+                            NonTaggedFormatUtil.getFieldValueLength(b, fieldOffset, ATypeTag.STRING, false);
                     int fnstart = dataBos.size();
                     dataDos.writeByte(ATypeTag.SERIALIZED_STRING_TYPE_TAG);
                     dataDos.write(b, fieldOffset, fieldValueLength);
@@ -296,7 +295,7 @@ public class ARecordVisitablePointable extends AbstractVisitablePointable {
     }
 
     @Override
-    public <R, T> R accept(IVisitablePointableVisitor<R, T> vistor, T tag) throws AsterixException {
+    public <R, T> R accept(IVisitablePointableVisitor<R, T> vistor, T tag) throws HyracksDataException {
         return vistor.visit(this, tag);
     }
 

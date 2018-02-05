@@ -2,7 +2,7 @@ DataverseUse tpch
 Set import-private-functions=true
 Query:
 SELECT ELEMENT [
-FunctionCall tpch.sum@1[
+FunctionCall asterix.sum@1[
   (
     SELECT ELEMENT [
     OperatorExpr [
@@ -21,13 +21,13 @@ FunctionCall tpch.sum@1[
       ]
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [LineItem]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.LineItem]
       ]
       AS Variable [ Name=$l ]
 ,
-      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [Part]
+      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [tpch.Part]
       ]
       AS Variable [ Name=$p ]
     ]

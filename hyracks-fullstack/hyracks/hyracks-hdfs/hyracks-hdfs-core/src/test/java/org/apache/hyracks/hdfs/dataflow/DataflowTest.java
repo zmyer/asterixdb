@@ -19,15 +19,10 @@
 
 package org.apache.hyracks.hdfs.dataflow;
 
-import static org.apache.hyracks.test.support.TestUtils.joinPath;
-
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-
-import junit.framework.Assert;
-import junit.framework.TestCase;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -39,7 +34,6 @@ import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.TextInputFormat;
-
 import org.apache.hyracks.api.client.HyracksConnection;
 import org.apache.hyracks.api.client.IHyracksClientConnection;
 import org.apache.hyracks.api.constraints.PartitionConstraintHelper;
@@ -60,7 +54,11 @@ import org.apache.hyracks.hdfs.lib.TextKeyValueParserFactory;
 import org.apache.hyracks.hdfs.lib.TextTupleWriterFactory;
 import org.apache.hyracks.hdfs.scheduler.Scheduler;
 import org.apache.hyracks.hdfs.utils.HyracksUtils;
-import org.apache.hyracks.hdfs.utils.TestUtils;
+import org.apache.hyracks.test.support.TestUtils;
+import org.apache.hyracks.util.file.FileUtil;
+
+import junit.framework.Assert;
+import junit.framework.TestCase;
 
 /**
  * Test the org.apache.hyracks.hdfs.dataflow package,
@@ -69,19 +67,18 @@ import org.apache.hyracks.hdfs.utils.TestUtils;
 @SuppressWarnings({ "deprecation" })
 public class DataflowTest extends TestCase {
 
-    protected static final String ACTUAL_RESULT_DIR = joinPath("target", "actual");
-    private static final String TEST_RESOURCES = joinPath("src", "test", "resources");
-    protected static final String EXPECTED_RESULT_PATH = joinPath(TEST_RESOURCES, "expected");
-    private static final String PATH_TO_HADOOP_CONF = joinPath(TEST_RESOURCES, "hadoop", "conf");
-    protected static final String BUILD_DIR = joinPath("target", "build");
+    protected static final String ACTUAL_RESULT_DIR = FileUtil.joinPath("target", "actual");
+    private static final String TEST_RESOURCES = FileUtil.joinPath("src", "test", "resources");
+    protected static final String EXPECTED_RESULT_PATH = FileUtil.joinPath(TEST_RESOURCES, "expected");
+    private static final String PATH_TO_HADOOP_CONF = FileUtil.joinPath(TEST_RESOURCES, "hadoop", "conf");
+    protected static final String BUILD_DIR = FileUtil.joinPath("target", "build");
 
-
-    private static final String DATA_PATH = joinPath(TEST_RESOURCES, "data", "customer.tbl");
+    private static final String DATA_PATH = FileUtil.joinPath(TEST_RESOURCES, "data", "customer.tbl");
     protected static final String HDFS_INPUT_PATH = "/customer/";
     protected static final String HDFS_OUTPUT_PATH = "/customer_result/";
 
     private static final String HADOOP_CONF_PATH = ACTUAL_RESULT_DIR + File.separator + "conf.xml";
-    private static final String MINIDFS_BASEDIR = joinPath("target", "hdfs");
+    private static final String MINIDFS_BASEDIR = FileUtil.joinPath("target", "hdfs");
     private MiniDFSCluster dfsCluster;
 
     private JobConf conf = new JobConf();
@@ -121,8 +118,8 @@ public class DataflowTest extends TestCase {
 
         FileSystem lfs = FileSystem.getLocal(new Configuration());
         lfs.delete(new Path(BUILD_DIR), true);
-        System.setProperty("hadoop.log.dir", joinPath("target", "logs"));
-        getConfiguration().set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, MINIDFS_BASEDIR);
+        System.setProperty("hadoop.log.dir", FileUtil.joinPath("target", "logs"));
+        getConfiguration().set("hdfs.minidfs.basedir", MINIDFS_BASEDIR);
         dfsCluster = getMiniDFSCluster(getConfiguration(), numberOfNC);
         FileSystem dfs = FileSystem.get(getConfiguration());
         Path src = new Path(DATA_PATH);
@@ -153,11 +150,11 @@ public class DataflowTest extends TestCase {
 
         String[] readSchedule = scheduler.getLocationConstraints(splits);
         JobSpecification jobSpec = new JobSpecification();
-        RecordDescriptor recordDesc = new RecordDescriptor(
-                new ISerializerDeserializer[] { new UTF8StringSerializerDeserializer() });
+        RecordDescriptor recordDesc =
+                new RecordDescriptor(new ISerializerDeserializer[] { new UTF8StringSerializerDeserializer() });
 
-        String[] locations = new String[] { HyracksUtils.NC1_ID, HyracksUtils.NC1_ID, HyracksUtils.NC2_ID,
-                HyracksUtils.NC2_ID };
+        String[] locations =
+                new String[] { HyracksUtils.NC1_ID, HyracksUtils.NC1_ID, HyracksUtils.NC2_ID, HyracksUtils.NC2_ID };
         HDFSReadOperatorDescriptor readOperator = new HDFSReadOperatorDescriptor(jobSpec, recordDesc, conf, splits,
                 readSchedule, new TextKeyValueParserFactory());
         PartitionConstraintHelper.addAbsoluteLocationConstraint(jobSpec, readOperator, locations);
@@ -166,19 +163,21 @@ public class DataflowTest extends TestCase {
                 new IBinaryComparatorFactory[] { RawBinaryComparatorFactory.INSTANCE }, recordDesc);
         PartitionConstraintHelper.addAbsoluteLocationConstraint(jobSpec, sortOperator, locations);
 
-        HDFSWriteOperatorDescriptor writeOperator = new HDFSWriteOperatorDescriptor(jobSpec, conf,
-                new TextTupleWriterFactory());
+        HDFSWriteOperatorDescriptor writeOperator =
+                new HDFSWriteOperatorDescriptor(jobSpec, conf, new TextTupleWriterFactory());
         PartitionConstraintHelper.addAbsoluteLocationConstraint(jobSpec, writeOperator, HyracksUtils.NC1_ID);
 
         jobSpec.connect(new OneToOneConnectorDescriptor(jobSpec), readOperator, 0, sortOperator, 0);
-        jobSpec.connect(new MToNPartitioningMergingConnectorDescriptor(jobSpec, new FieldHashPartitionComputerFactory(
-                new int[] { 0 }, new IBinaryHashFunctionFactory[] { RawBinaryHashFunctionFactory.INSTANCE }),
-                new int[] { 0 }, new IBinaryComparatorFactory[] { RawBinaryComparatorFactory.INSTANCE }, null),
+        jobSpec.connect(
+                new MToNPartitioningMergingConnectorDescriptor(jobSpec,
+                        new FieldHashPartitionComputerFactory(new int[] { 0 },
+                                new IBinaryHashFunctionFactory[] { RawBinaryHashFunctionFactory.INSTANCE }),
+                        new int[] { 0 }, new IBinaryComparatorFactory[] { RawBinaryComparatorFactory.INSTANCE }, null),
                 sortOperator, 0, writeOperator, 0);
         jobSpec.addRoot(writeOperator);
 
-        IHyracksClientConnection client = new HyracksConnection(HyracksUtils.CC_HOST,
-                HyracksUtils.TEST_HYRACKS_CC_CLIENT_PORT);
+        IHyracksClientConnection client =
+                new HyracksConnection(HyracksUtils.CC_HOST, HyracksUtils.TEST_HYRACKS_CC_CLIENT_PORT);
         JobId jobId = client.startJob(jobSpec);
         client.waitForCompletion(jobId);
 
@@ -197,8 +196,8 @@ public class DataflowTest extends TestCase {
         Path actual = new Path(ACTUAL_RESULT_DIR);
         dfs.copyToLocalFile(result, actual);
 
-        TestUtils.compareWithResult(new File(joinPath(EXPECTED_RESULT_PATH, "part-0")), new File(
-                joinPath(ACTUAL_RESULT_DIR, "customer_result", "part-0")));
+        TestUtils.compareWithResult(new File(FileUtil.joinPath(EXPECTED_RESULT_PATH, "part-0")),
+                new File(FileUtil.joinPath(ACTUAL_RESULT_DIR, "customer_result", "part-0")));
         return true;
     }
 

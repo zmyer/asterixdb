@@ -18,32 +18,10 @@
  !-->
 <!DOCTYPE test-suite [
   <!ENTITY RecordsQueries SYSTEM "queries_sqlpp/objects/ObjectsQueries.xml">
-
+  <!ENTITY AsyncDeferredQueries SYSTEM "queries_sqlpp/async-deferred/AsyncDeferredQueries.xml">
 ]>
 <test-suite xmlns="urn:xml.testframework.asterix.apache.org" ResultOffsetPath="results" QueryOffsetPath="queries_sqlpp" QueryFileExtension=".sqlpp">
-  <test-group name="async-deferred">
-    <test-case FilePath="async-deferred">
-      <compilation-unit name="async-failed">
-        <output-dir compare="Text">async-failed</output-dir>
-        <expected-error>Error in processing tuple 0</expected-error>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="async-deferred">
-      <compilation-unit name="deferred">
-        <output-dir compare="Text">deferred</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="async-deferred">
-      <compilation-unit name="async">
-        <output-dir compare="Text">async</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="async-deferred">
-      <compilation-unit name="async-running">
-        <output-dir compare="Text">async-running</output-dir>
-      </compilation-unit>
-    </test-case>
-  </test-group>
+  &AsyncDeferredQueries;
   <test-group name="flwor">
     <test-case FilePath="flwor">
       <compilation-unit name="at00">
@@ -118,6 +96,37 @@
     <test-case FilePath="explain">
       <compilation-unit name="explain_caps">
         <output-dir compare="Text">explain_simple</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_pretty">
+        <parameter name="pretty" value="true" />
+        <output-dir compare="Text">explain_simple</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_object_constructor-01">
+        <output-dir compare="Text">explain_object_constructor-01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_object_constructor-02">
+        <output-dir compare="Text">explain_object_constructor-02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_object_constructor-03">
+        <output-dir compare="Text">explain_object_constructor-03</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_field_access">
+        <output-dir compare="Text">explain_field_access</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="explain">
+      <compilation-unit name="explain_field_access_closed">
+        <output-dir compare="Text">explain_field_access_closed</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -286,6 +295,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate">
+      <compilation-unit name="avg_distinct">
+        <output-dir compare="Text">avg_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
       <compilation-unit name="count_01">
         <output-dir compare="Text">count_01</output-dir>
       </compilation-unit>
@@ -303,6 +317,11 @@
     <test-case FilePath="aggregate">
       <compilation-unit name="count_null">
         <output-dir compare="Text">count_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="count_distinct">
+        <output-dir compare="Text">count_distinct</output-dir>
       </compilation-unit>
     </test-case>
     <!--
@@ -397,6 +416,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate">
+      <compilation-unit name="max_distinct">
+        <output-dir compare="Text">max_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
       <compilation-unit name="min_empty_01">
         <output-dir compare="Text">min_empty_01</output-dir>
       </compilation-unit>
@@ -404,6 +428,11 @@
     <test-case FilePath="aggregate">
       <compilation-unit name="min_empty_02">
         <output-dir compare="Text">min_empty_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="min_distinct">
+        <output-dir compare="Text">min_distinct</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate">
@@ -559,6 +588,11 @@
     <test-case FilePath="aggregate">
       <compilation-unit name="sum_numeric_null">
         <output-dir compare="Text">sum_numeric_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate">
+      <compilation-unit name="sum_distinct">
+        <output-dir compare="Text">sum_distinct</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -722,6 +756,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
+      <compilation-unit name="avg_distinct">
+        <output-dir compare="Text">avg_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
       <compilation-unit name="count_01">
         <output-dir compare="Text">count_01</output-dir>
       </compilation-unit>
@@ -742,6 +781,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
+      <compilation-unit name="count_distinct">
+        <output-dir compare="Text">count_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
       <compilation-unit name="max_empty_01">
         <output-dir compare="Text">max_empty_01</output-dir>
       </compilation-unit>
@@ -752,6 +796,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
+      <compilation-unit name="max_distinct">
+        <output-dir compare="Text">max_distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
       <compilation-unit name="min_empty_01">
         <output-dir compare="Text">min_empty_01</output-dir>
       </compilation-unit>
@@ -759,6 +808,11 @@
     <test-case FilePath="aggregate-sql">
       <compilation-unit name="min_empty_02">
         <output-dir compare="Text">min_empty_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="min_distinct">
+        <output-dir compare="Text">min_distinct</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="aggregate-sql">
@@ -914,6 +968,11 @@
     <test-case FilePath="aggregate-sql">
       <compilation-unit name="sum_numeric_null">
         <output-dir compare="Text">sum_numeric_null</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="aggregate-sql">
+      <compilation-unit name="sum_distinct">
+        <output-dir compare="Text">sum_distinct</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -1504,6 +1563,7 @@
     <test-case FilePath="dapd">
       <compilation-unit name="q2-3">
         <output-dir compare="Text">q2</output-dir>
+        <expected-error>Cannot resolve ambiguous alias reference for undefined identifier sig_id</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dapd">
@@ -1559,7 +1619,43 @@
         </test-case>
         -->
   </test-group>
+  <test-group name="ddl/create-index">
+    <test-case FilePath="ddl/create-index">
+      <compilation-unit name="create-index-1">
+        <output-dir compare="Text">create-index-1</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="ddl/create-index">
+      <compilation-unit name="create-index-2">
+        <output-dir compare="Text">create-index-2</output-dir>
+        <expected-error>Syntax error: In line 53 >>create  primary index sec_primary_idx1  on LineItem type rtree;&lt;&lt; Encountered "rtree" at column 58.</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="ddl/create-index">
+      <compilation-unit name="create-index-3">
+        <output-dir compare="Text">create-index-3</output-dir>
+        <expected-error>Syntax error: In line 53 >>create  primary  sec_primary_idx1  on LineItem;&lt;&lt; Encountered &lt;IDENTIFIER&gt; "sec_primary_idx1" at column 18.</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="ddl/create-index">
+      <compilation-unit name="create-index-4">
+        <output-dir compare="Text">create-index-4</output-dir>
+        <expected-error>Syntax error: In line 53 >>create  primary index if not exists sec_primary_idx1  if not exists on LineItem;&lt;&lt; Encountered &lt;IDENTIFIER&gt; "sec_primary_idx1" at column 37.</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="ddl/create-index">
+      <compilation-unit name="create-index-5">
+        <output-dir compare="Text">create-index-5</output-dir>
+        <expected-error>Syntax error: In line 53 >>create  primary index if exists sec_primary_idx1  on LineItem;&lt;&lt; Encountered "exists" at column 26.</expected-error>
+      </compilation-unit>
+    </test-case>
+  </test-group>
   <test-group name="dml">
+    <test-case FilePath="dml">
+      <compilation-unit name="insert-with-autogenerated-pk_adm-with-sec-primary-index">
+        <output-dir compare="Text">insert-with-autogenerated-pk_adm-with-sec-primary-index</output-dir>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="compact-dataset-and-its-indexes">
         <output-dir compare="Text">compact-dataset-and-its-indexes</output-dir>
@@ -1577,6 +1673,11 @@
     </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="using-correlated-prefix-merge-policy">
+        <output-dir compare="Text">using-correlated-prefix-merge-policy</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="using-correlated-prefix-merge-policy-with-feed">
         <output-dir compare="Text">using-correlated-prefix-merge-policy</output-dir>
       </compilation-unit>
     </test-case>
@@ -1671,6 +1772,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="recreate-index">
+        <output-dir compare="Text">recreate-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="insert-and-scan-joined-datasets">
         <output-dir compare="Text">insert-and-scan-joined-datasets</output-dir>
       </compilation-unit>
@@ -1708,7 +1814,7 @@
     <test-case FilePath="dml">
       <compilation-unit name="insert-duplicated-keys">
         <output-dir compare="Text">insert-duplicated-keys</output-dir>
-        <expected-error>Failed to insert key since key already exists</expected-error>
+        <expected-error>Inserting duplicate keys into the primary storage</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -1723,6 +1829,11 @@
           </compilation-unit>
         </test-case>
         -->
+    <test-case FilePath="dml">
+      <compilation-unit name="insert-with-autogenerated-pk_adm-with-sec-primary-index">
+        <output-dir compare="Text">insert-with-autogenerated-pk_adm-with-sec-primary-index</output-dir>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="insert-with-autogenerated-pk_adm_01">
         <output-dir compare="Text">insert-with-autogenerated-pk_adm_01</output-dir>
@@ -1774,6 +1885,12 @@
     <test-case FilePath="dml">
       <compilation-unit name="load-with-autogenerated-pk_csv_02">
         <output-dir compare="Text">load-with-autogenerated-pk_csv_02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="load-with-autogenerated-no-field">
+        <output-dir compare="Text">load-with-autogenerated-no-field</output-dir>
+        <expected-error>org.apache.asterix.common.exceptions.AsterixException: ASX1014: Field "not_id" is not found</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -1874,7 +1991,18 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit
+        name="scan-delete-btree-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-delete-rtree-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-rtree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-rtree-correlated-secondary-index-nullable">
         <output-dir compare="Text">scan-delete-rtree-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
@@ -1884,8 +2012,18 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-rtree-correlated-secondary-index">
+        <output-dir compare="Text">scan-delete-rtree-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-btree-secondary-index-nullable">
         <output-dir compare="Text">scan-insert-btree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-btree-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
@@ -1894,7 +2032,17 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-rtree-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-insert-rtree-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-rtree-secondary-index">
+        <output-dir compare="Text">scan-insert-rtree-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-rtree-correlated-secondary-index">
         <output-dir compare="Text">scan-insert-rtree-secondary-index</output-dir>
       </compilation-unit>
     </test-case>
@@ -1904,7 +2052,17 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-ngram-correlated-secondary-index">
+        <output-dir compare="Text">scan-insert-inverted-index-ngram-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-inverted-index-word-secondary-index">
+        <output-dir compare="Text">scan-insert-inverted-index-word-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-word-correlated-secondary-index">
         <output-dir compare="Text">scan-insert-inverted-index-word-secondary-index</output-dir>
       </compilation-unit>
     </test-case>
@@ -1914,12 +2072,27 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-ngram-correlated-secondary-index-nullable">
+        <output-dir compare="Text">scan-insert-inverted-index-ngram-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-inverted-index-word-secondary-index-nullable">
+        <output-dir compare="Text">scan-insert-inverted-index-word-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-word-correlated-secondary-index-nullable">
         <output-dir compare="Text">scan-insert-inverted-index-word-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-ngram-secondary-index">
+        <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-ngram-correlated-secondary-index">
         <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index</output-dir>
       </compilation-unit>
     </test-case>
@@ -1929,12 +2102,27 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-word-correlated-secondary-index">
+        <output-dir compare="Text">scan-delete-inverted-index-word-secondary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-ngram-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-ngram-correlated-secondary-index-nullable">
         <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-word-secondary-index-nullable">
+        <output-dir compare="Text">scan-delete-inverted-index-word-secondary-index-nullable</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-word-correlated-secondary-index-nullable">
         <output-dir compare="Text">scan-delete-inverted-index-word-secondary-index-nullable</output-dir>
       </compilation-unit>
     </test-case>
@@ -1963,13 +2151,28 @@
         <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-btree-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-ngram-secondary-index-open">
         <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-ngram-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-inverted-index-ngram-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-delete-inverted-index-word-secondary-index-open">
+        <output-dir compare="Text">scan-delete-inverted-index-word-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-inverted-index-word-correlated-secondary-index-open">
         <output-dir compare="Text">scan-delete-inverted-index-word-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
@@ -1979,12 +2182,27 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-delete-rtree-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-rtree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-btree-secondary-index-open">
         <output-dir compare="Text">scan-insert-btree-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-btree-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-delete-btree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-inverted-index-ngram-secondary-index-open">
+        <output-dir compare="Text">scan-insert-inverted-index-ngram-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-ngram-correlated-secondary-index-open">
         <output-dir compare="Text">scan-insert-inverted-index-ngram-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
@@ -1994,7 +2212,17 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-inverted-index-word-correlated-secondary-index-open">
+        <output-dir compare="Text">scan-insert-inverted-index-word-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
       <compilation-unit name="scan-insert-rtree-secondary-index-open">
+        <output-dir compare="Text">scan-insert-rtree-secondary-index-open</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="dml">
+      <compilation-unit name="scan-insert-rtree-correlated-secondary-index-open">
         <output-dir compare="Text">scan-insert-rtree-secondary-index-open</output-dir>
       </compilation-unit>
     </test-case>
@@ -2516,6 +2744,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="fulltext">
+      <compilation-unit name="fulltext-09">
+        <output-dir compare="Text">fulltext-09</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="fulltext">
       <compilation-unit name="fulltext-index-01">
         <output-dir compare="Text">fulltext-index-01</output-dir>
       </compilation-unit>
@@ -2523,6 +2756,11 @@
     <test-case FilePath="fulltext">
       <compilation-unit name="fulltext-index-02">
         <output-dir compare="Text">fulltext-index-02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="fulltext">
+      <compilation-unit name="fulltext-index-08">
+        <output-dir compare="Text">fulltext-index-08</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -2550,13 +2788,13 @@
     <test-case FilePath="global-aggregate">
       <compilation-unit name="q05_error">
         <output-dir compare="Text">q01</output-dir>
-        <expected-error>Type mismatch: function field-access-by-name expects its 1st input parameter to be type record, but the actual input type is orderedlist</expected-error>
+        <expected-error>Type mismatch: function field-access-by-name expects its 1st input parameter to be type object, but the actual input type is array</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="global-aggregate">
       <compilation-unit name="q06_error">
         <output-dir compare="Text">q01</output-dir>
-        <expected-error>Type mismatch: function scan-collection expects its 1st input parameter to be type orderedlist or unorderedlist, but the actual input type is string</expected-error>
+        <expected-error>Type mismatch: function scan-collection expects its 1st input parameter to be type array or multiset, but the actual input type is string</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="global-aggregate">
@@ -2614,6 +2852,18 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="group-by">
+      <compilation-unit name="core-01-error">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Cannot find dataset e in dataverse gby nor an alias with name e</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="core-02-error">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Cannot find dataset f in dataverse gby nor an alias with name f</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
       <compilation-unit name="core-02">
         <output-dir compare="Text">core-02</output-dir>
       </compilation-unit>
@@ -2641,7 +2891,7 @@
     <test-case FilePath="group-by">
       <compilation-unit name="sugar-01-negative">
         <output-dir compare="Text">core-01</output-dir>
-        <expected-error>Type mismatch: function field-access-by-name expects its 1st input parameter to be type record, but the actual input type is orderedlist</expected-error>
+        <expected-error>Type mismatch: function field-access-by-name expects its 1st input parameter to be type object, but the actual input type is array</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="group-by">
@@ -2652,11 +2902,13 @@
     <test-case FilePath="group-by">
       <compilation-unit name="sugar-02">
         <output-dir compare="Text">core-02</output-dir>
+        <expected-error>Cannot resolve ambiguous alias reference for undefined identifier deptId</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="group-by">
       <compilation-unit name="sugar-02-2">
         <output-dir compare="Text">core-02</output-dir>
+        <expected-error>Cannot resolve ambiguous alias reference for undefined identifier deptId</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="group-by">
@@ -2690,6 +2942,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="group-by">
+      <compilation-unit name="sugar-06-distinct">
+        <output-dir compare="Text">sugar-06-distinct</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
       <compilation-unit name="null">
         <output-dir compare="Text">null</output-dir>
       </compilation-unit>
@@ -2717,6 +2974,44 @@
     <test-case FilePath="group-by">
       <compilation-unit name="having-2">
         <output-dir compare="Text">core-02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="policy">
+        <output-dir compare="Text">policy</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="policy-02">
+        <output-dir compare="Text">policy-02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="policy-03">
+        <output-dir compare="Text">policy-03</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="policy-04">
+        <output-dir compare="Text">policy-04</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="policy-05">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Invalid item type: function agg-sum cannot process item type object in an input array (or multiset)</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="listify">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>The byte size of a single group</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="group-by">
+      <compilation-unit name="listify-2">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>The byte size of a single group</expected-error>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -2756,6 +3051,31 @@
     <test-case FilePath="index-selection">
       <compilation-unit name="btree-index-composite-key">
         <output-dir compare="Text">btree-index-composite-key</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
+      <compilation-unit name="btree-sec-primary-index">
+        <output-dir compare="Text">btree-sec-primary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
+      <compilation-unit name="btree-sec-primary-index-01">
+        <output-dir compare="Text">btree-sec-primary-index-01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
+      <compilation-unit name="btree-sec-primary-index-02">
+        <output-dir compare="Text">btree-sec-primary-index-02</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
+      <compilation-unit name="btree-sec-primary-index-03">
+        <output-dir compare="Text">btree-sec-primary-index-03</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="index-selection">
+      <compilation-unit name="btree-sec-primary-index-04">
+        <output-dir compare="Text">btree-sec-primary-index-04</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="index-selection">
@@ -3128,6 +3448,16 @@
   </test-group>
   <test-group name="misc">
     <test-case FilePath="misc">
+      <compilation-unit name="validate-expected">
+        <output-dir compare="Text">validate-expected</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="dataset-resources">
+        <output-dir compare="Text">dataset-resources</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
       <compilation-unit name="case_01">
         <output-dir compare="Text">case_01</output-dir>
       </compilation-unit>
@@ -3163,6 +3493,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="misc">
+      <compilation-unit name="dataset_nodegroup">
+        <output-dir compare="Text">dataset_nodegroup</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
       <compilation-unit name="partition-by-nonexistent-field">
         <output-dir compare="Text">partition-by-nonexistent-field</output-dir>
         <expected-error>Field "id" is not found</expected-error>
@@ -3183,6 +3518,11 @@
     <test-case FilePath="misc">
       <compilation-unit name="groupby-orderby-count">
         <output-dir compare="Text">groupby-orderby-count</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="identifier_01">
+        <output-dir compare="Text">identifier_01</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="misc">
@@ -3257,7 +3597,6 @@
     <test-case FilePath="misc">
       <compilation-unit name="query-ASTERIXDB-1577">
         <output-dir compare="Text">query-ASTERIXDB-1577</output-dir>
-        <expected-error>Type mismatch: function field-access-by-name expects its 1st input parameter to be type record, but the actual input type is orderedlist</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="misc">
@@ -3271,35 +3610,67 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="misc">
+      <compilation-unit name="unsupported_parameter">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Query parameter compiler.joinmem is not supported</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
+      <compilation-unit name="unsupported_parameter_value">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>The given string: 4LS is not a byte unit string (e.g., 320KB or 1024)</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="misc">
       <compilation-unit name="uuid">
         <output-dir compare="Text">uuid</output-dir>
       </compilation-unit>
     </test-case>
+  </test-group>
+  <test-group name="index">
+    <test-group name="index/validations">
+      <test-case FilePath="index/validations">
+        <compilation-unit name="keys-same-as-pk-but-different-order">
+          <output-dir compare="Text">keys-same-as-pk-but-different-order</output-dir>
+        </compilation-unit>
+      </test-case>
+      <test-case FilePath="index/validations">
+        <compilation-unit name="keys-same-as-pk-in-same-order">
+          <output-dir compare="Text">keys-same-as-pk-in-same-order</output-dir>
+        </compilation-unit>
+      </test-case>
+      <test-case FilePath="index/validations">
+        <compilation-unit name="repetitive-keys">
+          <output-dir compare="Text">repetitive-keys</output-dir>
+          <expected-error>Cannot create index with the same field "[value]" specified more than once.</expected-error>
+        </compilation-unit>
+      </test-case>
+    </test-group>
   </test-group>
   <test-group name="open-index-enforced">
     <test-group name="open-index-enforced/error-checking">
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="enforced-field-name-collision">
           <output-dir compare="Text">enforced-field-name-collision</output-dir>
-          <!-- <expected-error>org.apache.hyracks.algebricks.common.exceptions.AlgebricksException</expected-error> -->
+           <expected-error>Cannot create enforced index on "[value]" field. The field is closed type.</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="enforced-field-type-collision">
           <output-dir compare="Text">enforced-field-type-collision</output-dir>
-          <expected-error>A field &quot;[value]&quot; is already defined with the type &quot;string&quot;</expected-error>
+          <expected-error>Cannot create enforced index on "[value]" field. The field is closed type.</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="missing-enforce-statement">
           <output-dir compare="Text">missing-enforce-statement</output-dir>
-          <expected-error>Cannot create typed index on "[value]" field without enforcing it's type</expected-error>
+          <expected-error>ASX1042: Cannot create non-enforced typed index of this kind: RTREE</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
         <compilation-unit name="missing-optionality">
           <output-dir compare="Text">missing-optionality</output-dir>
-          <expected-error>string) enforced</expected-error>
+          <expected-error>Cannot create enforced index on "[value]" field with non-optional type</expected-error>
         </compilation-unit>
       </test-case>
       <test-case FilePath="open-index-enforced/error-checking">
@@ -3491,6 +3862,35 @@
       <test-case FilePath="open-index-enforced/type-checking">
         <compilation-unit name="enforced-type-upsert">
           <output-dir compare="Text">enforced-type-upsert</output-dir>
+        </compilation-unit>
+      </test-case>
+    </test-group>
+    <test-group name="open-index-non-enforced/index-selection">
+      <test-case FilePath="open-index-non-enforced/index-selection">
+        <compilation-unit name="btree-index-01">
+          <output-dir compare="Text">btree-index-01</output-dir>
+        </compilation-unit>
+      </test-case>
+      <test-case FilePath="open-index-non-enforced/index-selection">
+        <compilation-unit name="btree-index-02">
+          <output-dir compare="Text">btree-index-02</output-dir>
+        </compilation-unit>
+      </test-case>
+      <test-case FilePath="open-index-non-enforced/index-selection">
+        <compilation-unit name="btree-index-03">
+          <output-dir compare="Text">btree-index-03</output-dir>
+        </compilation-unit>
+      </test-case>
+    <test-case FilePath="open-index-non-enforced/correlated-index-selection">
+      <compilation-unit name="btree-index-01">
+        <output-dir compare="Text">btree-index-01</output-dir>
+      </compilation-unit>
+    </test-case>
+    </test-group>
+    <test-group name="open-index-non-enforced/index-join">
+      <test-case FilePath="open-index-non-enforced/index-join">
+        <compilation-unit name="btree-equi-join-01">
+          <output-dir compare="Text">btree-equi-join-01</output-dir>
         </compilation-unit>
       </test-case>
     </test-group>
@@ -3779,6 +4179,11 @@
         </compilation-unit>
       </test-case>
       <test-case FilePath="nested-index/index-selection">
+        <compilation-unit name="btree-sec-primary-index">
+          <output-dir compare="Text">btree-sec-primary-index</output-dir>
+        </compilation-unit>
+      </test-case>
+      <test-case FilePath="nested-index/index-selection">
         <compilation-unit name="btree-index-composite-key-mixed-intervals">
           <output-dir compare="Text">btree-index-composite-key-mixed-intervals</output-dir>
         </compilation-unit>
@@ -3944,6 +4349,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="nested-index-dml">
+      <compilation-unit name="delete-from-loaded-dataset-with-sec-primary-index">
+        <output-dir compare="Text">delete-from-loaded-dataset-with-sec-primary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="nested-index-dml">
       <compilation-unit name="drop-index">
         <output-dir compare="Text">drop-index</output-dir>
       </compilation-unit>
@@ -3951,6 +4361,11 @@
     <test-case FilePath="nested-index-dml">
       <compilation-unit name="insert-into-empty-dataset-with-index">
         <output-dir compare="Text">insert-into-empty-dataset-with-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="nested-index-dml">
+      <compilation-unit name="insert-into-empty-dataset-with-sec-primary-index">
+        <output-dir compare="Text">insert-into-empty-dataset-with-sec-primary-index</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="nested-index-dml">
@@ -3964,8 +4379,18 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="nested-index-dml">
+      <compilation-unit name="insert-into-loaded-dataset-with-sec-primary-index">
+        <output-dir compare="Text">insert-into-loaded-dataset-with-sec-primary-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="nested-index-dml">
       <compilation-unit name="load-with-index">
         <output-dir compare="Text">load-with-index</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="nested-index-dml">
+      <compilation-unit name="load-with-sec-primary-index">
+        <output-dir compare="Text">load-with-sec-primary-index</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="nested-index-dml">
@@ -4147,6 +4572,11 @@
         <output-dir compare="Text">query-ASTERIXDB-1689</output-dir>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="null-missing">
+      <compilation-unit name="print-ASTERIXDB-1885">
+        <output-dir compare="Text">print-ASTERIXDB-1885</output-dir>
+      </compilation-unit>
+    </test-case>
   </test-group>
   <test-group name="numeric">
     <test-case FilePath="numeric">
@@ -4292,6 +4722,11 @@
     <test-case FilePath="numeric">
       <compilation-unit name="floor4">
         <output-dir compare="Text">floor4</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="numeric">
+      <compilation-unit name="infinity">
+        <output-dir compare="Text">infinity</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="numeric">
@@ -4523,6 +4958,18 @@
     <test-case FilePath="numeric">
       <compilation-unit name="sqrt">
         <output-dir compare="Text">sqrt</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="numeric">
+      <compilation-unit name="scientific">
+        <output-dir compare="Text">scientific</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="numeric">
+      <compilation-unit name="scientific_error">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Cannot find dataset e in dataverse Default nor an alias with name e</expected-error>
+        <expected-error>Cannot find dataset e in dataverse Default nor an alias with name e</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="numeric">
@@ -4971,6 +5418,21 @@
     <test-case FilePath="resolution">
       <compilation-unit name="fullyqualified2">
         <output-dir compare="Text">fullyqualified2</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="resolution">
+      <compilation-unit name="order_1">
+        <output-dir compare="Text">order_1</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="resolution">
+      <compilation-unit name="groupby_rename_with_sugar">
+        <output-dir compare="Text">groupby_rename_with_sugar</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="resolution">
+      <compilation-unit name="function_dataverse">
+        <output-dir compare="Text">function_dataverse</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -5968,6 +6430,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="subquery">
+      <compilation-unit name="non_unary_subplan_01">
+        <output-dir compare="Text">non_unary_subplan_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="subquery">
       <compilation-unit name="query-ASTERIXDB-1571">
         <output-dir compare="Text">query-ASTERIXDB-1571</output-dir>
       </compilation-unit>
@@ -5996,7 +6463,7 @@
     <test-case FilePath="subquery">
       <compilation-unit name="query-ASTERIXDB-1574">
         <output-dir compare="Text">query-ASTERIXDB-1574</output-dir>
-        <expected-error>Type mismatch: function scan-collection expects its 1st input parameter to be type unorderedlist or orderedlist, but the actual input type is record</expected-error>
+        <expected-error>Type mismatch: function scan-collection expects its 1st input parameter to be type multiset or array, but the actual input type is object</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="subquery">
@@ -6007,7 +6474,6 @@
     <test-case FilePath="subquery">
       <compilation-unit name="query-ASTERIXDB-1574-3">
         <output-dir compare="Text">query-ASTERIXDB-1574</output-dir>
-        <expected-error>Cannot resolve ambiguous alias reference for undefined identifier</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="subquery">
@@ -6853,6 +7319,12 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="tpch-sql-sugar">
+      <compilation-unit name="q17_large_gby_variant_parameter">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Invalid query parameter compiler.groupmemory -- value has to be greater than or equal to</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="tpch-sql-sugar">
       <compilation-unit name="q18_large_volume_customer">
         <output-dir compare="Text">q18_large_volume_customer</output-dir>
       </compilation-unit>
@@ -6875,6 +7347,12 @@
     <test-case FilePath="tpch-sql-sugar">
       <compilation-unit name="q01_pricing_summary_report_parallelism">
         <output-dir compare="Text">q01_pricing_summary_report_nt</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="tpch-sql-sugar">
+      <compilation-unit name="q01_pricing_summary_report_parameter">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Invalid query parameter compiler.sortmemory -- value has to be greater than or equal to</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="tpch-sql-sugar">
@@ -6930,6 +7408,12 @@
     <test-case FilePath="tpch-sql-sugar">
       <compilation-unit name="q09_product_type_profit_nt">
         <output-dir compare="Text">q09_product_type_profit_nt</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="tpch-sql-sugar">
+      <compilation-unit name="q09_product_type_profit_parameter">
+        <output-dir compare="Text">none</output-dir>
+        <expected-error>Invalid query parameter compiler.joinmemory -- value has to be greater than or equal to</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="tpch-sql-sugar">
@@ -7332,7 +7816,7 @@
         <output-dir compare="Text">cross-dv07</output-dir>
       </compilation-unit>
     </test-case>
-    <!--NotImplementedException: No binary comparator factory implemented for type RECORD.
+    <!--NotImplementedException: No binary comparator factory implemented for type OBJECT.
         <test-case FilePath="cross-dataverse">
           <compilation-unit name="cross-dv08">
             <output-dir compare="Text">cross-dv08</output-dir>
@@ -7355,12 +7839,6 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="cross-dataverse">
-      <compilation-unit name="cross-dv13">
-        <output-dir compare="Text">cross-dv13</output-dir>
-        <expected-error>Recursive invocation testdv2.fun03@0</expected-error>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="cross-dataverse">
       <compilation-unit name="cross-dv14">
         <output-dir compare="Text">cross-dv14</output-dir>
       </compilation-unit>
@@ -7370,20 +7848,14 @@
         <output-dir compare="Text">cross-dv15</output-dir>
       </compilation-unit>
     </test-case>
-    <test-case FilePath="cross-dataverse">
-      <compilation-unit name="cross-dv16">
-        <output-dir compare="Text">cross-dv16</output-dir>
-        <expected-error>Recursive invocation testdv1.fun04@0</expected-error>
-      </compilation-unit>
-    </test-case>
-    <!--NotImplementedException: No binary comparator factory implemented for type RECORD.
+    <!--NotImplementedException: No binary comparator factory implemented for type OBJECT.
         <test-case FilePath="cross-dataverse">
           <compilation-unit name="cross-dv17">
             <output-dir compare="Text">cross-dv17</output-dir>
           </compilation-unit>
         </test-case>
         -->
-    <!--NotImplementedException: No binary comparator factory implemented for type RECORD.
+    <!--NotImplementedException: No binary comparator factory implemented for type OBJECT.
         <test-case FilePath="cross-dataverse">
           <compilation-unit name="cross-dv18">
             <output-dir compare="Text">cross-dv18</output-dir>
@@ -7412,6 +7884,107 @@
     </test-case>
   </test-group>
   <test-group name="user-defined-functions">
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-1">
+        <output-dir compare="Text">bad-function-ddl-1</output-dir>
+        <expected-error>Cannot find dataset TweetMessages in dataverse experiments nor an alias with name TweetMessages!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-2">
+        <output-dir compare="Text">bad-function-ddl-2</output-dir>
+        <expected-error>Cannot find dataset TweetMessages in dataverse experiments2 nor an alias with name TweetMessages!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-3">
+        <output-dir compare="Text">bad-function-ddl-3</output-dir>
+        <expected-error>Cannot find dataset TweetMessages in dataverse experiments nor an alias with name TweetMessages!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-4">
+        <output-dir compare="Text">bad-function-ddl-4</output-dir>
+        <expected-error>Cannot find dataset TweetMessages in dataverse experients nor an alias with name TweetMessages!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-5">
+        <output-dir compare="Text">bad-function-ddl-5</output-dir>
+        <expected-error>function experiments.function_that_does_not_exist@0 is not defined</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-6">
+        <output-dir compare="Text">bad-function-ddl-6</output-dir>
+        <expected-error>function experiments.function_that_does_not_exist@2 is not defined</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-7">
+        <output-dir compare="Text">bad-function-ddl-7</output-dir>
+        <expected-error>Cannot find dataset TweetMessaes in dataverse experiments nor an alias with name TweetMessaes!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-8">
+        <output-dir compare="Text">bad-function-ddl-8</output-dir>
+        <expected-error>Cannot find dataset TweetMessaes in dataverse experiments nor an alias with name TweetMessaes!</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-9">
+        <output-dir compare="Text">bad-function-ddl-9</output-dir>
+        <expected-error>function experiments.function_that_does_not_exist@0 is not defined</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="bad-function-ddl-10">
+        <output-dir compare="Text">bad-function-ddl-10</output-dir>
+        <expected-error>function experiments.f0@2 is not defined</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="check-dependencies-1">
+        <output-dir compare="Text">check-dependencies-1</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-1">
+        <output-dir compare="Text">drop-dependency-1</output-dir>
+        <expected-error>Cannot drop dataverse. Function B.f0@2 depends on function C.f1@2</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-2">
+        <output-dir compare="Text">drop-dependency-2</output-dir>
+        <expected-error>Cannot drop dataverse. Function B.f2@2 depends on dataset C.TweetMessages</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-3">
+        <output-dir compare="Text">drop-dependency-3</output-dir>
+        <expected-error>Cannot drop function C.f1@2 being used by function B.f0@2</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-4">
+        <output-dir compare="Text">drop-dependency-4</output-dir>
+        <expected-error>Cannot drop dataset C.TweetMessages being used by function B.f2@2</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-5">
+        <output-dir compare="Text">drop-dependency-5</output-dir>
+        <expected-error>Cannot drop function C.f1@2 being used by function C.f0@2</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="user-defined-functions">
+      <compilation-unit name="drop-dependency-6">
+        <output-dir compare="Text">drop-dependency-6</output-dir>
+        <expected-error>Cannot drop dataset C.TweetMessages being used by function C.f2@2</expected-error>
+      </compilation-unit>
+    </test-case>
     <test-case FilePath="user-defined-functions">
       <compilation-unit name="single-line-definition">
         <output-dir compare="Text">single-line-definition</output-dir>
@@ -7598,12 +8171,6 @@
         </test-case>
         -->
     <test-case FilePath="user-defined-functions">
-      <compilation-unit name="udf26">
-        <output-dir compare="Text">udf26</output-dir>
-        <expected-error>function test.needs_f1@1 depends upon function test.f1@0 which is undefined</expected-error>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="user-defined-functions">
       <compilation-unit name="udf27">
         <output-dir compare="Text">udf27</output-dir>
       </compilation-unit>
@@ -7744,7 +8311,7 @@
     <test-case FilePath="load">
       <compilation-unit name="duplicate-key-error">
         <output-dir compare="Text">none</output-dir>
-        <expected-error>Input stream given to BTree bulk load has duplicates</expected-error>
+        <expected-error>Loading duplicate keys into the primary storage</expected-error>
       </compilation-unit>
     </test-case>
     <test-case FilePath="load">
@@ -7836,6 +8403,11 @@
         <output-dir compare="Text">upsert-feed</output-dir>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="feeds">
+      <compilation-unit name="connect-feed-with-function">
+        <output-dir compare="Text">connect-feed-with-function</output-dir>
+      </compilation-unit>
+    </test-case>
   </test-group>
   <test-group name="hdfs">
     <test-case FilePath="hdfs">
@@ -7859,7 +8431,7 @@
       </compilation-unit>
     </test-case>
   </test-group>
-  <test-group>
+  <test-group name="big-object">
     <test-case FilePath="big-object">
       <compilation-unit name="big_object_sort">
         <output-dir compare="Text">big_object_sort</output-dir>
@@ -8346,6 +8918,65 @@
         <output-dir compare="Text">promotion_opentype_field_vs_opentype_field_02</output-dir>
       </compilation-unit>
     </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="ifmissing">
+        <output-dir compare="Text">ifmissing</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="ifnull">
+        <output-dir compare="Text">ifnull</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="ifmissingornull">
+        <output-dir compare="Text">ifmissingornull</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_boolean_01">
+        <output-dir compare="Text">to_boolean_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_boolean_02">
+        <output-dir compare="Text">to_boolean_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_string_01">
+        <output-dir compare="Text">to_string_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_string_02">
+        <output-dir compare="Text">to_string_02</output-dir>
+        <expected-error>ASX0004: Unsupported type</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_double_01">
+        <output-dir compare="Text">to_double_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_double_02">
+        <output-dir compare="Text">to_double_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_bigint_01">
+        <output-dir compare="Text">to_bigint_01</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="types">
+      <compilation-unit name="to_bigint_02">
+        <output-dir compare="Text">to_bigint_02</output-dir>
+        <expected-error>ASX0002: Type mismatch</expected-error>
+      </compilation-unit>
+    </test-case>
   </test-group>
   <test-group name="materialization">
     <test-case FilePath="materialization">
@@ -8396,12 +9027,27 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="filters">
+      <compilation-unit name="insert-with-correlated-secondary-btree">
+        <output-dir compare="Text">insert-with-secondary-btree</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
       <compilation-unit name="insert-with-secondary-inverted-ngram">
         <output-dir compare="Text">insert-with-secondary-inverted-ngram</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="filters">
+      <compilation-unit name="insert-with-correlated-secondary-inverted-ngram">
+        <output-dir compare="Text">insert-with-secondary-inverted-ngram</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
       <compilation-unit name="insert-with-secondary-inverted-word">
+        <output-dir compare="Text">insert-with-secondary-inverted-word</output-dir>
+      </compilation-unit>
+    </test-case>
+      <test-case FilePath="filters">
+      <compilation-unit name="insert-with-correlated-secondary-inverted-word">
         <output-dir compare="Text">insert-with-secondary-inverted-word</output-dir>
       </compilation-unit>
     </test-case>
@@ -8411,8 +9057,23 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="filters">
+      <compilation-unit name="insert-with-correlated-secondary-rtree">
+        <output-dir compare="Text">insert-with-secondary-rtree</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
       <compilation-unit name="nested-filterequality-predicate">
         <output-dir compare="Text">nested-filter-equality-predicate</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
+      <compilation-unit name="upsert">
+        <output-dir compare="Text">upsert</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="filters">
+      <compilation-unit name="delete">
+        <output-dir compare="Text">delete</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>
@@ -8489,67 +9150,7 @@
       </compilation-unit>
     </test-case>
   </test-group>
-  <test-group name="temp-dataset">
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="delete-from-loaded-dataset">
-        <output-dir compare="Text">delete-from-loaded-dataset</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="delete-from-loaded-dataset-with-index">
-        <output-dir compare="Text">delete-from-loaded-dataset-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="drop-empty-secondary-indexes">
-        <output-dir compare="Text">drop-empty-secondary-indexes</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="drop-index">
-        <output-dir compare="Text">drop-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="empty-load-with-index">
-        <output-dir compare="Text">empty-load-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="insert-and-scan-dataset">
-        <output-dir compare="Text">insert-and-scan-dataset</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="q01_pricing_summary_report_nt">
-        <output-dir compare="Text">q01_pricing_summary_report_nt</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-delete-rtree-secondary-index">
-        <output-dir compare="Text">scan-delete-rtree-secondary-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-rtree-secondary-index">
-        <output-dir compare="Text">scan-insert-rtree-secondary-index</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-persistent-to-temp">
-        <output-dir compare="Text">scan-insert-persistent-to-temp</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="scan-insert-temp-to-persistent">
-        <output-dir compare="Text">scan-insert-temp-to-persistent</output-dir>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="temp-dataset">
-      <compilation-unit name="insert-and-scan-dataset-with-index">
-        <output-dir compare="Text">insert-and-scan-dataset-with-index</output-dir>
-      </compilation-unit>
-    </test-case>
+  <test-group name="unnest">
     <test-case FilePath="unnest">
       <compilation-unit name="left-outer-unnest">
         <output-dir compare="Text">left-outer-unnest</output-dir>
@@ -8579,12 +9180,6 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="union">
-      <compilation-unit name="union_negative_2">
-        <output-dir compare="Text">union</output-dir>
-        <expected-error>Cannot find dataset t in dataverse TinySocial nor an alias with name t</expected-error>
-      </compilation-unit>
-    </test-case>
-    <test-case FilePath="union">
       <compilation-unit name="union_negative_3">
         <output-dir compare="Text">union</output-dir>
         <expected-error>Operation UNION with set semantics is not supported.</expected-error>
@@ -8608,6 +9203,11 @@
     <test-case FilePath="union">
       <compilation-unit name="union_orderby_4">
         <output-dir compare="Text">union_orderby_3</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="union">
+      <compilation-unit name="union_orderby_5">
+        <output-dir compare="Text">union_orderby_5</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="union">
@@ -8643,6 +9243,11 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="upsert">
+      <compilation-unit name="primary-correlated-secondary-rtree">
+        <output-dir compare="Text">primary-secondary-rtree</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="upsert">
       <compilation-unit name="upsert-with-self-read">
         <output-dir compare="Text">upsert-with-self-read</output-dir>
       </compilation-unit>
@@ -8668,13 +9273,173 @@
       </compilation-unit>
     </test-case>
     <test-case FilePath="upsert">
+      <compilation-unit name="primary-correlated-secondary-btree">
+        <output-dir compare="Text">primary-secondary-btree</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="upsert">
       <compilation-unit name="primary-secondary-inverted">
+        <output-dir compare="Text">primary-secondary-inverted</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="upsert">
+      <compilation-unit name="primary-correlated-secondary-inverted">
         <output-dir compare="Text">primary-secondary-inverted</output-dir>
       </compilation-unit>
     </test-case>
     <test-case FilePath="upsert">
       <compilation-unit name="multiple-secondaries">
         <output-dir compare="Text">multiple-secondaries</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="upsert">
+      <compilation-unit name="multiple-correlated-secondaries">
+        <output-dir compare="Text">multiple-secondaries</output-dir>
+      </compilation-unit>
+    </test-case>
+  </test-group>
+  <test-group name="json-parser">
+    <test-case FilePath="json-parser">
+      <compilation-unit name="numeric-tinyint">
+        <output-dir compare="Text">numeric-tinyint</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="numeric-tinyint-overflow">
+        <output-dir compare="Text">numeric-tinyint</output-dir>
+        <expected-error>Numeric value (1000) out of range of Java byte</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="numeric-float">
+        <output-dir compare="Text">numeric-float</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="numeric-demote-double-bigint">
+        <output-dir compare="Text">numeric-demote-double-bigint</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="numeric-promote-bigint-double">
+        <output-dir compare="Text">numeric-promote-bigint-double</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="duplicate-fields">
+        <output-dir compare="Text">duplicate-fields</output-dir>
+        <expected-error>Duplicate field 'field'</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="malformed-json">
+        <output-dir compare="Text">malformed-json</output-dir>
+        <expected-error>Unexpected character ('}' (code 125)): was expecting double-quote to start field name</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="null-missing">
+        <output-dir compare="Text">null-missing</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="nonoptional-missing">
+        <output-dir compare="Text">nonoptional-missing</output-dir>
+        <expected-error>ASX3075: Closed field missing_value has null value</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="nonoptional-null">
+        <output-dir compare="Text">nonoptional-null</output-dir>
+        <expected-error>ASX3075: Closed field null_value has null value</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="spatial">
+        <output-dir compare="Text">spatial</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="spatial-line-3-points">
+        <output-dir compare="Text">spatial-line-3-points</output-dir>
+        <expected-error>Line must have 4 coordinates</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="spatial-polygon-unclosed">
+        <output-dir compare="Text">spatial-polygon-unclosed</output-dir>
+        <expected-error>Unclosed polygon is not supported</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="spatial-polygon-with-hole">
+        <output-dir compare="Text">spatial-polygon-with-hole</output-dir>
+        <expected-error>Only simple geometries are supported (Point, LineString and Polygon without holes)</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="temporal">
+        <output-dir compare="Text">temporal</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="type-mismatch">
+        <output-dir compare="Text">type-mismatch</output-dir>
+        <expected-error>ASX3054: Mismatch Type, expecting a value of type string</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-circle">
+        <output-dir compare="Text">unsupported-type-circle</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type circle</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-daytimeduration">
+        <output-dir compare="Text">unsupported-type-daytimeduration</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type daytimeduration</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-duration">
+        <output-dir compare="Text">unsupported-type-duration</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type duration</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-interval">
+        <output-dir compare="Text">unsupported-type-interval</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type interval</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-multiset">
+        <output-dir compare="Text">unsupported-type-multiset</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type multiset</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-point3d">
+        <output-dir compare="Text">unsupported-type-point3d</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type point3d</expected-error>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="json-parser">
+      <compilation-unit name="unsupported-type-rectangle">
+        <output-dir compare="Text">unsupported-type-rectangle</output-dir>
+        <expected-error>ASX0004: Unsupported type: org.apache.asterix.external.parser.factory.JSONDataParserFactory cannot process input type rectangle</expected-error>
+      </compilation-unit>
+    </test-case>
+  </test-group>
+  <test-group name="composite-key">
+    <test-case FilePath="composite-key">
+      <compilation-unit name="query-ASTERIXDB-920">
+        <output-dir compare="Text">query-ASTERIXDB-920</output-dir>
+      </compilation-unit>
+    </test-case>
+    <test-case FilePath="composite-key">
+      <compilation-unit name="composite-low-high">
+        <output-dir compare="Text">composite-low-high</output-dir>
       </compilation-unit>
     </test-case>
   </test-group>

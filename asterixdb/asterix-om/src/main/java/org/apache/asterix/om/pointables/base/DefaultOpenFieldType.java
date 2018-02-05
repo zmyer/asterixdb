@@ -42,19 +42,19 @@ public class DefaultOpenFieldType {
     }
 
     // nested open list type
-    public static AOrderedListType NESTED_OPEN_AORDERED_LIST_TYPE = new AOrderedListType(BuiltinType.ANY,
-            "nested-ordered-list");
+    public static AOrderedListType NESTED_OPEN_AORDERED_LIST_TYPE =
+            new AOrderedListType(BuiltinType.ANY, "nested-ordered-list");
 
     // nested open list type
-    public static AUnorderedListType NESTED_OPEN_AUNORDERED_LIST_TYPE = new AUnorderedListType(BuiltinType.ANY,
-            "nested-unordered-list");
+    public static AUnorderedListType NESTED_OPEN_AUNORDERED_LIST_TYPE =
+            new AUnorderedListType(BuiltinType.ANY, "nested-unordered-list");
 
     public static IAType getDefaultOpenFieldType(ATypeTag tag) {
-        if (tag.equals(ATypeTag.RECORD))
+        if (tag.equals(ATypeTag.OBJECT))
             return NESTED_OPEN_RECORD_TYPE;
-        if (tag.equals(ATypeTag.ORDEREDLIST))
+        if (tag.equals(ATypeTag.ARRAY))
             return NESTED_OPEN_AORDERED_LIST_TYPE;
-        if (tag.equals(ATypeTag.UNORDEREDLIST))
+        if (tag.equals(ATypeTag.MULTISET))
             return NESTED_OPEN_AUNORDERED_LIST_TYPE;
         else
             return null;

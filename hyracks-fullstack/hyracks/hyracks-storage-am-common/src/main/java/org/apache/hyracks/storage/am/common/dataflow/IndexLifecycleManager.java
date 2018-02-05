@@ -27,10 +27,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.lifecycle.ILifeCycleComponent;
-import org.apache.hyracks.storage.am.common.api.IIndex;
-import org.apache.hyracks.storage.am.common.api.IResourceLifecycleManager;
+import org.apache.hyracks.storage.common.IIndex;
+import org.apache.hyracks.storage.common.IResourceLifecycleManager;
 
 public class IndexLifecycleManager implements IResourceLifecycleManager<IIndex>, ILifeCycleComponent {
     private static final long DEFAULT_MEMORY_BUDGET = 1024 * 1024 * 100; // 100 megabytes
@@ -223,12 +224,12 @@ public class IndexLifecycleManager implements IResourceLifecycleManager<IIndex>,
     public void unregister(String resourcePath) throws HyracksDataException {
         IndexInfo info = indexInfos.get(resourcePath);
         if (info == null) {
-            throw new HyracksDataException("Index with resource name " + resourcePath + " does not exist.");
+            throw HyracksDataException.create(ErrorCode.INDEX_DOES_NOT_EXIST);
         }
 
         if (info.referenceCount != 0) {
             indexInfos.put(resourcePath, info);
-            throw new HyracksDataException("Cannot remove index while it is open.");
+            throw HyracksDataException.create(ErrorCode.CANNOT_DROP_IN_USE_INDEX, resourcePath);
         }
 
         if (info.isOpen) {

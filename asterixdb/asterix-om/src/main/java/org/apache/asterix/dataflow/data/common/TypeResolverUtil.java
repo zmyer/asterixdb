@@ -58,6 +58,21 @@ public class TypeResolverUtil {
     }
 
     /**
+     * Returns a minimally generalized type that conforms to all input types.
+     *
+     * @param inputTypes,
+     *            a list of input types
+     * @return a generalized type that conforms to all input types.
+     */
+    public static IAType resolve(IAType... inputTypes) {
+        IAType currentType = null;
+        for (IAType type : inputTypes) {
+            currentType = currentType == null ? type : generalizeTypes(currentType, type);
+        }
+        return currentType;
+    }
+
+    /**
      * Decides whether a type cast is needed to covert data instances from the input type to the required type.
      *
      * @param reqType,
@@ -74,7 +89,7 @@ public class TypeResolverUtil {
         }
         // Casts are only needed when the original return type is a complex type.
         // (In the runtime, there is already a type tag for scalar types.)
-        if (tag != ATypeTag.RECORD && tag != ATypeTag.UNORDEREDLIST && tag != ATypeTag.ORDEREDLIST) {
+        if (tag != ATypeTag.OBJECT && tag != ATypeTag.MULTISET && tag != ATypeTag.ARRAY) {
             return false;
         }
         return !TypeComputeUtils.getActualType(reqType).equals(TypeComputeUtils.getActualType(inputType));
@@ -102,7 +117,7 @@ public class TypeResolverUtil {
 
         // Deals with the case one input type is null or missing.
         if (leftTypeTag == ATypeTag.MISSING || leftTypeTag == ATypeTag.NULL) {
-            return AUnionType.createUnknownableType(leftType);
+            return AUnionType.createUnknownableType(rightType);
         }
         if (rightTypeTag == ATypeTag.MISSING || rightTypeTag == ATypeTag.NULL) {
             return AUnionType.createUnknownableType(leftType);
@@ -121,11 +136,11 @@ public class TypeResolverUtil {
     // Generalizes two complex types, e.g., record, ordered list and unordered list.
     private static IAType generalizeComplexTypes(ATypeTag typeTag, IAType leftType, IAType rightType) {
         switch (typeTag) {
-            case RECORD:
+            case OBJECT:
                 return generalizeRecordTypes((ARecordType) leftType, (ARecordType) rightType);
-            case ORDEREDLIST:
+            case ARRAY:
                 return generalizeOrderedListTypes((AOrderedListType) leftType, (AOrderedListType) rightType);
-            case UNORDEREDLIST:
+            case MULTISET:
                 return generalizeUnorderedListTypes((AUnorderedListType) leftType, (AUnorderedListType) rightType);
             default:
                 return BuiltinType.ANY;

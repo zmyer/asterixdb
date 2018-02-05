@@ -31,7 +31,6 @@ public class FeedConstants {
         public static final String INTAKE_TIMESTAMP = "intake-timestamp";
         public static final String COMPUTE_TIMESTAMP = "compute-timestamp";
         public static final String STORE_TIMESTAMP = "store-timestamp";
-
     }
 
     public static final class MessageConstants {
@@ -68,9 +67,5 @@ public class FeedConstants {
 
     public static final class NamingConstants {
         public static final String LIBRARY_NAME_SEPARATOR = "#";
-    }
-
-    public static class JobConstants {
-        public static final int DEFAULT_FRAME_SIZE = 8192;
     }
 }

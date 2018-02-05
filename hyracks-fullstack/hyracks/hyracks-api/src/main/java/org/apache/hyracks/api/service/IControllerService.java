@@ -18,8 +18,18 @@
  */
 package org.apache.hyracks.api.service;
 
-public interface IControllerService {
-    public void start() throws Exception;
+import java.util.concurrent.ExecutorService;
 
-    public void stop() throws Exception;
+import org.apache.hyracks.api.application.IServiceContext;
+
+public interface IControllerService {
+    void start() throws Exception;
+
+    void stop() throws Exception;
+
+    IServiceContext getContext();
+
+    ExecutorService getExecutor();
+
+    Object getApplicationContext();
 }

@@ -28,7 +28,6 @@ import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.std.group.AbstractAccumulatingAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.AggregateState;
 import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptor;
-import org.apache.hyracks.dataflow.std.group.IAggregatorDescriptorFactory;
 import org.apache.hyracks.dataflow.std.group.IFieldAggregateDescriptor;
 import org.apache.hyracks.dataflow.std.group.IFieldAggregateDescriptorFactory;
 
@@ -58,8 +57,8 @@ public class MultiFieldsAggregatorFactory extends AbstractAccumulatingAggregator
      */
     @Override
     public IAggregatorDescriptor createAggregator(IHyracksTaskContext ctx, RecordDescriptor inRecordDescriptor,
-            RecordDescriptor outRecordDescriptor, final int[] keyFields, final int[] keyFieldsInPartialResults)
-            throws HyracksDataException {
+            RecordDescriptor outRecordDescriptor, final int[] keyFields, final int[] keyFieldsInPartialResults,
+            long memoryBudget) throws HyracksDataException {
 
         final IFieldAggregateDescriptor[] aggregators = new IFieldAggregateDescriptor[aggregatorFactories.length];
         for (int i = 0; i < aggregators.length; i++) {
@@ -96,8 +95,8 @@ public class MultiFieldsAggregatorFactory extends AbstractAccumulatingAggregator
             }
 
             @Override
-            public boolean outputFinalResult(ArrayTupleBuilder tupleBuilder, IFrameTupleAccessor stateAccessor, int tIndex,
-                    AggregateState state) throws HyracksDataException {
+            public boolean outputFinalResult(ArrayTupleBuilder tupleBuilder, IFrameTupleAccessor stateAccessor,
+                    int tIndex, AggregateState state) throws HyracksDataException {
                 DataOutput dos = tupleBuilder.getDataOutput();
 
                 int tupleOffset = stateAccessor.getTupleStartOffset(tIndex);
@@ -152,8 +151,8 @@ public class MultiFieldsAggregatorFactory extends AbstractAccumulatingAggregator
                     int fieldIndex = 0;
                     for (int i = 0; i < aggregators.length; i++) {
                         if (aggregators[i].needsBinaryState()) {
-                            int stateFieldOffset = stateAccessor.getFieldStartOffset(stateTupleIndex, keys.length
-                                    + fieldIndex);
+                            int stateFieldOffset =
+                                    stateAccessor.getFieldStartOffset(stateTupleIndex, keys.length + fieldIndex);
                             aggregators[i].aggregate(accessor, tIndex, stateAccessor.getBuffer().array(),
                                     stateTupleOffset + stateAccessor.getFieldSlotsLength() + stateFieldOffset,
                                     ((AggregateState[]) state.state)[i]);

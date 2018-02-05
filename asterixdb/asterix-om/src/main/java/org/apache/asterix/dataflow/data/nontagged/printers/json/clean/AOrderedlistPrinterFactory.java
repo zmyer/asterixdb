@@ -20,7 +20,6 @@ package org.apache.asterix.dataflow.data.nontagged.printers.json.clean;
 
 import java.io.PrintStream;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.pointables.PointableAllocator;
 import org.apache.asterix.om.pointables.base.DefaultOpenFieldType;
 import org.apache.asterix.om.pointables.base.IVisitablePointable;
@@ -45,8 +44,8 @@ public class AOrderedlistPrinterFactory implements IPrinterFactory {
     @Override
     public IPrinter createPrinter() {
         final PointableAllocator allocator = new PointableAllocator();
-        final IAType inputType = orderedlistType == null
-                ? DefaultOpenFieldType.getDefaultOpenFieldType(ATypeTag.ORDEREDLIST) : orderedlistType;
+        final IAType inputType = orderedlistType == null ? DefaultOpenFieldType.getDefaultOpenFieldType(ATypeTag.ARRAY)
+                : orderedlistType;
         final IVisitablePointable listAccessor = allocator.allocateListValue(inputType);
         final APrintVisitor printVisitor = new APrintVisitor();
         final Pair<PrintStream, ATypeTag> arg = new Pair<>(null, null);
@@ -59,13 +58,9 @@ public class AOrderedlistPrinterFactory implements IPrinterFactory {
 
             @Override
             public void print(byte[] b, int start, int l, PrintStream ps) throws HyracksDataException {
-                try {
-                    listAccessor.set(b, start, l);
-                    arg.first = ps;
-                    listAccessor.accept(printVisitor, arg);
-                } catch (AsterixException e) {
-                    throw new HyracksDataException(e);
-                }
+                listAccessor.set(b, start, l);
+                arg.first = ps;
+                listAccessor.accept(printVisitor, arg);
             }
         };
     }

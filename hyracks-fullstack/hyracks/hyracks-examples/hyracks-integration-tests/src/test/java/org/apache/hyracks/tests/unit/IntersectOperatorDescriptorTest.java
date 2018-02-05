@@ -51,9 +51,9 @@ import org.junit.Test;
 
 public class IntersectOperatorDescriptorTest {
 
-    IOperatorDescriptorRegistry mockRegistry = when(
-            mock(IOperatorDescriptorRegistry.class).createOperatorDescriptorId(any()))
-            .thenReturn(new OperatorDescriptorId(1)).getMock();
+    IOperatorDescriptorRegistry mockRegistry =
+            when(mock(IOperatorDescriptorRegistry.class).createOperatorDescriptorId(any()))
+                    .thenReturn(new OperatorDescriptorId(1)).getMock();
     MultiThreadTaskEmulator multiThreadTaskEmulator = new MultiThreadTaskEmulator();
     InputFrameGenerator frameGenerator = new InputFrameGenerator(256);
     IHyracksTaskContext ctx = TestUtils.create(256);
@@ -72,10 +72,9 @@ public class IntersectOperatorDescriptorTest {
         inputRecordDescriptor = new RecordDescriptor[nInputs];
 
         normalizedKeyFactory = null;
-        comparatorFactory = new IBinaryComparatorFactory[] {
-                PointableBinaryComparatorFactory.of(IntegerPointable.FACTORY),
-                PointableBinaryComparatorFactory.of(IntegerPointable.FACTORY)
-        };
+        comparatorFactory =
+                new IBinaryComparatorFactory[] { PointableBinaryComparatorFactory.of(IntegerPointable.FACTORY),
+                        PointableBinaryComparatorFactory.of(IntegerPointable.FACTORY) };
 
         for (int i = 0; i < nInputs; i++) {
             compareFields[i] = new int[nProjectFields];
@@ -84,17 +83,13 @@ public class IntersectOperatorDescriptorTest {
             }
         }
         for (int i = 0; i < nInputs; i++) {
-            inputRecordDescriptor[i] = new RecordDescriptor(new ISerializerDeserializer[] {
-                    IntegerSerializerDeserializer.INSTANCE,
-                    IntegerSerializerDeserializer.INSTANCE,
-                    IntegerSerializerDeserializer.INSTANCE
-            });
+            inputRecordDescriptor[i] =
+                    new RecordDescriptor(new ISerializerDeserializer[] { IntegerSerializerDeserializer.INSTANCE,
+                            IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE });
         }
 
         outRecordDescriptor = new RecordDescriptor(new ISerializerDeserializer[] {
-                IntegerSerializerDeserializer.INSTANCE,
-                IntegerSerializerDeserializer.INSTANCE
-        });
+                IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE });
     }
 
     @Before
@@ -108,7 +103,7 @@ public class IntersectOperatorDescriptorTest {
     public void testNormalOperatorInitialization() throws HyracksException {
 
         IntersectOperatorDescriptor operatorDescriptor = new IntersectOperatorDescriptor(mockRegistry, nInputs,
-                compareFields, normalizedKeyFactory, comparatorFactory, outRecordDescriptor);
+                compareFields, null, normalizedKeyFactory, comparatorFactory, outRecordDescriptor);
 
         assertEquals(nInputs, operatorDescriptor.getInputArity());
     }
@@ -158,7 +153,7 @@ public class IntersectOperatorDescriptorTest {
     private void executeAndVerifyResult(List<IFrame>[] inputFrames, List<Object[]> answer) throws Exception {
         IntersectOperatorDescriptor.IntersectOperatorNodePushable pushable =
                 new IntersectOperatorDescriptor.IntersectOperatorNodePushable(ctx, nInputs, inputRecordDescriptor,
-                        compareFields, null, comparatorFactory);
+                        compareFields, null, null, comparatorFactory);
         assertEquals(nInputs, pushable.getInputArity());
 
         IFrameWriter[] writers = new IFrameWriter[nInputs];
@@ -208,8 +203,8 @@ public class IntersectOperatorDescriptorTest {
         generateRecordStream(answer, outRecordDescriptor, 0, 100, 1);
     }
 
-    private void generateRecordStream(List<Object[]> inputs, RecordDescriptor recordDesc,
-            int start, int end, int step) {
+    private void generateRecordStream(List<Object[]> inputs, RecordDescriptor recordDesc, int start, int end,
+            int step) {
         for (int i = start; i < end; i += step) {
             Object[] obj = new Object[recordDesc.getFieldCount()];
             for (int f = 0; f < recordDesc.getFieldCount(); f++) {

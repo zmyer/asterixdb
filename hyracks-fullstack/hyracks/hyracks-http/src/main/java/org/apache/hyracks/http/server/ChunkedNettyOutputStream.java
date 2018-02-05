@@ -20,17 +20,20 @@ package org.apache.hyracks.http.server;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.util.internal.OutOfDirectMemoryError;
 
 public class ChunkedNettyOutputStream extends OutputStream {
 
-    private static final Logger LOGGER = Logger.getLogger(ChunkedNettyOutputStream.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
     private final ChannelHandlerContext ctx;
     private final ChunkedResponse response;
     private ByteBuf buffer;
@@ -40,27 +43,35 @@ public class ChunkedNettyOutputStream extends OutputStream {
         this.response = response;
         this.ctx = ctx;
         buffer = ctx.alloc().buffer(chunkSize);
+        // register listener for channel closed
+        ctx.channel().closeFuture().addListener(futureListener -> {
+            synchronized (ChunkedNettyOutputStream.this) {
+                ChunkedNettyOutputStream.this.notifyAll();
+            }
+        });
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
-        if ((off < 0) || (off > b.length) || (len < 0) || ((off + len) > b.length)) {
-            throw new IndexOutOfBoundsException();
-        } else if (len == 0) {
-            return;
-        }
-        if (len > buffer.capacity()) {
-            flush();
-            flush(b, off, len);
-        } else {
-            int space = buffer.writableBytes();
-            if (space >= len) {
-                buffer.writeBytes(b, off, len);
-            } else {
-                buffer.writeBytes(b, off, space);
-                flush();
-                buffer.writeBytes(b, off + space, len - space);
+        try {
+            if ((off < 0) || (off > b.length) || (len < 0) || ((off + len) > b.length)) {
+                throw new IndexOutOfBoundsException();
             }
+            while (len > 0) {
+                int space = buffer.writableBytes();
+                if (space >= len) {
+                    buffer.writeBytes(b, off, len);
+                    len = 0; // NOSONAR
+                } else {
+                    buffer.writeBytes(b, off, space);
+                    len -= space; // NOSONAR
+                    off += space; // NOSONAR
+                    flush();
+                }
+            }
+        } catch (OutOfDirectMemoryError error) {// NOSONAR
+            response.setStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
+            throw error;
         }
     }
 
@@ -76,8 +87,13 @@ public class ChunkedNettyOutputStream extends OutputStream {
     public void close() throws IOException {
         if (!closed) {
             if (response.isHeaderSent() || response.status() != HttpResponseStatus.OK) {
-                flush();
-                buffer.release();
+                try {
+                    flush();
+                } finally {
+                    if (buffer != null) {
+                        buffer.release();
+                    }
+                }
             } else {
                 response.fullReponse(buffer);
             }
@@ -89,12 +105,16 @@ public class ChunkedNettyOutputStream extends OutputStream {
     @Override
     public void flush() throws IOException {
         ensureWritable();
-        if (buffer.readableBytes() > 0) {
+        if (buffer != null && buffer.readableBytes() > 0) {
             if (response.status() == HttpResponseStatus.OK) {
                 int size = buffer.capacity();
                 response.beforeFlush();
                 DefaultHttpContent content = new DefaultHttpContent(buffer);
-                ctx.write(content, ctx.channel().voidPromise());
+                ctx.writeAndFlush(content, ctx.channel().voidPromise());
+                // The responisbility of releasing the buffer is now with the netty pipeline since it is forwarded
+                // within the http content. We must nullify buffer before we allocate the next one to avoid
+                // releasing the buffer twice in case the allocation call fails.
+                buffer = null;
                 buffer = ctx.alloc().buffer(size);
             } else {
                 ByteBuf aBuffer = ctx.alloc().buffer(buffer.readableBytes());
@@ -105,26 +125,16 @@ public class ChunkedNettyOutputStream extends OutputStream {
         }
     }
 
-    private void flush(byte[] buf, int offset, int len) throws IOException {
-        ensureWritable();
-        ByteBuf aBuffer = ctx.alloc().buffer(len);
-        aBuffer.writeBytes(buf, offset, len);
-        if (response.status() == HttpResponseStatus.OK) {
-            response.beforeFlush();
-            ctx.write(new DefaultHttpContent(aBuffer), ctx.channel().voidPromise());
-        } else {
-            response.error(aBuffer);
-        }
-    }
-
     private synchronized void ensureWritable() throws IOException {
         while (!ctx.channel().isWritable()) {
             try {
-                ctx.flush();
+                if (!ctx.channel().isOpen()) {
+                    throw new IOException("Closed channel");
+                }
                 wait();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                LOGGER.log(Level.WARNING, "Interupted while waiting for channel to be writable", e);
+                LOGGER.log(Level.WARN, "Interupted while waiting for channel to be writable", e);
                 throw new IOException(e);
             }
         }

@@ -14,8 +14,8 @@ FieldAccessor [
   Field=rank
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [TOKENSRANKEDADM]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.TOKENSRANKEDADM]
   ]
   AS Variable [ Name=$token1 ]
 ,
@@ -23,8 +23,8 @@ FROM [  FunctionCall Metadata.dataset@1[
     SELECT ELEMENT [
     Variable [ Name=$tokenRanked ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [TOKENSRANKEDADM]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [fuzzyjoin.TOKENSRANKEDADM]
       ]
       AS Variable [ Name=$tokenRanked ]
     ]

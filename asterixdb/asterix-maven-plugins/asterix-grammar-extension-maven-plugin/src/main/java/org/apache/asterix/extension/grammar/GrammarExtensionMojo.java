@@ -61,8 +61,8 @@ public class GrammarExtensionMojo extends AbstractMojo {
     private static final char OPEN_PAREN = '(';
     private static final char CLOSE_PAREN = ')';
     private static final char SEMICOLON = ';';
-    private static final List<Character> SIG_SPECIAL_CHARS = Arrays
-            .asList(new Character[] { '(', ')', ':', '<', '>', ';', '.' });
+    private static final List<Character> SIG_SPECIAL_CHARS =
+            Arrays.asList(new Character[] { '(', ')', ':', '<', '>', ';', '.' });
     private static final String KWCLASS = "class";
     private static final String KWIMPORT = "import";
     private static final String KWUNIMPORT = "unimport";
@@ -80,8 +80,8 @@ public class GrammarExtensionMojo extends AbstractMojo {
     private static final String WITH = "with";
     private static final String OPTION_TRUE = "true";
     private static final String OPTION_FALSE = "false";
-    private static final List<String> KEYWORDS = Arrays
-            .asList(new String[] { KWCLASS, KWIMPORT, KWPACKAGE, PARSER_BEGIN, PARSER_END });
+    private static final List<String> KEYWORDS =
+            Arrays.asList(new String[] { KWCLASS, KWIMPORT, KWPACKAGE, PARSER_BEGIN, PARSER_END });
     private static final List<String> EXTENSIONKEYWORDS =
             Arrays.asList(new String[] { KWIMPORT, KWUNIMPORT, NEWPRODUCTION, NEW_AT_THE_END_PRODUCTION,
                     NEW_AT_THE_END_CLASS_DEFINITION, OVERRIDEPRODUCTION, MERGEPRODUCTION });
@@ -134,6 +134,9 @@ public class GrammarExtensionMojo extends AbstractMojo {
     @Override
     public void execute() throws MojoExecutionException {
         base = new File(base).getAbsolutePath();
+        gbase = resolvePath(gbase);
+        gextension = resolvePath(gextension);
+        output = resolvePath(output);
         getLog().info("Base dir: " + base);
         getLog().info("Grammar-base: " + gbase);
         getLog().info("Grammar-extension: " + gextension);
@@ -141,6 +144,10 @@ public class GrammarExtensionMojo extends AbstractMojo {
         processBase();
         processExtension();
         generateOutput();
+    }
+
+    private String resolvePath(String path) {
+        return new File(path).isAbsolute() ? path : new File(base, path).getAbsolutePath();
     }
 
     private void generateOutput() throws MojoExecutionException {
@@ -216,7 +223,7 @@ public class GrammarExtensionMojo extends AbstractMojo {
             writer.newLine();
             writer.newLine();
 
-            // Extinsibles
+            // Extensibles
             for (Entry<String, Pair<String, String>> entry : extensibles.entrySet()) {
                 writer.newLine();
                 String signature = entry.getKey();
@@ -472,7 +479,7 @@ public class GrammarExtensionMojo extends AbstractMojo {
     }
 
     private void processBase() throws MojoExecutionException {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(base, gbase), StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(gbase), StandardCharsets.UTF_8)) {
             StringBuilder identifier = new StringBuilder();
             while ((position.line = reader.readLine()) != null) {
                 if (position.line.trim().startsWith("//")) {
@@ -693,7 +700,7 @@ public class GrammarExtensionMojo extends AbstractMojo {
     }
 
     private void processExtension() throws MojoExecutionException {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(base, gextension), StandardCharsets.UTF_8)) {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(gextension), StandardCharsets.UTF_8)) {
             StringBuilder identifier = new StringBuilder();
             String nextOperation = OVERRIDEPRODUCTION;
             while (read || (position.line = reader.readLine()) != null) {
@@ -967,8 +974,8 @@ public class GrammarExtensionMojo extends AbstractMojo {
         int after = block.indexOf(AFTER);
         if (before >= 0) {
             // before exists
-            amendments[beforeIndex] = block.substring(before + BEFORE.length(),
-                    (after >= 0) ? after : block.length() - 1);
+            amendments[beforeIndex] =
+                    block.substring(before + BEFORE.length(), (after >= 0) ? after : block.length() - 1);
             if (amendments[beforeIndex].trim().length() == 0) {
                 amendments[beforeIndex] = null;
             }
@@ -989,7 +996,7 @@ public class GrammarExtensionMojo extends AbstractMojo {
 
     private File prepareOutputFile() throws MojoExecutionException {
         // write output
-        File outputFile = new File(base, output);
+        File outputFile = new File(output);
         if (outputFile.exists() && (!outputFile.delete())) {
             throw new MojoExecutionException("Unable to delete file " + output);
         }

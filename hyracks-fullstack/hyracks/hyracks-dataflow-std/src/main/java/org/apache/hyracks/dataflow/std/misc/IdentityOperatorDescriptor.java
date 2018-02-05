@@ -34,13 +34,13 @@ public class IdentityOperatorDescriptor extends AbstractSingleActivityOperatorDe
 
     public IdentityOperatorDescriptor(IOperatorDescriptorRegistry spec, RecordDescriptor rDesc) {
         super(spec, 1, 1);
-        recordDescriptors[0] = rDesc;
+        outRecDescs[0] = rDesc;
     }
 
     @Override
     public IOperatorNodePushable createPushRuntime(final IHyracksTaskContext ctx,
             final IRecordDescriptorProvider recordDescProvider, int partition, int nPartitions)
-                    throws HyracksDataException {
+            throws HyracksDataException {
         return new AbstractUnaryInputUnaryOutputOperatorNodePushable() {
             @Override
             public void open() throws HyracksDataException {

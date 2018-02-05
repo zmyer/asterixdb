@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,11 +35,12 @@ import java.util.concurrent.Executor;
 import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.FileReference;
-import org.apache.hyracks.api.io.IFileDeviceComputer;
+import org.apache.hyracks.api.io.IFileDeviceResolver;
 import org.apache.hyracks.api.io.IFileHandle;
 import org.apache.hyracks.api.io.IIOFuture;
 import org.apache.hyracks.api.io.IIOManager;
 import org.apache.hyracks.api.io.IODeviceHandle;
+import org.apache.hyracks.api.util.IoUtil;
 
 public class IOManager implements IIOManager {
     /*
@@ -55,14 +58,15 @@ public class IOManager implements IIOManager {
      */
     private Executor executor;
     private int workspaceIndex;
-    private IFileDeviceComputer deviceComputer;
+    private IFileDeviceResolver deviceComputer;
 
-    public IOManager(List<IODeviceHandle> devices, Executor executor) throws HyracksDataException {
-        this(devices);
+    public IOManager(List<IODeviceHandle> devices, Executor executor, IFileDeviceResolver deviceComputer)
+            throws HyracksDataException {
+        this(devices, deviceComputer);
         this.executor = executor;
     }
 
-    public IOManager(List<IODeviceHandle> devices) throws HyracksDataException {
+    public IOManager(List<IODeviceHandle> devices, IFileDeviceResolver deviceComputer) throws HyracksDataException {
         this.ioDevices = Collections.unmodifiableList(devices);
         checkDeviceValidity(devices);
         workspaces = new ArrayList<>();
@@ -76,7 +80,7 @@ public class IOManager implements IIOManager {
             throw new HyracksDataException("No devices with workspace found");
         }
         workspaceIndex = 0;
-        deviceComputer = new DefaultDeviceComputer(this);
+        this.deviceComputer = deviceComputer;
     }
 
     private void checkDeviceValidity(List<IODeviceHandle> devices) throws HyracksDataException {
@@ -129,8 +133,7 @@ public class IOManager implements IIOManager {
             while (remaining > 0) {
                 int len = ((FileHandle) fHandle).getFileChannel().write(data, offset);
                 if (len < 0) {
-                    throw new HyracksDataException(
-                            "Error writing to file: " + ((FileHandle) fHandle).getFileReference().toString());
+                    throw new HyracksDataException("Error writing to file: " + fHandle.getFileReference().toString());
                 }
                 remaining -= len;
                 offset += len;
@@ -163,8 +166,7 @@ public class IOManager implements IIOManager {
                     len = fileChannel.write(dataArray);
                 }
                 if (len < 0) {
-                    throw new HyracksDataException(
-                            "Error writing to file: " + ((FileHandle) fHandle).getFileReference().toString());
+                    throw new HyracksDataException("Error writing to file: " + fHandle.getFileReference().toString());
                 }
                 remaining -= len;
                 offset += len;
@@ -203,10 +205,15 @@ public class IOManager implements IIOManager {
                 n += len;
             }
             return n;
-        } catch (HyracksDataException e) {
-            throw e;
+        } catch (ClosedByInterruptException e) {
+            Thread.currentThread().interrupt();
+            // re-open the closed channel. The channel will be closed during the typical file lifecycle
+            ((FileHandle) fHandle).ensureOpen();
+            throw HyracksDataException.create(e);
+        } catch (ClosedChannelException e) {
+            throw HyracksDataException.create(ErrorCode.CANNOT_READ_CLOSED_FILE, e, fHandle.getFileReference());
         } catch (IOException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
@@ -229,7 +236,7 @@ public class IOManager implements IIOManager {
         try {
             ((FileHandle) fHandle).close();
         } catch (IOException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
@@ -242,7 +249,7 @@ public class IOManager implements IIOManager {
         try {
             waf = File.createTempFile(prefix, WORKSPACE_FILE_SUFFIX, new File(dev.getMount(), waPath));
         } catch (IOException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
         return dev.createFileRef(waPath + File.separator + waf.getName());
     }
@@ -324,7 +331,7 @@ public class IOManager implements IIOManager {
     @Override
     public void sync(IFileHandle fileHandle, boolean metadata) throws HyracksDataException {
         try {
-            ((FileHandle) fileHandle).sync(metadata);
+            ((FileHandle) fileHandle).getFileChannel().force(metadata);
         } catch (IOException e) {
             throw new HyracksDataException(e);
         }
@@ -332,17 +339,17 @@ public class IOManager implements IIOManager {
 
     @Override
     public long getSize(IFileHandle fileHandle) {
-        return ((FileHandle) fileHandle).getFileReference().getFile().length();
+        return fileHandle.getFileReference().getFile().length();
     }
 
     @Override
-    public void deleteWorkspaceFiles() {
+    public void deleteWorkspaceFiles() throws HyracksDataException {
         for (IODeviceHandle ioDevice : workspaces) {
             File workspaceFolder = new File(ioDevice.getMount(), ioDevice.getWorkspace());
             if (workspaceFolder.exists() && workspaceFolder.isDirectory()) {
                 File[] workspaceFiles = workspaceFolder.listFiles(WORKSPACE_FILES_FILTER);
                 for (File workspaceFile : workspaceFiles) {
-                    workspaceFile.delete();
+                    IoUtil.delete(workspaceFile);
                 }
             }
         }
@@ -356,7 +363,7 @@ public class IOManager implements IIOManager {
 
     @Override
     public FileReference resolve(String path) throws HyracksDataException {
-        return new FileReference(deviceComputer.compute(path), path);
+        return new FileReference(deviceComputer.resolve(path, getIODevices()), path);
     }
 
     @Override

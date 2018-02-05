@@ -51,14 +51,16 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
     private final boolean asyncMode;
 
     private final IResultSerializerFactory resultSerializerFactory;
+    private final long maxReads;
 
     public ResultWriterOperatorDescriptor(IOperatorDescriptorRegistry spec, ResultSetId rsId, boolean ordered,
-            boolean asyncMode, IResultSerializerFactory resultSerializerFactory) throws IOException {
+            boolean asyncMode, IResultSerializerFactory resultSerializerFactory, long maxReads) throws IOException {
         super(spec, 1, 0);
         this.rsId = rsId;
         this.ordered = ordered;
         this.asyncMode = asyncMode;
         this.resultSerializerFactory = resultSerializerFactory;
+        this.maxReads = maxReads;
     }
 
     @Override
@@ -74,8 +76,8 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
         PrintStream printStream = new PrintStream(frameOutputStream);
 
         final RecordDescriptor outRecordDesc = recordDescProvider.getInputRecordDescriptor(getActivityId(), 0);
-        final IResultSerializer resultSerializer = resultSerializerFactory.createResultSerializer(outRecordDesc,
-                printStream);
+        final IResultSerializer resultSerializer =
+                resultSerializerFactory.createResultSerializer(outRecordDesc, printStream);
 
         final FrameTupleAccessor frameTupleAccessor = new FrameTupleAccessor(outRecordDesc);
 
@@ -87,11 +89,11 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
             public void open() throws HyracksDataException {
                 try {
                     datasetPartitionWriter = dpm.createDatasetPartitionWriter(ctx, rsId, ordered, asyncMode, partition,
-                            nPartitions);
+                            nPartitions, maxReads);
                     datasetPartitionWriter.open();
                     resultSerializer.init();
                 } catch (HyracksException e) {
-                    throw new HyracksDataException(e);
+                    throw HyracksDataException.create(e);
                 }
             }
 
@@ -112,21 +114,36 @@ public class ResultWriterOperatorDescriptor extends AbstractSingleActivityOperat
             @Override
             public void fail() throws HyracksDataException {
                 failed = true;
-                datasetPartitionWriter.fail();
+                if (datasetPartitionWriter != null) {
+                    datasetPartitionWriter.fail();
+                }
             }
 
             @Override
             public void close() throws HyracksDataException {
-                try {
-                    if (!failed && frameOutputStream.getTupleCount() > 0) {
-                        frameOutputStream.flush(datasetPartitionWriter);
+                if (datasetPartitionWriter != null) {
+                    try {
+                        if (!failed && frameOutputStream.getTupleCount() > 0) {
+                            frameOutputStream.flush(datasetPartitionWriter);
+                        }
+                    } catch (Exception e) {
+                        datasetPartitionWriter.fail();
+                        throw e;
+                    } finally {
+                        datasetPartitionWriter.close();
                     }
-                } catch (Exception e) {
-                    datasetPartitionWriter.fail();
-                    throw e;
-                } finally {
-                    datasetPartitionWriter.close();
                 }
+            }
+
+            @Override
+            public String toString() {
+                StringBuilder sb = new StringBuilder();
+                sb.append("{ ");
+                sb.append("\"rsId\": \"").append(rsId).append("\", ");
+                sb.append("\"ordered\": ").append(ordered).append(", ");
+                sb.append("\"asyncMode\": ").append(asyncMode).append(", ");
+                sb.append("\"maxReads\": ").append(maxReads).append(" }");
+                return sb.toString();
             }
         };
     }

@@ -20,12 +20,17 @@ package org.apache.asterix.runtime.operators;
 
 import java.nio.ByteBuffer;
 
+import org.apache.asterix.om.types.ATypeTag;
+import org.apache.asterix.om.types.TypeTagUtil;
+import org.apache.asterix.transaction.management.opcallbacks.AbstractIndexModificationOperationCallback;
+import org.apache.asterix.transaction.management.opcallbacks.AbstractIndexModificationOperationCallback.Operation;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
-import org.apache.hyracks.api.dataflow.value.IRecordDescriptorProvider;
+import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.comm.util.FrameUtils;
-import org.apache.hyracks.storage.am.common.api.IModificationOperationCallback.Operation;
-import org.apache.hyracks.storage.am.common.dataflow.IIndexOperatorDescriptor;
+import org.apache.hyracks.storage.am.common.api.IModificationOperationCallbackFactory;
+import org.apache.hyracks.storage.am.common.api.ITupleFilterFactory;
+import org.apache.hyracks.storage.am.common.dataflow.IIndexDataflowHelperFactory;
 import org.apache.hyracks.storage.am.common.ophelpers.IndexOperation;
 import org.apache.hyracks.storage.am.common.tuples.PermutingFrameTupleReference;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndexAccessor;
@@ -51,15 +56,22 @@ public class LSMSecondaryUpsertOperatorNodePushable extends LSMIndexInsertUpdate
 
     private final PermutingFrameTupleReference prevValueTuple = new PermutingFrameTupleReference();
     private int numberOfFields;
-    private boolean isNewNull = false;
-    private boolean isPrevValueNull = false;
+    private AbstractIndexModificationOperationCallback abstractModCallback;
 
-    public LSMSecondaryUpsertOperatorNodePushable(IIndexOperatorDescriptor opDesc, IHyracksTaskContext ctx,
-            int partition, int[] fieldPermutation, IRecordDescriptorProvider recordDescProvider,
+    public LSMSecondaryUpsertOperatorNodePushable(IHyracksTaskContext ctx, int partition,
+            IIndexDataflowHelperFactory indexHelperFactory, IModificationOperationCallbackFactory modCallbackFactory,
+            ITupleFilterFactory tupleFilterFactory, int[] fieldPermutation, RecordDescriptor inputRecDesc,
             int[] prevValuePermutation) throws HyracksDataException {
-        super(opDesc, ctx, partition, fieldPermutation, recordDescProvider, IndexOperation.UPSERT);
+        super(ctx, partition, indexHelperFactory, fieldPermutation, inputRecDesc, IndexOperation.UPSERT,
+                modCallbackFactory, tupleFilterFactory);
         this.prevValueTuple.setFieldPermutation(prevValuePermutation);
         this.numberOfFields = prevValuePermutation.length;
+    }
+
+    @Override
+    public void open() throws HyracksDataException {
+        super.open();
+        abstractModCallback = (AbstractIndexModificationOperationCallback) modCallback;
     }
 
     public static boolean equals(byte[] a, int aOffset, int aLength, byte[] b, int bOffset, int bLength) {
@@ -97,9 +109,10 @@ public class LSMSecondaryUpsertOperatorNodePushable extends LSMIndexInsertUpdate
                 // if both previous value and new value are null, then we skip
                 tuple.reset(accessor, i);
                 prevValueTuple.reset(accessor, i);
-                isNewNull = LSMPrimaryUpsertOperatorNodePushable.isNull(tuple, 0);
-                isPrevValueNull = LSMPrimaryUpsertOperatorNodePushable.isNull(prevValueTuple, 0);
-                if (isNewNull && isPrevValueNull) {
+                boolean isNewValueMissing = isMissing(tuple, 0);
+                boolean isOldValueMissing = isMissing(prevValueTuple, 0);
+                if (isNewValueMissing && isOldValueMissing) {
+                    // No op
                     continue;
                 }
                 // At least, one is not null
@@ -107,26 +120,27 @@ public class LSMSecondaryUpsertOperatorNodePushable extends LSMIndexInsertUpdate
                 if (equalTuples(tuple, prevValueTuple, numberOfFields)) {
                     continue;
                 }
-                if (!isPrevValueNull) {
-                    // previous is not null, we need to delete previous
-                    modCallback.setOp(Operation.DELETE);
+                if (!isOldValueMissing) {
+                    // We need to delete previous
+                    abstractModCallback.setOp(Operation.DELETE);
                     lsmAccessor.forceDelete(prevValueTuple);
                 }
-                if (!isNewNull) {
-                    // new is not null, we need to insert the new value
-                    modCallback.setOp(Operation.INSERT);
+                if (!isNewValueMissing) {
+                    // we need to insert the new value
+                    abstractModCallback.setOp(Operation.INSERT);
                     lsmAccessor.forceInsert(tuple);
                 }
-
-            } catch (HyracksDataException e) {
-                throw e;
             } catch (Exception e) {
-                throw new HyracksDataException(e);
+                throw HyracksDataException.create(e);
             }
         }
         // No partial flushing was necessary. Forward entire frame.
         writeBuffer.ensureFrameSize(buffer.capacity());
         FrameUtils.copyAndFlip(buffer, writeBuffer.getBuffer());
         FrameUtils.flushFrame(writeBuffer.getBuffer(), writer);
+    }
+
+    private boolean isMissing(PermutingFrameTupleReference tuple, int fieldIdx) {
+        return TypeTagUtil.isType(tuple, fieldIdx, ATypeTag.SERIALIZED_MISSING_TYPE_TAG);
     }
 }

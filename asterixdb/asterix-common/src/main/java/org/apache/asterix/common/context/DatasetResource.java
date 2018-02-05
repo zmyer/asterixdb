@@ -18,11 +18,16 @@
  */
 package org.apache.asterix.common.context;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.asterix.common.dataflow.DatasetLocalResource;
+import org.apache.asterix.common.metadata.MetadataIndexImmutableProperties;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.storage.am.common.api.IIndex;
+import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentIdGenerator;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
+import org.apache.hyracks.storage.common.LocalResource;
 
 /**
  * A dataset can be in one of two states { EVICTED , LOADED }.
@@ -38,15 +43,16 @@ import org.apache.hyracks.storage.am.lsm.common.api.ILSMIndex;
  */
 public class DatasetResource implements Comparable<DatasetResource> {
     private final DatasetInfo datasetInfo;
-    private final PrimaryIndexOperationTracker datasetPrimaryOpTracker;
     private final DatasetVirtualBufferCaches datasetVirtualBufferCaches;
 
-    public DatasetResource(DatasetInfo datasetInfo,
-            PrimaryIndexOperationTracker datasetPrimaryOpTracker,
-            DatasetVirtualBufferCaches datasetVirtualBufferCaches) {
+    private final Map<Integer, PrimaryIndexOperationTracker> datasetPrimaryOpTrackers;
+    private final Map<Integer, ILSMComponentIdGenerator> datasetComponentIdGenerators;
+
+    public DatasetResource(DatasetInfo datasetInfo, DatasetVirtualBufferCaches datasetVirtualBufferCaches) {
         this.datasetInfo = datasetInfo;
-        this.datasetPrimaryOpTracker = datasetPrimaryOpTracker;
         this.datasetVirtualBufferCaches = datasetVirtualBufferCaches;
+        this.datasetPrimaryOpTrackers = new HashMap<>();
+        this.datasetComponentIdGenerators = new HashMap<>();
     }
 
     public boolean isRegistered() {
@@ -81,18 +87,19 @@ public class DatasetResource implements Comparable<DatasetResource> {
         return datasetVirtualBufferCaches;
     }
 
-    public IIndex getIndex(long resourceID) {
+    public ILSMIndex getIndex(long resourceID) {
         IndexInfo iInfo = getIndexInfo(resourceID);
         return (iInfo == null) ? null : iInfo.getIndex();
     }
 
-    public void register(long resourceID, IIndex index) throws HyracksDataException {
+    public void register(LocalResource resource, ILSMIndex index) throws HyracksDataException {
+        long resourceID = resource.getId();
         if (!datasetInfo.isRegistered()) {
             synchronized (datasetInfo) {
                 if (!datasetInfo.isRegistered()) {
-                    datasetInfo.setExternal(!index.hasMemoryComponents());
+                    datasetInfo.setExternal(index.getNumberOfAllMemoryComponents() == 0);
                     datasetInfo.setRegistered(true);
-                    datasetInfo.setDurable(((ILSMIndex) index).isDurable());
+                    datasetInfo.setDurable(index.isDurable());
                 }
             }
         }
@@ -102,16 +109,40 @@ public class DatasetResource implements Comparable<DatasetResource> {
         if (index == null) {
             throw new HyracksDataException("Attempt to register a null index");
         }
-        datasetInfo.getIndexes().put(resourceID,
-                new IndexInfo((ILSMIndex) index, datasetInfo.getDatasetID(), resourceID));
+
+        datasetInfo.addIndex(resourceID, new IndexInfo(index, datasetInfo.getDatasetID(), resource,
+                ((DatasetLocalResource) resource.getResource()).getPartition()));
     }
 
     public DatasetInfo getDatasetInfo() {
         return datasetInfo;
     }
 
-    public PrimaryIndexOperationTracker getOpTracker() {
-        return datasetPrimaryOpTracker;
+    public PrimaryIndexOperationTracker getOpTracker(int partition) {
+        return datasetPrimaryOpTrackers.get(partition);
+    }
+
+    public Collection<PrimaryIndexOperationTracker> getOpTrackers() {
+        return datasetPrimaryOpTrackers.values();
+    }
+
+    public ILSMComponentIdGenerator getComponentIdGenerator(int partition) {
+        return datasetComponentIdGenerators.get(partition);
+    }
+
+    public void setPrimaryIndexOperationTracker(int partition, PrimaryIndexOperationTracker opTracker) {
+        if (datasetPrimaryOpTrackers.containsKey(partition)) {
+            throw new IllegalStateException(
+                    "PrimaryIndexOperationTracker has already been set for partition " + partition);
+        }
+        datasetPrimaryOpTrackers.put(partition, opTracker);
+    }
+
+    public void setIdGenerator(int partition, ILSMComponentIdGenerator idGenerator) {
+        if (datasetComponentIdGenerators.containsKey(partition)) {
+            throw new IllegalStateException("LSMComponentIdGenerator has already been set for partition " + partition);
+        }
+        datasetComponentIdGenerators.put(partition, idGenerator);
     }
 
     @Override
@@ -138,5 +169,9 @@ public class DatasetResource implements Comparable<DatasetResource> {
 
     public int getDatasetID() {
         return datasetInfo.getDatasetID();
+    }
+
+    public boolean isMetadataDataset() {
+        return MetadataIndexImmutableProperties.isMetadataDataset(getDatasetID());
     }
 }

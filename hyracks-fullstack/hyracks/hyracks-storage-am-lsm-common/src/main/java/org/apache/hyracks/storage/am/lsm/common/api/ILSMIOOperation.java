@@ -18,30 +18,59 @@
  */
 package org.apache.hyracks.storage.am.lsm.common.api;
 
-import java.util.Set;
 import java.util.concurrent.Callable;
 
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.io.FileReference;
 import org.apache.hyracks.api.io.IODeviceHandle;
-import org.apache.hyracks.storage.am.common.api.IndexException;
+import org.apache.hyracks.storage.am.lsm.common.impls.LSMComponentFileReferences;
 
 public interface ILSMIOOperation extends Callable<Boolean> {
 
-    enum LSMIOOpertionType {
+    /**
+     * Represents the io operation type
+     */
+    enum LSMIOOperationType {
         FLUSH,
-        MERGE
+        MERGE,
+        LOAD
     }
 
-    Set<IODeviceHandle> getReadDevices();
+    /**
+     * @return the device on which the operation is running
+     */
+    IODeviceHandle getDevice();
 
-    Set<IODeviceHandle> getWriteDevices();
-
-    @Override
-    Boolean call() throws HyracksDataException, IndexException;
-
+    /**
+     * @return the operation callback
+     */
     ILSMIOOperationCallback getCallback();
 
-    String getIndexUniqueIdentifier();
+    /**
+     * @return the index id
+     */
+    String getIndexIdentifier();
 
-    LSMIOOpertionType getIOOpertionType();
+    /**
+     * @return the operation type
+     */
+    LSMIOOperationType getIOOpertionType();
+
+    @Override
+    Boolean call() throws HyracksDataException;
+
+    /**
+     * @return The target of the io operation
+     */
+    FileReference getTarget();
+
+    /**
+     * @return the accessor of the operation
+     */
+    ILSMIndexAccessor getAccessor();
+
+    /**
+     * @return the component files produced by this operation
+     */
+    LSMComponentFileReferences getComponentFiles();
 }

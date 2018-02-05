@@ -19,7 +19,6 @@
 
 package org.apache.asterix.om.pointables;
 
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.pointables.base.DefaultOpenFieldType;
 import org.apache.asterix.om.pointables.base.IVisitablePointable;
 import org.apache.asterix.om.types.AOrderedListType;
@@ -30,6 +29,7 @@ import org.apache.asterix.om.types.TypeTagUtil;
 import org.apache.asterix.om.util.container.IObjectFactory;
 import org.apache.asterix.om.util.container.IObjectPool;
 import org.apache.asterix.om.util.container.ListObjectPool;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 
 /**
  * This class is the ONLY place to create IVisitablePointable object instances,
@@ -37,21 +37,21 @@ import org.apache.asterix.om.util.container.ListObjectPool;
  */
 public class PointableAllocator {
 
-    private IObjectPool<IVisitablePointable, IAType> flatValueAllocator = new ListObjectPool<IVisitablePointable, IAType>(
-            AFlatValuePointable.FACTORY);
-    private IObjectPool<IVisitablePointable, IAType> recordValueAllocator = new ListObjectPool<IVisitablePointable, IAType>(
-            ARecordVisitablePointable.FACTORY);
-    private IObjectPool<IVisitablePointable, IAType> listValueAllocator = new ListObjectPool<IVisitablePointable, IAType>(
-            AListVisitablePointable.FACTORY);
-    private IObjectPool<AOrderedListType, IAType> orederedListTypeAllocator = new ListObjectPool<AOrderedListType, IAType>(
-            new IObjectFactory<AOrderedListType, IAType>() {
+    private IObjectPool<IVisitablePointable, IAType> flatValueAllocator =
+            new ListObjectPool<IVisitablePointable, IAType>(AFlatValuePointable.FACTORY);
+    private IObjectPool<IVisitablePointable, IAType> recordValueAllocator =
+            new ListObjectPool<IVisitablePointable, IAType>(ARecordVisitablePointable.FACTORY);
+    private IObjectPool<IVisitablePointable, IAType> listValueAllocator =
+            new ListObjectPool<IVisitablePointable, IAType>(AListVisitablePointable.FACTORY);
+    private IObjectPool<AOrderedListType, IAType> orederedListTypeAllocator =
+            new ListObjectPool<AOrderedListType, IAType>(new IObjectFactory<AOrderedListType, IAType>() {
                 @Override
                 public AOrderedListType create(IAType type) {
                     return new AOrderedListType(type, type.getTypeName() + "OrderedList");
                 }
             });
-    private IObjectPool<AOrderedListType, IAType> unorederedListTypeAllocator = new ListObjectPool<AOrderedListType, IAType>(
-            new IObjectFactory<AOrderedListType, IAType>() {
+    private IObjectPool<AOrderedListType, IAType> unorederedListTypeAllocator =
+            new ListObjectPool<AOrderedListType, IAType>(new IObjectFactory<AOrderedListType, IAType>() {
                 @Override
                 public AOrderedListType create(IAType type) {
                     return new AOrderedListType(type, type.getTypeName() + "UnorderedList");
@@ -81,9 +81,9 @@ public class PointableAllocator {
     public IVisitablePointable allocateFieldValue(IAType type) {
         if (type == null)
             return flatValueAllocator.allocate(null);
-        else if (type.getTypeTag().equals(ATypeTag.RECORD))
+        else if (type.getTypeTag().equals(ATypeTag.OBJECT))
             return recordValueAllocator.allocate(type);
-        else if (type.getTypeTag().equals(ATypeTag.UNORDEREDLIST) || type.getTypeTag().equals(ATypeTag.ORDEREDLIST))
+        else if (type.getTypeTag().equals(ATypeTag.MULTISET) || type.getTypeTag().equals(ATypeTag.ARRAY))
             return listValueAllocator.allocate(type);
         else
             return flatValueAllocator.allocate(null);
@@ -95,12 +95,12 @@ public class PointableAllocator {
      * @param typeTag
      * @return the pointable object
      */
-    public IVisitablePointable allocateFieldValue(ATypeTag typeTag, byte[] b, int offset) throws AsterixException {
+    public IVisitablePointable allocateFieldValue(ATypeTag typeTag, byte[] b, int offset) throws HyracksDataException {
         if (typeTag == null)
             return flatValueAllocator.allocate(null);
-        else if (typeTag.equals(ATypeTag.RECORD))
+        else if (typeTag.equals(ATypeTag.OBJECT))
             return recordValueAllocator.allocate(DefaultOpenFieldType.NESTED_OPEN_RECORD_TYPE);
-        else if (typeTag.equals(ATypeTag.UNORDEREDLIST)) {
+        else if (typeTag.equals(ATypeTag.MULTISET)) {
             ATypeTag listItemType = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(b[offset]);
             if (listItemType == ATypeTag.ANY)
                 return listValueAllocator.allocate(DefaultOpenFieldType.NESTED_OPEN_AUNORDERED_LIST_TYPE);
@@ -111,7 +111,7 @@ public class PointableAllocator {
                     return listValueAllocator.allocate(
                             unorederedListTypeAllocator.allocate(TypeTagUtil.getBuiltinTypeByTag(listItemType)));
             }
-        } else if (typeTag.equals(ATypeTag.ORDEREDLIST)) {
+        } else if (typeTag.equals(ATypeTag.ARRAY)) {
             ATypeTag listItemType = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(b[offset]);
             if (listItemType == ATypeTag.ANY)
                 return listValueAllocator.allocate(DefaultOpenFieldType.NESTED_OPEN_AORDERED_LIST_TYPE);

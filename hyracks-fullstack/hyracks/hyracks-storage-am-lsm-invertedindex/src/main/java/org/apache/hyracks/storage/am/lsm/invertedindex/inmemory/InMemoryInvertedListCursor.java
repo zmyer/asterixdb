@@ -28,17 +28,14 @@ import org.apache.hyracks.data.std.primitive.IntegerPointable;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleReference;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.dataflow.common.data.marshalling.IntegerSerializerDeserializer;
 import org.apache.hyracks.dataflow.common.utils.TupleUtils;
 import org.apache.hyracks.storage.am.btree.impls.BTree.BTreeAccessor;
 import org.apache.hyracks.storage.am.btree.impls.RangePredicate;
-import org.apache.hyracks.storage.am.common.api.IIndexCursor;
-import org.apache.hyracks.storage.am.common.api.IndexException;
-import org.apache.hyracks.storage.am.common.api.TreeIndexException;
-import org.apache.hyracks.storage.am.common.ophelpers.MultiComparator;
 import org.apache.hyracks.storage.am.common.tuples.ConcatenatingTupleReference;
 import org.apache.hyracks.storage.am.common.tuples.PermutingTupleReference;
 import org.apache.hyracks.storage.am.lsm.invertedindex.api.IInvertedListCursor;
+import org.apache.hyracks.storage.common.IIndexCursor;
+import org.apache.hyracks.storage.common.MultiComparator;
 
 public class InMemoryInvertedListCursor implements IInvertedListCursor {
     private RangePredicate btreePred;
@@ -68,7 +65,7 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
     }
 
     public void prepare(BTreeAccessor btreeAccessor, RangePredicate btreePred, MultiComparator tokenFieldsCmp,
-            MultiComparator btreeCmp) throws HyracksDataException, IndexException {
+            MultiComparator btreeCmp) throws HyracksDataException {
         // Avoid object creation if this.btreeAccessor == btreeAccessor.
         if (this.btreeAccessor != btreeAccessor) {
             this.btreeAccessor = btreeAccessor;
@@ -87,15 +84,15 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
         return size() - cursor.size();
     }
 
-    public void reset(ITupleReference tuple) throws HyracksDataException, IndexException {
+    public void reset(ITupleReference tuple) throws HyracksDataException {
         numElements = -1;
         // Copy the tokens tuple for later use in btree probes.
         TupleUtils.copyTuple(tokenTupleBuilder, tuple, tuple.getFieldCount());
         tokenTuple.reset(tokenTupleBuilder.getFieldEndOffsets(), tokenTupleBuilder.getByteArray());
         btreeSearchTuple.reset();
         btreeSearchTuple.addTuple(tokenTuple);
-        btreeCursor.reset();
-        countingCursor.reset();
+        btreeCursor.close();
+        countingCursor.close();
     }
 
     @Override
@@ -104,7 +101,7 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
     }
 
     @Override
-    public void pinPages() throws HyracksDataException, IndexException {
+    public void pinPages() throws HyracksDataException {
         btreePred.setLowKeyComparator(tokenFieldsCmp);
         btreePred.setHighKeyComparator(tokenFieldsCmp);
         btreePred.setLowKey(tokenTuple, true);
@@ -116,13 +113,13 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
     @Override
     public void unpinPages() throws HyracksDataException {
         if (cursorNeedsClose) {
-            btreeCursor.close();
+            btreeCursor.destroy();
             cursorNeedsClose = false;
         }
     }
 
     @Override
-    public boolean hasNext() throws HyracksDataException, IndexException {
+    public boolean hasNext() throws HyracksDataException {
         return btreeCursor.hasNext();
     }
 
@@ -155,11 +152,9 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
                 }
             } catch (HyracksDataException e) {
                 e.printStackTrace();
-            } catch (IndexException e) {
-                e.printStackTrace();
             } finally {
                 try {
-                    countingCursor.close();
+                    countingCursor.destroy();
                 } catch (HyracksDataException e) {
                     e.printStackTrace();
                 }
@@ -184,8 +179,7 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
     }
 
     @Override
-    public boolean containsKey(ITupleReference searchTuple, MultiComparator invListCmp) throws HyracksDataException,
-            IndexException {
+    public boolean containsKey(ITupleReference searchTuple, MultiComparator invListCmp) throws HyracksDataException {
         // Close cursor if necessary.
         unpinPages();
         btreeSearchTuple.addTuple(searchTuple);
@@ -195,16 +189,16 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
         btreePred.setHighKey(btreeSearchTuple, true);
         try {
             btreeAccessor.search(btreeCursor, btreePred);
-        } catch (TreeIndexException e) {
+        } catch (Exception e) {
             btreeSearchTuple.removeLastTuple();
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
         boolean containsKey = false;
         try {
             containsKey = btreeCursor.hasNext();
         } finally {
+            btreeCursor.destroy();
             btreeCursor.close();
-            btreeCursor.reset();
             btreeSearchTuple.removeLastTuple();
         }
         return containsKey;
@@ -212,7 +206,7 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
 
     @SuppressWarnings("rawtypes")
     @Override
-    public String printInvList(ISerializerDeserializer[] serdes) throws HyracksDataException, IndexException {
+    public String printInvList(ISerializerDeserializer[] serdes) throws HyracksDataException {
         StringBuilder strBuilder = new StringBuilder();
         try {
             while (btreeCursor.hasNext()) {
@@ -225,14 +219,10 @@ public class InMemoryInvertedListCursor implements IInvertedListCursor {
                 strBuilder.append(o.toString() + " ");
             }
         } finally {
+            btreeCursor.destroy();
             btreeCursor.close();
-            btreeCursor.reset();
         }
-        try {
-            btreeAccessor.search(btreeCursor, btreePred);
-        } catch (TreeIndexException e) {
-            throw new HyracksDataException(e);
-        }
+        btreeAccessor.search(btreeCursor, btreePred);
         return strBuilder.toString();
     }
 

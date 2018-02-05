@@ -20,10 +20,12 @@ package org.apache.asterix.translator;
 
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.asterix.common.api.IClusterManagementWork.ClusterState;
+import org.apache.asterix.common.cluster.IClusterStateManager;
+import org.apache.asterix.common.cluster.IGlobalRecoveryManager;
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.lang.common.base.Statement;
 import org.apache.asterix.lang.common.statement.DatasetDecl;
@@ -31,13 +33,14 @@ import org.apache.asterix.lang.common.statement.DataverseDropStatement;
 import org.apache.asterix.lang.common.statement.DeleteStatement;
 import org.apache.asterix.lang.common.statement.DropDatasetStatement;
 import org.apache.asterix.lang.common.statement.InsertStatement;
-import org.apache.asterix.lang.common.statement.NodeGroupDropStatement;
 import org.apache.asterix.metadata.dataset.hints.DatasetHints;
 import org.apache.asterix.metadata.entities.Dataverse;
 import org.apache.asterix.metadata.utils.MetadataConstants;
-import org.apache.asterix.runtime.utils.AppContextInfo;
-import org.apache.asterix.runtime.utils.ClusterStateManager;
+import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.utils.Pair;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Base class for language translators. Contains the common validation logic for language
@@ -45,54 +48,56 @@ import org.apache.hyracks.algebricks.common.utils.Pair;
  */
 public abstract class AbstractLangTranslator {
 
-    private static final Logger LOGGER = Logger.getLogger(AbstractLangTranslator.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
-    public void validateOperation(Dataverse defaultDataverse, Statement stmt) throws AsterixException {
+    public void validateOperation(ICcApplicationContext appCtx, Dataverse defaultDataverse, Statement stmt)
+            throws AlgebricksException {
 
-        if (!(ClusterStateManager.INSTANCE.getState().equals(ClusterState.ACTIVE)
-                && ClusterStateManager.INSTANCE.isGlobalRecoveryCompleted())) {
-            int maxWaitCycles = AppContextInfo.INSTANCE.getExternalProperties().getMaxWaitClusterActive();
-            int waitCycleCount = 0;
+        final IClusterStateManager clusterStateManager = appCtx.getClusterStateManager();
+        final IGlobalRecoveryManager globalRecoveryManager = appCtx.getGlobalRecoveryManager();
+        if (!(clusterStateManager.getState().equals(ClusterState.ACTIVE)
+                && globalRecoveryManager.isRecoveryCompleted())) {
+            int maxWaitCycles = appCtx.getExternalProperties().getMaxWaitClusterActive();
             try {
-                while (!ClusterStateManager.INSTANCE.getState().equals(ClusterState.ACTIVE)
-                        && waitCycleCount < maxWaitCycles) {
-                    Thread.sleep(1000);
-                    waitCycleCount++;
-                }
+                clusterStateManager.waitForState(ClusterState.ACTIVE, maxWaitCycles, TimeUnit.SECONDS);
+            } catch (HyracksDataException e) {
+                throw new AsterixException(e);
             } catch (InterruptedException e) {
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning("Thread interrupted while waiting for cluster to be " + ClusterState.ACTIVE);
+                if (LOGGER.isWarnEnabled()) {
+                    LOGGER.warn("Thread interrupted while waiting for cluster to be " + ClusterState.ACTIVE);
                 }
+                Thread.currentThread().interrupt();
             }
-            if (!ClusterStateManager.INSTANCE.getState().equals(ClusterState.ACTIVE)) {
+            if (!clusterStateManager.getState().equals(ClusterState.ACTIVE)) {
                 throw new AsterixException("Cluster is in " + ClusterState.UNUSABLE + " state."
                         + "\n One or more Node Controllers have left or haven't joined yet.\n");
             } else {
-                if (LOGGER.isLoggable(Level.INFO)) {
+                if (LOGGER.isInfoEnabled()) {
                     LOGGER.info("Cluster is now " + ClusterState.ACTIVE);
                 }
             }
         }
 
-        if (ClusterStateManager.INSTANCE.getState().equals(ClusterState.UNUSABLE)) {
+        if (clusterStateManager.getState().equals(ClusterState.UNUSABLE)) {
             throw new AsterixException("Cluster is in " + ClusterState.UNUSABLE + " state."
                     + "\n One or more Node Controllers have left.\n");
         }
 
-        if (!ClusterStateManager.INSTANCE.isGlobalRecoveryCompleted()) {
-            int maxWaitCycles = AppContextInfo.INSTANCE.getExternalProperties().getMaxWaitClusterActive();
+        if (!globalRecoveryManager.isRecoveryCompleted()) {
+            int maxWaitCycles = appCtx.getExternalProperties().getMaxWaitClusterActive();
             int waitCycleCount = 0;
             try {
-                while (!ClusterStateManager.INSTANCE.isGlobalRecoveryCompleted() && waitCycleCount < maxWaitCycles) {
+                while (!globalRecoveryManager.isRecoveryCompleted() && waitCycleCount < maxWaitCycles) {
                     Thread.sleep(1000);
                     waitCycleCount++;
                 }
             } catch (InterruptedException e) {
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.warning("Thread interrupted while waiting for cluster to complete global recovery ");
+                if (LOGGER.isWarnEnabled()) {
+                    LOGGER.warn("Thread interrupted while waiting for cluster to complete global recovery ");
                 }
+                Thread.currentThread().interrupt();
             }
-            if (!ClusterStateManager.INSTANCE.isGlobalRecoveryCompleted()) {
+            if (!globalRecoveryManager.isRecoveryCompleted()) {
                 throw new AsterixException("Cluster Global recovery is not yet complete and the system is in "
                         + ClusterState.ACTIVE + " state");
             }
@@ -126,14 +131,6 @@ public abstract class AbstractLangTranslator {
                 }
                 break;
 
-            case Statement.Kind.NODEGROUP_DROP:
-                String nodegroupName = ((NodeGroupDropStatement) stmt).getNodeGroupName().getValue();
-                invalidOperation = MetadataConstants.METADATA_DEFAULT_NODEGROUP_NAME.equals(nodegroupName);
-                if (invalidOperation) {
-                    message = "Cannot drop nodegroup:" + nodegroupName;
-                }
-                break;
-
             case Statement.Kind.DATAVERSE_DROP:
                 DataverseDropStatement dvDropStmt = (DataverseDropStatement) stmt;
                 invalidOperation =
@@ -158,13 +155,14 @@ public abstract class AbstractLangTranslator {
                 DatasetDecl datasetStmt = (DatasetDecl) stmt;
                 Map<String, String> hints = datasetStmt.getHints();
                 if (hints != null && !hints.isEmpty()) {
-                    Pair<Boolean, String> validationResult = null;
-                    StringBuffer errorMsgBuffer = new StringBuffer();
+                    StringBuilder errorMsgBuffer = new StringBuilder();
                     for (Entry<String, String> hint : hints.entrySet()) {
-                        validationResult = DatasetHints.validate(hint.getKey(), hint.getValue());
+                        Pair<Boolean, String> validationResult =
+                                DatasetHints.validate(appCtx, hint.getKey(), hint.getValue());
                         if (!validationResult.first) {
-                            errorMsgBuffer.append("Dataset: " + datasetStmt.getName().getValue()
-                                    + " error in processing hint: " + hint.getKey() + " " + validationResult.second);
+                            errorMsgBuffer.append("Dataset: ").append(datasetStmt.getName().getValue())
+                                    .append(" error in processing hint: ").append(hint.getKey()).append(" ")
+                                    .append(validationResult.second);
                             errorMsgBuffer.append(" \n");
                         }
                     }

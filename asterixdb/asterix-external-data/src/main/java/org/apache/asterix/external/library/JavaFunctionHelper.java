@@ -28,6 +28,7 @@ import org.apache.asterix.common.exceptions.RuntimeDataException;
 import org.apache.asterix.external.api.IFunctionHelper;
 import org.apache.asterix.external.api.IJObject;
 import org.apache.asterix.external.library.java.JObjectPointableVisitor;
+import org.apache.asterix.external.library.java.JObjects;
 import org.apache.asterix.external.library.java.JObjects.JNull;
 import org.apache.asterix.external.library.java.JTypeTag;
 import org.apache.asterix.om.functions.IExternalFunctionInfo;
@@ -36,6 +37,7 @@ import org.apache.asterix.om.pointables.AListVisitablePointable;
 import org.apache.asterix.om.pointables.ARecordVisitablePointable;
 import org.apache.asterix.om.pointables.PointableAllocator;
 import org.apache.asterix.om.pointables.base.IVisitablePointable;
+import org.apache.asterix.om.types.ATypeTag;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
 import org.apache.asterix.om.util.container.IObjectPool;
@@ -50,8 +52,8 @@ public class JavaFunctionHelper implements IFunctionHelper {
     private final IDataOutputProvider outputProvider;
     private final IJObject[] arguments;
     private IJObject resultHolder;
-    private final IObjectPool<IJObject, IAType> objectPool = new ListObjectPool<IJObject, IAType>(
-            JTypeObjectFactory.INSTANCE);
+    private final IObjectPool<IJObject, IAType> objectPool =
+            new ListObjectPool<IJObject, IAType>(JTypeObjectFactory.INSTANCE);
     private final JObjectPointableVisitor pointableVisitor;
     private final PointableAllocator pointableAllocator;
     private final Map<Integer, TypeInfo> poolTypeInfo;
@@ -81,14 +83,23 @@ public class JavaFunctionHelper implements IFunctionHelper {
 
     @Override
     public void setResult(IJObject result) throws HyracksDataException {
-        if (result == null) {
-            JNull.INSTANCE.serialize(outputProvider.getDataOutput(), true);
+        if (result == null || checkInvalidReturnValueType(result, finfo.getReturnType())) {
             isValidResult = false;
         } else {
             isValidResult = true;
             result.serialize(outputProvider.getDataOutput(), true);
             result.reset();
         }
+    }
+
+    private boolean checkInvalidReturnValueType(IJObject result, IAType expectedType) {
+        if (expectedType.getTypeTag() != result.getTypeTag()) {
+            return true;
+        }
+        if (expectedType.getTypeTag() == ATypeTag.OBJECT) {
+            return !expectedType.getTypeName().equals(((JObjects.JRecord) result).getRecordType().getTypeName());
+        }
+        return false;
     }
 
     /**
@@ -107,13 +118,13 @@ public class JavaFunctionHelper implements IFunctionHelper {
         IJObject jObject = null;
         IAType type = finfo.getParamList().get(index);
         switch (type.getTypeTag()) {
-            case RECORD:
+            case OBJECT:
                 pointable = pointableAllocator.allocateRecordValue(type);
                 pointable.set(valueReference);
                 jObject = pointableVisitor.visit((ARecordVisitablePointable) pointable, getTypeInfo(index, type));
                 break;
-            case ORDEREDLIST:
-            case UNORDEREDLIST:
+            case ARRAY:
+            case MULTISET:
                 pointable = pointableAllocator.allocateListValue(type);
                 pointable.set(valueReference);
                 jObject = pointableVisitor.visit((AListVisitablePointable) pointable, getTypeInfo(index, type));

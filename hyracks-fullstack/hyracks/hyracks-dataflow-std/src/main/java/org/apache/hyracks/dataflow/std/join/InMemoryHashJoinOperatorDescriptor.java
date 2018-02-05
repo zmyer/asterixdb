@@ -80,7 +80,7 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
         this.hashFunctionFactories = hashFunctionFactories;
         this.comparatorFactories = comparatorFactories;
         this.predEvaluatorFactory = predEvalFactory;
-        recordDescriptors[0] = recordDescriptor;
+        outRecDescs[0] = recordDescriptor;
         this.isLeftOuter = false;
         this.nonMatchWriterFactories = null;
         this.tableSize = tableSize;
@@ -97,26 +97,11 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
         this.hashFunctionFactories = hashFunctionFactories;
         this.comparatorFactories = comparatorFactories;
         this.predEvaluatorFactory = predEvalFactory;
-        recordDescriptors[0] = recordDescriptor;
+        outRecDescs[0] = recordDescriptor;
         this.isLeftOuter = isLeftOuter;
         this.nonMatchWriterFactories = missingWriterFactories1;
         this.tableSize = tableSize;
         this.memSizeInFrames = memSizeInFrames;
-    }
-
-    public InMemoryHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] keys0, int[] keys1,
-            IBinaryHashFunctionFactory[] hashFunctionFactories, IBinaryComparatorFactory[] comparatorFactories,
-            RecordDescriptor recordDescriptor, int tableSize, int memSizeInFrames) {
-        this(spec, keys0, keys1, hashFunctionFactories, comparatorFactories, recordDescriptor, tableSize, null,
-                memSizeInFrames);
-    }
-
-    public InMemoryHashJoinOperatorDescriptor(IOperatorDescriptorRegistry spec, int[] keys0, int[] keys1,
-            IBinaryHashFunctionFactory[] hashFunctionFactories, IBinaryComparatorFactory[] comparatorFactories,
-            RecordDescriptor recordDescriptor, boolean isLeftOuter, IMissingWriterFactory[] nullWriterFactories1,
-            int tableSize, int memSizeInFrames) {
-        this(spec, keys0, keys1, hashFunctionFactories, comparatorFactories, null, recordDescriptor, isLeftOuter,
-                nullWriterFactories1, tableSize, memSizeInFrames);
     }
 
     @Override
@@ -177,15 +162,15 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
             for (int i = 0; i < comparatorFactories.length; ++i) {
                 comparators[i] = comparatorFactories[i].createBinaryComparator();
             }
-            final IMissingWriter[] nullWriters1 = isLeftOuter ? new IMissingWriter[nonMatchWriterFactories.length]
-                    : null;
+            final IMissingWriter[] nullWriters1 =
+                    isLeftOuter ? new IMissingWriter[nonMatchWriterFactories.length] : null;
             if (isLeftOuter) {
                 for (int i = 0; i < nonMatchWriterFactories.length; i++) {
                     nullWriters1[i] = nonMatchWriterFactories[i].createMissingWriter();
                 }
             }
-            final IPredicateEvaluator predEvaluator = (predEvaluatorFactory == null ? null
-                    : predEvaluatorFactory.createPredicateEvaluator());
+            final IPredicateEvaluator predEvaluator =
+                    (predEvaluatorFactory == null ? null : predEvaluatorFactory.createPredicateEvaluator());
 
             final int memSizeInBytes = memSizeInFrames * ctx.getInitialFrameSize();
             final IDeallocatableFramePool framePool = new DeallocatableFramePool(ctx, memSizeInBytes);
@@ -196,17 +181,17 @@ public class InMemoryHashJoinOperatorDescriptor extends AbstractOperatorDescript
 
                 @Override
                 public void open() throws HyracksDataException {
-                    ITuplePartitionComputer hpc0 = new FieldHashPartitionComputerFactory(keys0, hashFunctionFactories)
-                            .createPartitioner();
-                    ITuplePartitionComputer hpc1 = new FieldHashPartitionComputerFactory(keys1, hashFunctionFactories)
-                            .createPartitioner();
+                    ITuplePartitionComputer hpc0 =
+                            new FieldHashPartitionComputerFactory(keys0, hashFunctionFactories).createPartitioner();
+                    ITuplePartitionComputer hpc1 =
+                            new FieldHashPartitionComputerFactory(keys1, hashFunctionFactories).createPartitioner();
                     state = new HashBuildTaskState(ctx.getJobletContext().getJobId(),
                             new TaskId(getActivityId(), partition));
                     ISerializableTable table = new SerializableHashTable(tableSize, ctx, bufferManager);
-                    state.joiner = new InMemoryHashJoin(ctx, tableSize, new FrameTupleAccessor(rd0), hpc0,
-                            new FrameTupleAccessor(rd1), rd1, hpc1,
-                            new FrameTuplePairComparator(keys0, keys1, comparators), isLeftOuter, nullWriters1, table,
-                            predEvaluator, bufferManager);
+                    state.joiner =
+                            new InMemoryHashJoin(ctx, new FrameTupleAccessor(rd0), hpc0, new FrameTupleAccessor(rd1),
+                                    rd1, hpc1, new FrameTuplePairComparator(keys0, keys1, comparators), isLeftOuter,
+                                    nullWriters1, table, predEvaluator, bufferManager);
                 }
 
                 @Override

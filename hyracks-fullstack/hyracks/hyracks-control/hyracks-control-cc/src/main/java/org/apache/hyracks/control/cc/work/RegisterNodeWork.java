@@ -20,22 +20,24 @@ package org.apache.hyracks.control.cc.work;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.apache.hyracks.api.config.IApplicationConfig;
+import org.apache.hyracks.api.config.IOption;
 import org.apache.hyracks.control.cc.ClusterControllerService;
 import org.apache.hyracks.control.cc.NodeControllerState;
 import org.apache.hyracks.control.cc.cluster.INodeManager;
-import org.apache.hyracks.control.common.base.INodeController;
 import org.apache.hyracks.control.common.controllers.NodeParameters;
 import org.apache.hyracks.control.common.controllers.NodeRegistration;
 import org.apache.hyracks.control.common.ipc.CCNCFunctions;
 import org.apache.hyracks.control.common.ipc.NodeControllerRemoteProxy;
 import org.apache.hyracks.control.common.work.SynchronizableWork;
 import org.apache.hyracks.ipc.api.IIPCHandle;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class RegisterNodeWork extends SynchronizableWork {
-    private static final Logger LOGGER = Logger.getLogger(RegisterNodeWork.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final ClusterControllerService ccs;
     private final NodeRegistration reg;
@@ -48,26 +50,35 @@ public class RegisterNodeWork extends SynchronizableWork {
     @Override
     protected void doRun() throws Exception {
         String id = reg.getNodeId();
+        // TODO(mblow): it seems we should close IPC handles when we're done with them (like here)
         IIPCHandle ncIPCHandle = ccs.getClusterIPC().getHandle(reg.getNodeControllerAddress());
         CCNCFunctions.NodeRegistrationResult result;
-        Map<String, String> ncConfiguration = new HashMap<>();
+        Map<IOption, Object> ncConfiguration = new HashMap<>();
         try {
-            INodeController nodeController = new NodeControllerRemoteProxy(ncIPCHandle);
-            NodeControllerState state = new NodeControllerState(nodeController, reg);
+            LOGGER.log(Level.WARN, "Registering INodeController: id = " + id);
+            NodeControllerRemoteProxy nc = new NodeControllerRemoteProxy(ccs.getCcId(),
+                    ccs.getClusterIPC().getReconnectingHandle(reg.getNodeControllerAddress()));
+            NodeControllerState state = new NodeControllerState(nc, reg);
             INodeManager nodeManager = ccs.getNodeManager();
             nodeManager.addNode(id, state);
-            state.getNCConfig().toMap(ncConfiguration);
+            IApplicationConfig cfg = state.getNCConfig().getConfigManager().getNodeEffectiveConfig(id);
+            for (IOption option : cfg.getOptions()) {
+                ncConfiguration.put(option, cfg.get(option));
+            }
             LOGGER.log(Level.INFO, "Registered INodeController: id = " + id);
             NodeParameters params = new NodeParameters();
             params.setClusterControllerInfo(ccs.getClusterControllerInfo());
-            params.setDistributedState(ccs.getApplicationContext().getDistributedState());
-            params.setHeartbeatPeriod(ccs.getCCConfig().heartbeatPeriod);
-            params.setProfileDumpPeriod(ccs.getCCConfig().profileDumpPeriod);
+            params.setDistributedState(ccs.getContext().getDistributedState());
+            params.setHeartbeatPeriod(ccs.getCCConfig().getHeartbeatPeriodMillis());
+            params.setProfileDumpPeriod(ccs.getCCConfig().getProfileDumpPeriod());
             result = new CCNCFunctions.NodeRegistrationResult(params, null);
         } catch (Exception e) {
+            LOGGER.log(Level.WARN, "Node registration failed", e);
             result = new CCNCFunctions.NodeRegistrationResult(null, e);
         }
+        LOGGER.warn("sending registration response to node");
         ncIPCHandle.send(-1, result, null);
-        ccs.getApplicationContext().notifyNodeJoin(id, ncConfiguration);
+        LOGGER.warn("notifying node join");
+        ccs.getContext().notifyNodeJoin(id, ncConfiguration);
     }
 }

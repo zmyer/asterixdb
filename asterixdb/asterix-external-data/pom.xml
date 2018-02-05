@@ -1,4 +1,4 @@
-<!-- 
+<!--
  ! Licensed to the Apache Software Foundation (ASF) under one
  ! or more contributor license agreements.  See the NOTICE file
  ! distributed with this work for additional information
@@ -21,7 +21,7 @@
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
   <licenses>
     <license>
@@ -33,7 +33,7 @@
   </licenses>
   <artifactId>asterix-external-data</artifactId>
   <properties>
-    <appendedResourcesDirectory>${basedir}/../src/main/appended-resources</appendedResourcesDirectory>
+    <root.dir>${basedir}/..</root.dir>
     <generatedSourcesDirectory>${project.build.directory}/generated-sources/lexer/</generatedSourcesDirectory>
   </properties>
   <build>
@@ -59,7 +59,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.9</version>
         <executions>
           <execution>
             <id>add-source</id>
@@ -78,7 +77,6 @@
       <plugin>
         <groupId>org.jvnet.jaxb2.maven2</groupId>
         <artifactId>maven-jaxb2-plugin</artifactId>
-        <version>0.9.0</version>
         <executions>
           <execution>
             <id>configuration</id>
@@ -99,14 +97,13 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>2.4</version>
         <configuration>
           <includes>
             <include>**/*.class</include>
             <include>**/*.txt</include>
             <include>**/NOTICE</include>
             <include>**/LICENSE</include>
-            <include>**/DEPENDENCIES</include>
+            <include>**/*.properties</include>
             <include>**/services/**</include>
           </includes>
         </configuration>
@@ -121,16 +118,14 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.2-beta-5</version>
         <executions>
           <execution>
             <configuration>
-              <descriptor>src/main/assembly/binary-assembly-libzip.xml</descriptor>
-              <finalName>testlib-zip</finalName>
+              <descriptors>src/main/assembly/binary-assembly-libzip.xml</descriptors>
             </configuration>
             <phase>package</phase>
             <goals>
-              <goal>attached</goal>
+              <goal>single</goal>
             </goals>
           </execution>
         </executions>
@@ -138,7 +133,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.10</version>
         <configuration>
           <ignoredUsedUndeclaredDependencies>
             <ignoredUsedUndeclaredDependency>org.json:json:*</ignoredUsedUndeclaredDependency>
@@ -148,6 +142,31 @@
           <ignoredUnusedDeclaredDependencies>
             <ignoredUnusedDeclaredDependency>xml-apis:xml-apis:*</ignoredUnusedDeclaredDependency>
           </ignoredUnusedDeclaredDependencies>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <configuration>
+          <licenses combine.children="append">
+            <license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
+              <licenseFamilyCategory>Kermit</licenseFamilyCategory>
+              <licenseFamilyName>Kermit Project</licenseFamilyName>
+              <notes>The UTF-8 sample "I Can Eat Glass" from The Kermit Project (license in LICENSE file)</notes>
+              <patterns>Copyright © 1981-2011, Trustees of Columbia University in the City of New York. All rights reserved.</patterns>
+            </license>
+          </licenses>
+          <licenseFamilies combine.children="append">
+            <licenseFamily implementation="org.apache.rat.license.SimpleLicenseFamily">
+              <familyName>Kermit Project</familyName>
+            </licenseFamily>
+          </licenseFamilies>
+          <excludes combine.children="append">
+            <exclude>src/test/resources/classad/**</exclude> <!-- HTCondor (license in LICENSE file) -->
+            <exclude>src/test/resources/record.json</exclude> <!-- https://issues.apache.org/jira/browse/ASTERIXDB-1850 -->
+            <exclude>src/test/resources/change_feed.csv</exclude>
+            <exclude>src/test/resources/test_tweets.txt</exclude>
+          </excludes>
         </configuration>
       </plugin>
     </plugins>
@@ -165,7 +184,7 @@
                   <pluginExecutionFilter>
                     <groupId> org.apache.asterix</groupId>
                     <artifactId> lexer-generator-maven-plugin</artifactId>
-                    <versionRange>[0.1,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>generate-lexer</goal>
                     </goals>
@@ -180,7 +199,7 @@
                   <pluginExecutionFilter>
                     <groupId> org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
-                    <versionRange>[1.7,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>add-source</goal>
                     </goals>
@@ -246,29 +265,16 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>net.java.dev.rome</groupId>
+      <groupId>com.rometools</groupId>
       <artifactId>rome-fetcher</artifactId>
-      <version>1.0.0</version>
-      <exclusions>
-        <exclusion>
-          <artifactId>rome</artifactId>
-          <groupId>net.java.dev.rome</groupId>
-        </exclusion>
-        <exclusion>
-          <groupId>commons-logging</groupId>
-          <artifactId>commons-logging</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
-      <groupId>rome</groupId>
+      <groupId>com.rometools</groupId>
       <artifactId>rome</artifactId>
-      <version>1.0.1-modified-01</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-serde</artifactId>
-      <version>0.13.0</version>
     </dependency>
     <dependency>
       <groupId>com.e-movimento.tinytools</groupId>
@@ -310,10 +316,6 @@
     <dependency>
       <groupId>org.apache.hyracks</groupId>
       <artifactId>hyracks-storage-am-lsm-btree</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
@@ -368,12 +370,9 @@
       <artifactId>commons-lang3</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.hyracks</groupId>
-      <artifactId>hyracks-control-nc</artifactId>
-    </dependency>
-    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
@@ -405,9 +404,17 @@
       <artifactId>jackson-databind</artifactId>
     </dependency>
     <dependency>
-      <groupId>commons-lang</groupId>
-      <artifactId>commons-lang</artifactId>
-      <version>2.5</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-collections4</artifactId>
+      <version>4.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
     </dependency>
   </dependencies>
 </project>

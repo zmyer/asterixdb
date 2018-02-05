@@ -21,18 +21,18 @@ package org.apache.asterix.transaction.management.runtime;
 
 import java.nio.ByteBuffer;
 
-import org.apache.asterix.common.api.IAppRuntimeContext;
+import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.transactions.ILogManager;
 import org.apache.asterix.common.transactions.ILogMarkerCallback;
 import org.apache.asterix.common.transactions.ITransactionContext;
 import org.apache.asterix.common.transactions.ITransactionManager;
-import org.apache.asterix.common.transactions.JobId;
 import org.apache.asterix.common.transactions.LogRecord;
 import org.apache.asterix.common.transactions.LogType;
+import org.apache.asterix.common.transactions.TxnId;
 import org.apache.asterix.common.utils.TransactionUtil;
 import org.apache.hyracks.algebricks.runtime.operators.base.AbstractOneInputOneOutputOneFramePushRuntime;
-import org.apache.hyracks.api.comm.VSizeFrame;
+import org.apache.hyracks.api.comm.IFrame;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
@@ -46,14 +46,13 @@ import org.apache.hyracks.storage.am.bloomfilter.impls.MurmurHash128Bit;
 
 public class CommitRuntime extends AbstractOneInputOneOutputOneFramePushRuntime {
 
-    private final static long SEED = 0L;
+    protected static final long SEED = 0L;
 
     protected final ITransactionManager transactionManager;
     protected final ILogManager logMgr;
-    protected final JobId jobId;
+    protected final TxnId txnId;
     protected final int datasetId;
     protected final int[] primaryKeyFields;
-    protected final boolean isTemporaryDatasetWriteJob;
     protected final boolean isWriteTransaction;
     protected final long[] longHashes;
     protected final IHyracksTaskContext ctx;
@@ -62,18 +61,17 @@ public class CommitRuntime extends AbstractOneInputOneOutputOneFramePushRuntime 
     protected LogRecord logRecord;
     protected final boolean isSink;
 
-    public CommitRuntime(IHyracksTaskContext ctx, JobId jobId, int datasetId, int[] primaryKeyFields,
-            boolean isTemporaryDatasetWriteJob, boolean isWriteTransaction, int resourcePartition, boolean isSink) {
+    public CommitRuntime(IHyracksTaskContext ctx, TxnId txnId, int datasetId, int[] primaryKeyFields,
+            boolean isWriteTransaction, int resourcePartition, boolean isSink) {
         this.ctx = ctx;
-        IAppRuntimeContext runtimeCtx =
-                (IAppRuntimeContext) ctx.getJobletContext().getApplicationContext().getApplicationObject();
-        this.transactionManager = runtimeCtx.getTransactionSubsystem().getTransactionManager();
-        this.logMgr = runtimeCtx.getTransactionSubsystem().getLogManager();
-        this.jobId = jobId;
+        INcApplicationContext appCtx =
+                (INcApplicationContext) ctx.getJobletContext().getServiceContext().getApplicationContext();
+        this.transactionManager = appCtx.getTransactionSubsystem().getTransactionManager();
+        this.logMgr = appCtx.getTransactionSubsystem().getLogManager();
+        this.txnId = txnId;
         this.datasetId = datasetId;
         this.primaryKeyFields = primaryKeyFields;
         this.tRef = new FrameTupleReference();
-        this.isTemporaryDatasetWriteJob = isTemporaryDatasetWriteJob;
         this.isWriteTransaction = isWriteTransaction;
         this.resourcePartition = resourcePartition;
         this.isSink = isSink;
@@ -83,10 +81,9 @@ public class CommitRuntime extends AbstractOneInputOneOutputOneFramePushRuntime 
     @Override
     public void open() throws HyracksDataException {
         try {
-            transactionContext = transactionManager.getTransactionContext(jobId, false);
+            transactionContext = transactionManager.getTransactionContext(txnId);
             transactionContext.setWriteTxn(isWriteTransaction);
-            ILogMarkerCallback callback =
-                    TaskUtil.<ILogMarkerCallback>get(ILogMarkerCallback.KEY_MARKER_CALLBACK, ctx);
+            ILogMarkerCallback callback = TaskUtil.get(ILogMarkerCallback.KEY_MARKER_CALLBACK, ctx);
             logRecord = new LogRecord(callback);
             if (isSink) {
                 return;
@@ -103,30 +100,18 @@ public class CommitRuntime extends AbstractOneInputOneOutputOneFramePushRuntime 
         tAccess.reset(buffer);
         int nTuple = tAccess.getTupleCount();
         for (int t = 0; t < nTuple; t++) {
-            if (isTemporaryDatasetWriteJob) {
-                /**
-                 * This "if branch" is for writes over temporary datasets. A temporary dataset does not require any lock
-                 * and does not generate any write-ahead update and commit log but generates flush log and job commit
-                 * log. However, a temporary dataset still MUST guarantee no-steal policy so that this notification call
-                 * should be delivered to PrimaryIndexOptracker and used correctly in order to decrement number of
-                 * active operation count of PrimaryIndexOptracker. By maintaining the count correctly and only allowing
-                 * flushing when the count is 0, it can guarantee the no-steal policy for temporary datasets, too.
-                 */
-                transactionContext.notifyOptracker(false);
-            } else {
-                tRef.reset(tAccess, t);
-                try {
-                    formLogRecord(buffer, t);
-                    logMgr.log(logRecord);
-                    if (!isSink) {
-                        appendTupleToFrame(t);
-                    }
-                } catch (ACIDException e) {
-                    throw new HyracksDataException(e);
+            tRef.reset(tAccess, t);
+            try {
+                formLogRecord(buffer, t);
+                logMgr.log(logRecord);
+                if (!isSink) {
+                    appendTupleToFrame(t);
                 }
+            } catch (ACIDException e) {
+                throw new HyracksDataException(e);
             }
         }
-        VSizeFrame message = TaskUtil.<VSizeFrame>get(HyracksConstants.KEY_MESSAGE, ctx);
+        IFrame message = TaskUtil.get(HyracksConstants.KEY_MESSAGE, ctx);
         if (message != null
                 && MessagingFrameTupleAppender.getMessageType(message) == MessagingFrameTupleAppender.MARKER_MESSAGE) {
             try {

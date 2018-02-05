@@ -20,17 +20,15 @@ package org.apache.asterix.external.operators;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.asterix.active.ActiveManager;
 import org.apache.asterix.active.ActiveRuntimeId;
-import org.apache.asterix.common.api.IAppRuntimeContext;
+import org.apache.asterix.common.api.INcApplicationContext;
 import org.apache.asterix.common.dataflow.LSMInsertDeleteOperatorNodePushable;
 import org.apache.asterix.external.feed.dataflow.FeedRuntimeInputHandler;
 import org.apache.asterix.external.feed.dataflow.SyncFeedRuntimeInputHandler;
 import org.apache.asterix.external.feed.management.FeedConnectionId;
-import org.apache.asterix.external.feed.policy.FeedPolicyEnforcer;
+import org.apache.asterix.external.feed.policy.FeedPolicyAccessor;
 import org.apache.asterix.external.util.FeedUtils;
 import org.apache.asterix.external.util.FeedUtils.FeedRuntimeType;
 import org.apache.hyracks.api.comm.VSizeFrame;
@@ -43,19 +41,23 @@ import org.apache.hyracks.api.util.HyracksConstants;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.common.utils.TaskUtil;
 import org.apache.hyracks.dataflow.std.base.AbstractUnaryInputUnaryOutputOperatorNodePushable;
+import org.apache.hyracks.util.trace.ITracer;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class FeedMetaStoreNodePushable extends AbstractUnaryInputUnaryOutputOperatorNodePushable {
 
-    private static final Logger LOGGER = Logger.getLogger(FeedMetaStoreNodePushable.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /** Runtime node pushable corresponding to the core feed operator **/
     private AbstractUnaryInputUnaryOutputOperatorNodePushable insertOperator;
 
     /**
-     * A policy enforcer that ensures dyanmic decisions for a feed are taken
+     * A policy accessor that ensures dyanmic decisions for a feed are taken
      * in accordance with the associated ingestion policy
      **/
-    private final FeedPolicyEnforcer policyEnforcer;
+    private final FeedPolicyAccessor policyAccessor;
 
     /**
      * A unique identifier for the feed instance. A feed instance represents
@@ -79,42 +81,45 @@ public class FeedMetaStoreNodePushable extends AbstractUnaryInputUnaryOutputOper
 
     private final IHyracksTaskContext ctx;
 
-    private final String targetId;
-
     private final VSizeFrame message;
 
     private final IRecordDescriptorProvider recordDescProvider;
 
     private final FeedMetaOperatorDescriptor opDesc;
 
+    private final ITracer tracer;
+
+    private final long traceCategory;
+
     public FeedMetaStoreNodePushable(IHyracksTaskContext ctx, IRecordDescriptorProvider recordDescProvider,
             int partition, int nPartitions, IOperatorDescriptor coreOperator, FeedConnectionId feedConnectionId,
-            Map<String, String> feedPolicyProperties, String targetId,
-            FeedMetaOperatorDescriptor feedMetaOperatorDescriptor) throws HyracksDataException {
+            Map<String, String> feedPolicyProperties, FeedMetaOperatorDescriptor feedMetaOperatorDescriptor)
+            throws HyracksDataException {
         this.ctx = ctx;
         this.insertOperator = (AbstractUnaryInputUnaryOutputOperatorNodePushable) ((IActivity) coreOperator)
                 .createPushRuntime(ctx, recordDescProvider, partition, nPartitions);
-        this.policyEnforcer = new FeedPolicyEnforcer(feedConnectionId, feedPolicyProperties);
+        this.policyAccessor = new FeedPolicyAccessor(feedPolicyProperties);
         this.partition = partition;
         this.connectionId = feedConnectionId;
-        this.feedManager = (ActiveManager) ((IAppRuntimeContext) ctx.getJobletContext().getApplicationContext()
-                .getApplicationObject()).getActiveManager();
-        this.targetId = targetId;
+        this.feedManager = (ActiveManager) ((INcApplicationContext) ctx.getJobletContext().getServiceContext()
+                .getApplicationContext()).getActiveManager();
         this.message = new VSizeFrame(ctx);
-        TaskUtil.putInSharedMap(HyracksConstants.KEY_MESSAGE, message, ctx);
+        TaskUtil.put(HyracksConstants.KEY_MESSAGE, message, ctx);
         this.recordDescProvider = recordDescProvider;
         this.opDesc = feedMetaOperatorDescriptor;
+        tracer = ctx.getJobletContext().getServiceContext().getTracer();
+        traceCategory = tracer.getRegistry().get("Process-Frame");
     }
 
     @Override
     public void open() throws HyracksDataException {
         ActiveRuntimeId runtimeId = new ActiveRuntimeId(connectionId.getFeedId(),
-                runtimeType.toString() + "." + targetId, partition);
+                runtimeType.toString() + "." + connectionId.getDatasetName(), partition);
         try {
             initializeNewFeedRuntime(runtimeId);
             insertOperator.open();
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to open feed store operator", e);
+            LOGGER.log(Level.WARN, "Failed to open feed store operator", e);
             throw new HyracksDataException(e);
         }
     }
@@ -123,16 +128,15 @@ public class FeedMetaStoreNodePushable extends AbstractUnaryInputUnaryOutputOper
         fta = new FrameTupleAccessor(recordDescProvider.getInputRecordDescriptor(opDesc.getActivityId(), 0));
         insertOperator.setOutputFrameWriter(0, writer, recordDesc);
         if (insertOperator instanceof LSMInsertDeleteOperatorNodePushable) {
-            LSMInsertDeleteOperatorNodePushable indexOp =
-                    (LSMInsertDeleteOperatorNodePushable) insertOperator;
+            LSMInsertDeleteOperatorNodePushable indexOp = (LSMInsertDeleteOperatorNodePushable) insertOperator;
             if (!indexOp.isPrimary()) {
                 writer = insertOperator;
                 return;
             }
         }
-        if (policyEnforcer.getFeedPolicyAccessor().bufferingEnabled()) {
-            writer = new FeedRuntimeInputHandler(ctx, connectionId, runtimeId, insertOperator,
-                    policyEnforcer.getFeedPolicyAccessor(), fta, feedManager.getFramePool());
+        if (policyAccessor.flowControlEnabled()) {
+            writer = new FeedRuntimeInputHandler(ctx, connectionId, runtimeId, insertOperator, policyAccessor, fta,
+                    feedManager.getFramePool());
         } else {
             writer = new SyncFeedRuntimeInputHandler(ctx, insertOperator, fta);
         }
@@ -140,12 +144,15 @@ public class FeedMetaStoreNodePushable extends AbstractUnaryInputUnaryOutputOper
 
     @Override
     public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
+        long tid = tracer.durationB("Ingestion-Store", traceCategory, null);
         try {
             FeedUtils.processFeedMessage(buffer, message, fta);
             writer.nextFrame(buffer);
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new HyracksDataException(e);
+            LOGGER.log(Level.WARN, "Failure Processing a frame at store side", e);
+            throw HyracksDataException.create(e);
+        } finally {
+            tracer.durationE(tid, traceCategory, null);
         }
     }
 

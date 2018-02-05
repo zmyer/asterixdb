@@ -18,15 +18,18 @@
  */
 package org.apache.hyracks.control.cc.work;
 
-import java.util.EnumSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.hyracks.api.deployment.DeploymentId;
+import org.apache.hyracks.api.job.DeployedJobSpecId;
 import org.apache.hyracks.api.job.IActivityClusterGraphGenerator;
 import org.apache.hyracks.api.job.IActivityClusterGraphGeneratorFactory;
 import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.api.job.JobId;
+import org.apache.hyracks.api.job.JobIdFactory;
 import org.apache.hyracks.control.cc.ClusterControllerService;
-import org.apache.hyracks.control.cc.application.CCApplicationContext;
+import org.apache.hyracks.control.cc.application.CCServiceContext;
 import org.apache.hyracks.control.cc.job.IJobManager;
 import org.apache.hyracks.control.cc.job.JobRun;
 import org.apache.hyracks.control.common.deployment.DeploymentUtils;
@@ -36,40 +39,45 @@ import org.apache.hyracks.control.common.work.SynchronizableWork;
 public class JobStartWork extends SynchronizableWork {
     private final ClusterControllerService ccs;
     private final byte[] acggfBytes;
-    private final EnumSet<JobFlag> jobFlags;
+    private final Set<JobFlag> jobFlags;
     private final DeploymentId deploymentId;
-    private final JobId jobId;
     private final IResultCallback<JobId> callback;
-    private final boolean predestributed;
+    private final JobIdFactory jobIdFactory;
+    private final DeployedJobSpecId deployedJobSpecId;
+    private final Map<byte[], byte[]> jobParameters;
 
     public JobStartWork(ClusterControllerService ccs, DeploymentId deploymentId, byte[] acggfBytes,
-            EnumSet<JobFlag> jobFlags, JobId jobId, IResultCallback<JobId> callback, boolean predestributed) {
+            Set<JobFlag> jobFlags, JobIdFactory jobIdFactory, Map<byte[], byte[]> jobParameters,
+            IResultCallback<JobId> callback, DeployedJobSpecId deployedJobSpecId) {
         this.deploymentId = deploymentId;
-        this.jobId = jobId;
         this.ccs = ccs;
         this.acggfBytes = acggfBytes;
         this.jobFlags = jobFlags;
         this.callback = callback;
-        this.predestributed = predestributed;
+        this.deployedJobSpecId = deployedJobSpecId;
+        this.jobParameters = jobParameters;
+        this.jobIdFactory = jobIdFactory;
     }
 
     @Override
     protected void doRun() throws Exception {
         IJobManager jobManager = ccs.getJobManager();
         try {
-            final CCApplicationContext appCtx = ccs.getApplicationContext();
+            final CCServiceContext ccServiceCtx = ccs.getContext();
+            JobId jobId;
             JobRun run;
-            if (!predestributed) {
+            jobId = jobIdFactory.create();
+            if (deployedJobSpecId == null) {
                 //Need to create the ActivityClusterGraph
                 IActivityClusterGraphGeneratorFactory acggf = (IActivityClusterGraphGeneratorFactory) DeploymentUtils
-                        .deserialize(acggfBytes, deploymentId, appCtx);
-                IActivityClusterGraphGenerator acgg =
-                        acggf.createActivityClusterGraphGenerator(jobId, appCtx, jobFlags);
+                        .deserialize(acggfBytes, deploymentId, ccServiceCtx);
+                IActivityClusterGraphGenerator acgg = acggf.createActivityClusterGraphGenerator(ccServiceCtx, jobFlags);
                 run = new JobRun(ccs, deploymentId, jobId, acggf, acgg, jobFlags);
             } else {
                 //ActivityClusterGraph has already been distributed
-                run = new JobRun(ccs, deploymentId, jobId,
-                        ccs.getPreDistributedJobStore().getDistributedJobDescriptor(jobId));
+                run = new JobRun(ccs, deploymentId, jobId, jobFlags,
+                        ccs.getDeployedJobSpecStore().getDeployedJobSpecDescriptor(deployedJobSpecId), jobParameters,
+                        deployedJobSpecId);
             }
             jobManager.add(run);
             callback.setValue(jobId);

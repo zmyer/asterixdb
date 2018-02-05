@@ -4,8 +4,8 @@ Query:
 SELECT ELEMENT [
 Variable [ Name=$tokenGroupped ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [DBLP]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [fuzzyjoin.DBLP]
   ]
   AS Variable [ Name=$paper ]
 ,
@@ -31,19 +31,16 @@ Groupby
   (
     paper:=Variable [ Name=$paper ]
     token:=Variable [ Name=$token ]
+    paperid:=Variable [ Name=$paperid ]
   )
 
 Orderby
-  FunctionCall fuzzyjoin.sql-count@1[
+  FunctionCall asterix.sql-count@1[
     (
       SELECT ELEMENT [
-      FunctionCall Metadata.resolve@-1[
-        LiteralExpr [STRING] [paperid]
-        Variable [ Name=$token ]
-        Variable [ Name=$paper ]
-        Variable [ Name=$tokenGroupped ]
-        Variable [ Name=#1 ]
+      FieldAccessor [
         Variable [ Name=#2 ]
+        Field=paperid
       ]
       ]
       FROM [        Variable [ Name=#1 ]

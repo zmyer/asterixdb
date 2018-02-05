@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.asterix</groupId>
     <artifactId>apache-asterixdb</artifactId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -35,12 +35,15 @@
     </license>
   </licenses>
 
+  <properties>
+    <root.dir>${basedir}/..</root.dir>
+  </properties>
+
   <build>
     <plugins>
       <plugin>
         <groupId>org.apache.hyracks</groupId>
         <artifactId>license-automation-plugin</artifactId>
-        <version>${hyracks.version}</version>
         <executions>
           <execution>
             <phase>generate-resources</phase>
@@ -104,7 +107,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.asterix</groupId>
                     <artifactId>license-automation-plugin</artifactId>
-                    <versionRange>${project.version}</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>generate</goal>
                     </goals>

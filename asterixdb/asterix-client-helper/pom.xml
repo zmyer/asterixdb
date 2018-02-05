@@ -22,14 +22,16 @@
   <parent>
     <groupId>org.apache.asterix</groupId>
     <artifactId>apache-asterixdb</artifactId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
+  <properties>
+    <root.dir>${basedir}/..</root.dir>
+  </properties>
   <build>
     <plugins>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>appassembler-maven-plugin</artifactId>
-        <version>1.10</version>
         <configuration>
           <assembleDirectory>
             ${project.build.directory}/appassembler
@@ -59,7 +61,6 @@
       <plugin>
         <groupId>org.apache.hyracks</groupId>
         <artifactId>license-automation-plugin</artifactId>
-        <version>${hyracks.version}</version>
         <executions>
           <execution>
             <phase>generate-resources</phase>
@@ -81,10 +82,20 @@
           <models>
             <model>${basedir}/../src/main/appended-resources/supplemental-models.xml</model>
           </models>
+          <overrides>
+            <override>
+              <gav>org.codehaus.mojo.appassembler:appassembler-booter:2.0.0</gav>
+              <url>https://raw.githubusercontent.com/mojohaus/appassembler/appassembler-2.0.0/LICENSE.txt</url>
+            </override>
+            <override>
+              <gav>org.codehaus.mojo.appassembler:appassembler-model:2.0.0</gav>
+              <url>https://raw.githubusercontent.com/mojohaus/appassembler/appassembler-2.0.0/LICENSE.txt</url>
+            </override>
+          </overrides>
           <licenses>
             <license>
               <url>https://raw.githubusercontent.com/mojohaus/appassembler/master/LICENSE.txt</url>
-              <aliasUrls>http://svn.codehaus.org/mojo/trunk/mojo/appassembler/LICENSE.txt</aliasUrls>
+              <aliasUrls>https://raw.githubusercontent.com/mojohaus/appassembler/appassembler-2.0.0/LICENSE.txt</aliasUrls>
             </license>
             <license>
               <url>https://java.net/projects/stax-utils/sources/svn/content/trunk/LICENSE</url>
@@ -99,12 +110,13 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.6</version>
         <executions>
           <execution>
             <configuration>
               <attach>true</attach>
-              <descriptor>src/main/assembly/assembly.xml</descriptor>
+              <descriptors>
+                <descriptor>src/main/assembly/assembly.xml</descriptor>
+              </descriptors>
             </configuration>
             <phase>package</phase>
             <goals>
@@ -116,9 +128,8 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>2.10</version>
         <configuration>
-          <usedDependencies>
+          <usedDependencies combine.children="append">
             <usedDependency>org.codehaus.mojo.appassembler:appassembler-booter</usedDependency>
           </usedDependencies>
         </configuration>
@@ -137,7 +148,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.hyracks</groupId>
                     <artifactId>license-automation-plugin</artifactId>
-                    <versionRange>${hyracks.version}</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>generate</goal>
                     </goals>
@@ -161,13 +172,6 @@
     <dependency>
       <groupId>org.codehaus.mojo.appassembler</groupId>
       <artifactId>appassembler-booter</artifactId>
-      <version>1.10</version>
-      <exclusions>
-        <exclusion>
-          <groupId>junit</groupId>
-          <artifactId>junit</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>

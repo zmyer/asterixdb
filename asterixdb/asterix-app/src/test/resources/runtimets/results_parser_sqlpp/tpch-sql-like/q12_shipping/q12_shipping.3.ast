@@ -10,13 +10,16 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [high_line_count]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         CASE            OperatorExpr [
               OperatorExpr [
                 FieldAccessor [
-                  Variable [ Name=$i ]
+                  FieldAccessor [
+                    Variable [ Name=$i ]
+                    Field=o
+                  ]
                   Field=o_orderpriority
                 ]
                 =
@@ -25,7 +28,10 @@ RecordConstructor [
               or
               OperatorExpr [
                 FieldAccessor [
-                  Variable [ Name=$i ]
+                  FieldAccessor [
+                    Variable [ Name=$i ]
+                    Field=o
+                  ]
                   Field=o_orderpriority
                 ]
                 =
@@ -43,7 +49,7 @@ RecordConstructor [
 
         END
         ]
-        FROM [          Variable [ Name=$o ]
+        FROM [          Variable [ Name=$g ]
           AS Variable [ Name=$i ]
         ]
       )
@@ -52,13 +58,16 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [low_line_count]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         CASE            OperatorExpr [
               OperatorExpr [
                 FieldAccessor [
-                  Variable [ Name=$i ]
+                  FieldAccessor [
+                    Variable [ Name=$i ]
+                    Field=o
+                  ]
                   Field=o_orderpriority
                 ]
                 =
@@ -67,7 +76,10 @@ RecordConstructor [
               or
               OperatorExpr [
                 FieldAccessor [
-                  Variable [ Name=$i ]
+                  FieldAccessor [
+                    Variable [ Name=$i ]
+                    Field=o
+                  ]
                   Field=o_orderpriority
                 ]
                 =
@@ -85,7 +97,7 @@ RecordConstructor [
 
         END
         ]
-        FROM [          Variable [ Name=$o ]
+        FROM [          Variable [ Name=$g ]
           AS Variable [ Name=$i ]
         ]
       )
@@ -93,13 +105,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [LineItem]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.LineItem]
   ]
   AS Variable [ Name=$l ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Orders]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [tpch.Orders]
   ]
   AS Variable [ Name=$o ]
 ]
@@ -186,7 +198,7 @@ Groupby
     Variable [ Name=$l ]
     Field=l_shipmode
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     l:=Variable [ Name=$l ]
     o:=Variable [ Name=$o ]

@@ -18,4 +18,4 @@
  */
 drop dataverse TinySocial if exists;
 
-drop nodegroup group_test;
+drop nodegroup group_test if exists;

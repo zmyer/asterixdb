@@ -27,8 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hyracks.api.constraints.expressions.LValueConstraintExpression;
@@ -51,9 +49,11 @@ import org.apache.hyracks.control.cc.job.JobRun;
 import org.apache.hyracks.control.cc.job.Task;
 import org.apache.hyracks.control.cc.job.TaskCluster;
 import org.apache.hyracks.control.cc.job.TaskClusterId;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 class ActivityClusterPlanner {
-    private static final Logger LOGGER = Logger.getLogger(ActivityClusterPlanner.class.getName());
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private final JobExecutor executor;
 
@@ -74,7 +74,7 @@ class ActivityClusterPlanner {
 
         TaskCluster[] taskClusters = computeTaskClusters(ac, jobRun, activityPlanMap);
 
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("Plan for " + ac);
             LOGGER.info("Built " + taskClusters.length + " Task Clusters");
             for (TaskCluster tc : taskClusters) {
@@ -102,12 +102,10 @@ class ActivityClusterPlanner {
                     ActivityCluster dAC = ac.getActivityClusterGraph().getActivityMap().get(danId);
                     ActivityClusterPlan dACP = jobRun.getActivityClusterPlanMap().get(dAC.getId());
                     assert dACP != null : "IllegalStateEncountered: Dependent AC is being planned without a plan for "
-                            + "dependency AC: Encountered no plan for ActivityID "
-                            + danId;
+                            + "dependency AC: Encountered no plan for ActivityID " + danId;
                     Task[] dATasks = dACP.getActivityPlanMap().get(danId).getTasks();
                     assert dATasks != null : "IllegalStateEncountered: Dependent AC is being planned without a plan for"
-                            + " dependency AC: Encountered no plan for ActivityID "
-                            + danId;
+                            + " dependency AC: Encountered no plan for ActivityID " + danId;
                     assert dATasks.length == tasks.length : "Dependency activity partitioned differently from "
                             + "dependent: " + dATasks.length + " != " + tasks.length;
                     Task dTask = dATasks[i];
@@ -125,8 +123,8 @@ class ActivityClusterPlanner {
     private TaskCluster[] computeTaskClusters(ActivityCluster ac, JobRun jobRun,
             Map<ActivityId, ActivityPlan> activityPlanMap) {
         Set<ActivityId> activities = ac.getActivityMap().keySet();
-        Map<TaskId, List<Pair<TaskId, ConnectorDescriptorId>>> taskConnectivity = computeTaskConnectivity(jobRun,
-                activityPlanMap, activities);
+        Map<TaskId, List<Pair<TaskId, ConnectorDescriptorId>>> taskConnectivity =
+                computeTaskConnectivity(jobRun, activityPlanMap, activities);
 
         TaskCluster[] taskClusters = ac.getActivityClusterGraph().isUseConnectorPolicyForScheduling()
                 ? buildConnectorPolicyAwareTaskClusters(ac, activityPlanMap, taskConnectivity)
@@ -139,13 +137,13 @@ class ActivityClusterPlanner {
                 List<Pair<TaskId, ConnectorDescriptorId>> cInfoList = taskConnectivity.get(tid);
                 if (cInfoList != null) {
                     for (Pair<TaskId, ConnectorDescriptorId> p : cInfoList) {
-                        Task targetTS = activityPlanMap.get(p.getLeft().getActivityId()).getTasks()[p.getLeft()
-                                .getPartition()];
+                        Task targetTS =
+                                activityPlanMap.get(p.getLeft().getActivityId()).getTasks()[p.getLeft().getPartition()];
                         TaskCluster targetTC = targetTS.getTaskCluster();
                         if (targetTC != tc) {
                             ConnectorDescriptorId cdId = p.getRight();
-                            PartitionId pid = new PartitionId(jobRun.getJobId(), cdId, tid.getPartition(), p.getLeft()
-                                    .getPartition());
+                            PartitionId pid = new PartitionId(jobRun.getJobId(), cdId, tid.getPartition(),
+                                    p.getLeft().getPartition());
                             tc.getProducedPartitions().add(pid);
                             targetTC.getRequiredPartitions().add(pid);
                             partitionProducingTaskClusterMap.put(pid, tc);
@@ -170,8 +168,8 @@ class ActivityClusterPlanner {
             Task[] tasks = ap.getTasks();
             taskStates.addAll(Arrays.asList(tasks));
         }
-        TaskCluster tc = new TaskCluster(new TaskClusterId(ac.getId(), 0), ac, taskStates.toArray(new Task[taskStates
-                .size()]));
+        TaskCluster tc =
+                new TaskCluster(new TaskClusterId(ac.getId(), 0), ac, taskStates.toArray(new Task[taskStates.size()]));
         for (Task t : tc.getTasks()) {
             t.setTaskCluster(tc);
         }
@@ -209,8 +207,8 @@ class ActivityClusterPlanner {
                 }
                 for (int i = 0; i < nProducers; ++i) {
                     c.indicateTargetPartitions(nProducers, nConsumers, i, targetBitmap);
-                    List<Pair<TaskId, ConnectorDescriptorId>> cInfoList = taskConnectivity
-                            .get(ac1TaskStates[i].getTaskId());
+                    List<Pair<TaskId, ConnectorDescriptorId>> cInfoList =
+                            taskConnectivity.get(ac1TaskStates[i].getTaskId());
                     if (cInfoList == null) {
                         cInfoList = new ArrayList<>();
                         taskConnectivity.put(ac1TaskStates[i].getTaskId(), cInfoList);
@@ -242,15 +240,15 @@ class ActivityClusterPlanner {
 
         JobRun jobRun = executor.getJobRun();
         Map<ConnectorDescriptorId, IConnectorPolicy> connectorPolicies = jobRun.getConnectorPolicyMap();
-        for (Map.Entry<TaskId, List<Pair<TaskId, ConnectorDescriptorId>>> e : taskConnectivity.entrySet()) {
-            Set<TaskId> cluster = taskClusterMap.get(e.getKey());
-            for (Pair<TaskId, ConnectorDescriptorId> p : e.getValue()) {
+        taskConnectivity.forEach((key, value) -> {
+            Set<TaskId> cluster = taskClusterMap.get(key);
+            for (Pair<TaskId, ConnectorDescriptorId> p : value) {
                 IConnectorPolicy cPolicy = connectorPolicies.get(p.getRight());
                 if (cPolicy.requiresProducerConsumerCoscheduling()) {
                     cluster.add(p.getLeft());
                 }
             }
-        }
+        });
 
         /*
          * We compute the transitive closure of this (producer-consumer) relation to find the largest set of
@@ -358,9 +356,9 @@ class ActivityClusterPlanner {
 
                 int[] fanouts = new int[nProducers];
                 if (c.allProducersToAllConsumers()) {
-                        for (int i = 0; i < nProducers; ++i) {
-                            fanouts[i] = nConsumers;
-                        }
+                    for (int i = 0; i < nProducers; ++i) {
+                        fanouts[i] = nConsumers;
+                    }
                 } else {
                     for (int i = 0; i < nProducers; ++i) {
                         c.indicateTargetPartitions(nProducers, nConsumers, i, targetBitmap);
@@ -402,8 +400,8 @@ class ActivityClusterPlanner {
                 throw new HyracksException("No value found for " + lv);
             }
             if (!(value instanceof Number)) {
-                throw new HyracksException("Unexpected type of value bound to " + lv + ": " + value.getClass() + "("
-                        + value + ")");
+                throw new HyracksException(
+                        "Unexpected type of value bound to " + lv + ": " + value.getClass() + "(" + value + ")");
             }
             int nParts = ((Number) value).intValue();
             if (nParts <= 0) {

@@ -39,8 +39,8 @@ public class NestedTupleSourceRuntimeFactory implements IPushRuntimeFactory {
     }
 
     @Override
-    public IPushRuntime createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException {
-        return new NestedTupleSourceRuntime(ctx);
+    public IPushRuntime[] createPushRuntime(IHyracksTaskContext ctx) throws HyracksDataException {
+        return new IPushRuntime[] { new NestedTupleSourceRuntime(ctx) };
     }
 
     public static class NestedTupleSourceRuntime extends AbstractOneInputOneOutputOneFramePushRuntime {
@@ -62,11 +62,6 @@ public class NestedTupleSourceRuntimeFactory implements IPushRuntimeFactory {
         @Override
         public void nextFrame(ByteBuffer buffer) throws HyracksDataException {
             throw new IllegalStateException();
-        }
-
-        @Override
-        public void fail() throws HyracksDataException {
-            writer.fail();
         }
 
         @Override

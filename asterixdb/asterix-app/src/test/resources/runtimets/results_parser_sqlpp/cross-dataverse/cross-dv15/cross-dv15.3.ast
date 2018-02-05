@@ -33,17 +33,9 @@ RecordConstructor [
       Field=ReturnType
     ]
   )
-  (
-    LiteralExpr [STRING] [Language]
-    :
-    FieldAccessor [
-      Variable [ Name=$l ]
-      Field=Language
-    ]
-  )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
+FROM [  FunctionCall asterix.dataset@1[
     LiteralExpr [STRING] [Metadata.Function]
   ]
   AS Variable [ Name=$l ]

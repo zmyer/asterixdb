@@ -21,23 +21,23 @@ package org.apache.asterix.active.message;
 import java.io.Serializable;
 
 import org.apache.asterix.active.ActiveManager;
-import org.apache.asterix.common.api.IAppRuntimeContext;
-import org.apache.asterix.common.messaging.api.IApplicationMessage;
+import org.apache.asterix.common.api.INcApplicationContext;
+import org.apache.asterix.common.messaging.CcIdentifiedMessage;
+import org.apache.asterix.common.messaging.api.INcAddressedMessage;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
-import org.apache.hyracks.api.service.IControllerService;
-import org.apache.hyracks.control.nc.NodeControllerService;
 
-public class ActiveManagerMessage implements IApplicationMessage {
-    public static final byte STOP_ACTIVITY = 0x00;
+public class ActiveManagerMessage extends CcIdentifiedMessage implements INcAddressedMessage {
+    public enum Kind {
+        STOP_ACTIVITY,
+        REQUEST_STATS
+    }
 
     private static final long serialVersionUID = 1L;
-    private final byte kind;
-    private final String src;
+    private final Kind kind;
     private final Serializable payload;
 
-    public ActiveManagerMessage(byte kind, String src, Serializable payload) {
+    public ActiveManagerMessage(Kind kind, Serializable payload) {
         this.kind = kind;
-        this.src = src;
         this.payload = payload;
     }
 
@@ -45,20 +45,13 @@ public class ActiveManagerMessage implements IApplicationMessage {
         return payload;
     }
 
-    public byte getKind() {
+    public Kind getKind() {
         return kind;
     }
 
-    public String getSrc() {
-        return src;
-    }
-
     @Override
-    public void handle(IControllerService cs) throws HyracksDataException, InterruptedException {
-        NodeControllerService ncs = (NodeControllerService) cs;
-        IAppRuntimeContext appContext =
-                (IAppRuntimeContext) ncs.getApplicationContext().getApplicationObject();
-        ((ActiveManager) appContext.getActiveManager()).submit(this);
+    public void handle(INcApplicationContext appCtx) throws HyracksDataException, InterruptedException {
+        ((ActiveManager) appCtx.getActiveManager()).submit(this);
     }
 
     @Override

@@ -1,7 +1,7 @@
 DataverseUse test
 Query:
 SELECT ELEMENT [
-FunctionCall test.sum@1[
+FunctionCall asterix.sum@1[
   (
     SELECT ELEMENT [
     FieldAccessor [
@@ -9,14 +9,14 @@ FunctionCall test.sum@1[
       Field=sal
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [tdst]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [test.tdst]
       ]
       AS Variable [ Name=$l ]
     ]
     Where
-      FunctionCall null.not@1[
-        FunctionCall null.is-null@1[
+      FunctionCall algebricks.not@1[
+        FunctionCall algebricks.is-null@1[
           FieldAccessor [
             Variable [ Name=$l ]
             Field=sal

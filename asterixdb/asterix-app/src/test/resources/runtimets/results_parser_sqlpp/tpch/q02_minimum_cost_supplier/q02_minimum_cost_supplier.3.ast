@@ -337,15 +337,18 @@ FunctionDecl tmp2([]) {
       (
         LiteralExpr [STRING] [ps_min_supplycost]
         :
-        FunctionCall tpch.min@1[
+        FunctionCall asterix.min@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
-              Variable [ Name=$i ]
+              FieldAccessor [
+                Variable [ Name=$i ]
+                Field=pssrn
+              ]
               Field=ps_supplycost
             ]
             ]
-            FROM [              Variable [ Name=$pssrn ]
+            FROM [              Variable [ Name=$g ]
               AS Variable [ Name=$i ]
             ]
           )
@@ -605,6 +608,7 @@ FunctionDecl tmp2([]) {
         Variable [ Name=$pssrn ]
         Field=p_partkey
       ]
+      GROUP AS Variable [ Name=$g ]
 
   )
 }

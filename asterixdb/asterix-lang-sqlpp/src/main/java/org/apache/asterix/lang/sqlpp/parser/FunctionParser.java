@@ -23,6 +23,7 @@ import java.io.StringReader;
 import java.util.List;
 
 import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.lang.common.base.IParser;
 import org.apache.asterix.lang.common.base.IParserFactory;
 import org.apache.asterix.lang.common.base.Statement;
@@ -40,6 +41,10 @@ public class FunctionParser {
     }
 
     public FunctionDecl getFunctionDecl(Function function) throws CompilationException {
+        if (!function.getLanguage().equals(Function.LANGUAGE_SQLPP)) {
+            throw new CompilationException(ErrorCode.COMPILATION_INCOMPATIBLE_FUNCTION_LANGUAGE,
+                    Function.LANGUAGE_SQLPP, function.getLanguage());
+        }
         String functionBody = function.getFunctionBody();
         List<String> params = function.getParams();
 
@@ -60,7 +65,7 @@ public class FunctionParser {
         builder.append("\n");
         builder.append(functionBody);
         builder.append("\n");
-        builder.append("}");
+        builder.append("};");
 
         IParser parser = parserFactory.createParser(new StringReader(new String(builder)));
         List<Statement> statements = parser.parse();

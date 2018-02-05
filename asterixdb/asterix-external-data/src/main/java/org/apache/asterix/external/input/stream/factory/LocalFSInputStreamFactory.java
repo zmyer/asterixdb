@@ -18,14 +18,16 @@
  */
 package org.apache.asterix.external.input.stream.factory;
 
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
+import org.apache.asterix.common.dataflow.ICcApplicationContext;
 import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.external.api.AsterixInputStream;
 import org.apache.asterix.external.api.IInputStreamFactory;
@@ -36,17 +38,22 @@ import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.ExternalDataUtils;
 import org.apache.asterix.external.util.FileSystemWatcher;
 import org.apache.asterix.external.util.NodeResolverFactory;
+import org.apache.asterix.runtime.utils.RuntimeUtils;
 import org.apache.hyracks.algebricks.common.constraints.AlgebricksAbsolutePartitionConstraint;
+import org.apache.hyracks.api.application.IServiceContext;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.api.io.UnmanagedFileSplit;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class LocalFSInputStreamFactory implements IInputStreamFactory {
 
     private static final long serialVersionUID = 1L;
 
     protected static final INodeResolver DEFAULT_NODE_RESOLVER = new NodeResolverFactory().createNodeResolver();
-    protected static final Logger LOGGER = Logger.getLogger(LocalFSInputStreamFactory.class.getName());
+    protected static final Logger LOGGER = LogManager.getLogger();
     protected static INodeResolver nodeResolver;
     protected Map<String, String> configuration;
     protected UnmanagedFileSplit[] inputFileSplits;
@@ -60,7 +67,7 @@ public class LocalFSInputStreamFactory implements IInputStreamFactory {
     public synchronized AsterixInputStream createInputStream(IHyracksTaskContext ctx, int partition)
             throws HyracksDataException {
         if (watcher == null) {
-            String nodeName = ctx.getJobletContext().getApplicationContext().getNodeId();
+            String nodeName = ctx.getJobletContext().getServiceContext().getNodeId();
             ArrayList<Path> inputResources = new ArrayList<>();
             for (int i = 0; i < inputFileSplits.length; i++) {
                 if (inputFileSplits[i].getNodeName().equals(nodeName)) {
@@ -83,10 +90,12 @@ public class LocalFSInputStreamFactory implements IInputStreamFactory {
     }
 
     @Override
-    public void configure(Map<String, String> configuration) throws AsterixException {
+    public void configure(IServiceContext serviceCtx, Map<String, String> configuration) throws AsterixException {
         this.configuration = configuration;
         String[] splits = configuration.get(ExternalDataConstants.KEY_PATH).split(",");
-        configureFileSplits(splits);
+        if (inputFileSplits == null) {
+            configureFileSplits((ICcApplicationContext) serviceCtx.getApplicationContext(), splits);
+        }
         configurePartitionConstraint();
         this.isFeed = ExternalDataUtils.isFeed(configuration) && ExternalDataUtils.keepDataSourceOpen(configuration);
         this.expression = configuration.get(ExternalDataConstants.KEY_EXPRESSION);
@@ -97,25 +106,26 @@ public class LocalFSInputStreamFactory implements IInputStreamFactory {
         return constraints;
     }
 
-    private void configureFileSplits(String[] splits) throws AsterixException {
+    private void configureFileSplits(ICcApplicationContext appCtx, String[] splits) throws AsterixException {
         INodeResolver resolver = getNodeResolver();
-        if (inputFileSplits == null) {
-            inputFileSplits = new UnmanagedFileSplit[splits.length];
-            String node;
-            String path;
-            int count = 0;
-            String trimmedValue;
-            for (String splitPath : splits) {
-                trimmedValue = splitPath.trim();
-                if (!trimmedValue.contains("://")) {
-                    throw new AsterixException(
-                            "Invalid path: " + splitPath + "\nUsage- path=\"Host://Absolute File Path\"");
-                }
-                node = resolver.resolveNode(trimmedValue.split(":")[0]);
-                path = trimmedValue.split("://")[1];
-                inputFileSplits[count++] = new UnmanagedFileSplit(node, path);
+        Map<InetAddress, Set<String>> ncMap = RuntimeUtils.getForcedNodeControllerMap(appCtx);
+        Set<String> ncs = ncMap.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+        inputFileSplits = new UnmanagedFileSplit[splits.length];
+        String node;
+        String path;
+        int count = 0;
+        String trimmedValue;
+        for (String splitPath : splits) {
+            trimmedValue = splitPath.trim();
+            if (!trimmedValue.contains("://")) {
+                throw new AsterixException(
+                        "Invalid path: " + splitPath + "\nUsage- path=\"Host://Absolute File Path\"");
             }
+            node = resolver.resolveNode(appCtx, trimmedValue.split(":")[0], ncMap, ncs);
+            path = trimmedValue.split("://")[1];
+            inputFileSplits[count++] = new UnmanagedFileSplit(node, path);
         }
+
     }
 
     private void configurePartitionConstraint() throws AsterixException {
@@ -146,8 +156,8 @@ public class LocalFSInputStreamFactory implements IInputStreamFactory {
                         .createNodeResolver();
 
             } catch (Exception e) {
-                if (LOGGER.isLoggable(Level.WARNING)) {
-                    LOGGER.log(Level.WARNING, "Unable to create node resolver from the configured classname "
+                if (LOGGER.isWarnEnabled()) {
+                    LOGGER.log(Level.WARN, "Unable to create node resolver from the configured classname "
                             + configuredNodeResolverFactory + "\n" + e.getMessage());
                 }
                 nodeResolver = DEFAULT_NODE_RESOLVER;

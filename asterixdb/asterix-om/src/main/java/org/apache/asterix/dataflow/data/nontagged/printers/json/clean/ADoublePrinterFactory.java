@@ -20,7 +20,7 @@ package org.apache.asterix.dataflow.data.nontagged.printers.json.clean;
 
 import java.io.PrintStream;
 
-import org.apache.asterix.dataflow.data.nontagged.serde.ADoubleSerializerDeserializer;
+import org.apache.asterix.dataflow.data.nontagged.printers.PrintTools;
 import org.apache.hyracks.algebricks.data.IPrinter;
 import org.apache.hyracks.algebricks.data.IPrinterFactory;
 
@@ -29,16 +29,8 @@ public class ADoublePrinterFactory implements IPrinterFactory {
     private static final long serialVersionUID = 1L;
     public static final ADoublePrinterFactory INSTANCE = new ADoublePrinterFactory();
 
-    public static final IPrinter PRINTER = (byte[] b, int s, int l, PrintStream ps) -> {
-        final double d = ADoubleSerializerDeserializer.getDouble(b, s + 1);
-        if (Double.isFinite(d)) {
-            ps.print(d);
-        } else {
-            ps.append('"');
-            ps.print(Double.toString(d));
-            ps.append('"');
-        }
-    };
+    public static final IPrinter PRINTER =
+            (byte[] b, int s, int l, PrintStream ps) -> PrintTools.printDoubleForJson(b, s, ps);
 
     @Override
     public IPrinter createPrinter() {

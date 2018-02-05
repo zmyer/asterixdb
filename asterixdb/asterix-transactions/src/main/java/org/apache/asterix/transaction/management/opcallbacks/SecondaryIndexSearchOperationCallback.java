@@ -20,9 +20,10 @@
 package org.apache.asterix.transaction.management.opcallbacks;
 
 import org.apache.asterix.common.transactions.AbstractOperationCallback;
+import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
 
 /**
  * Secondary index searches perform no locking at all.
@@ -30,8 +31,8 @@ import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
 public class SecondaryIndexSearchOperationCallback extends AbstractOperationCallback
         implements ISearchOperationCallback {
 
-    public SecondaryIndexSearchOperationCallback() {
-        super(-1, null, null, null);
+    public SecondaryIndexSearchOperationCallback(long resourceId) {
+        super(DatasetId.NULL, resourceId, null, null, null);
     }
 
     @Override

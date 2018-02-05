@@ -18,15 +18,16 @@
  */
 package org.apache.asterix.lang.common.expression;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.asterix.common.exceptions.CompilationException;
+import org.apache.asterix.lang.common.base.AbstractExpression;
 import org.apache.asterix.lang.common.base.Expression;
 import org.apache.asterix.lang.common.struct.UnaryExprType;
 import org.apache.asterix.lang.common.visitor.base.ILangVisitor;
-import org.apache.commons.lang3.ObjectUtils;
 
-public class UnaryExpr implements Expression {
+public class UnaryExpr extends AbstractExpression {
     private UnaryExprType unaryExprType;
     private Expression expr;
 
@@ -72,7 +73,7 @@ public class UnaryExpr implements Expression {
 
     @Override
     public int hashCode() {
-        return ObjectUtils.hashCodeMulti(expr, unaryExprType);
+        return Objects.hash(expr, unaryExprType);
     }
 
     @Override
@@ -84,6 +85,6 @@ public class UnaryExpr implements Expression {
             return false;
         }
         UnaryExpr target = (UnaryExpr) object;
-        return ObjectUtils.equals(expr, target.expr) && ObjectUtils.equals(unaryExprType, target.unaryExprType);
+        return Objects.equals(expr, target.expr) && Objects.equals(unaryExprType, target.unaryExprType);
     }
 }

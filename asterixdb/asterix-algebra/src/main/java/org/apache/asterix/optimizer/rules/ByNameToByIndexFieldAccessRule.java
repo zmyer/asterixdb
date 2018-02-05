@@ -87,7 +87,7 @@ public class ByNameToByIndexFieldAccessRule implements IAlgebraicRewriteRule {
             return changed;
         }
         changed |= extractFirstArg(fce, op, context);
-        IVariableTypeEnvironment env = context.getOutputTypeEnvironment(op);
+        IVariableTypeEnvironment env = context.getOutputTypeEnvironment(op.getInputs().get(0).getValue());
         IAType t = (IAType) env.getType(fce.getArguments().get(0).getValue());
         changed |= rewriteFieldAccess(exprRef, fce, getActualType(t));
         return changed;
@@ -113,7 +113,7 @@ public class ByNameToByIndexFieldAccessRule implements IAlgebraicRewriteRule {
     // Rewrites field-access-by-name into field-access-by-index if possible.
     private boolean rewriteFieldAccess(Mutable<ILogicalExpression> exprRef, AbstractFunctionCallExpression fce,
             IAType t) throws AlgebricksException {
-        if (t.getTypeTag() != ATypeTag.RECORD) {
+        if (t.getTypeTag() != ATypeTag.OBJECT) {
             return false;
         }
         ILogicalExpression fai = createFieldAccessByIndex((ARecordType) t, fce);
@@ -128,7 +128,7 @@ public class ByNameToByIndexFieldAccessRule implements IAlgebraicRewriteRule {
     private IAType getActualType(IAType t) throws AlgebricksException {
         switch (t.getTypeTag()) {
             case ANY:
-            case RECORD:
+            case OBJECT:
                 return t;
             case UNION:
                 return ((AUnionType) t).getActualType();
@@ -148,8 +148,8 @@ public class ByNameToByIndexFieldAccessRule implements IAlgebraicRewriteRule {
         if (k < 0) {
             return null;
         }
-        return new ScalarFunctionCallExpression(
-                FunctionUtil.getFunctionInfo(BuiltinFunctions.FIELD_ACCESS_BY_INDEX), fce.getArguments().get(0),
+        return new ScalarFunctionCallExpression(FunctionUtil.getFunctionInfo(BuiltinFunctions.FIELD_ACCESS_BY_INDEX),
+                fce.getArguments().get(0),
                 new MutableObject<>(new ConstantExpression(new AsterixConstantValue(new AInt32(k)))));
     }
 }

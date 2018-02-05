@@ -48,26 +48,26 @@ fi
   "$JAVA_HOME/bin/java" -version
   exit 2
 }
-DIRNAME=$(dirname $0)
+DIRNAME=$(dirname "$0")
 [ $(echo $DIRNAME | wc -l) -ne 1 ] && {
   echo "Paths with spaces are not supported"
   exit 3
 }
 
-CLUSTERDIR=$(cd $DIRNAME/..; echo $PWD)
-INSTALLDIR=$(cd $CLUSTERDIR/../..; echo $PWD)
+CLUSTERDIR=$(cd "$DIRNAME/.."; echo $PWD)
+INSTALLDIR=$(cd "$CLUSTERDIR/../.."; echo $PWD)
 LOGSDIR=$CLUSTERDIR/logs
 
 echo "CLUSTERDIR=$CLUSTERDIR"
 echo "INSTALLDIR=$INSTALLDIR"
 echo "LOGSDIR=$LOGSDIR"
 echo
-cd $CLUSTERDIR
-mkdir -p $LOGSDIR
-$INSTALLDIR/bin/${HELPER_COMMAND} get_cluster_state -quiet \
+cd "$CLUSTERDIR"
+mkdir -p "$LOGSDIR"
+"$INSTALLDIR/bin/${HELPER_COMMAND}" get_cluster_state -quiet \
     && echo "ERROR: sample cluster address (localhost:${LISTEN_PORT}) already in use" && exit 1
 
-if $JAVA_HOME/bin/jps | grep ' \(CCDriver\|NCDriver\|NCService\)$' > /tmp/$$_jps; then
+if ps -ef | grep 'java.*org\.apache\.hyracks\.control\.[cn]c\.\([CN]CDriver\|service\.NCService\)' > /tmp/$$_pids; then
   if [ $force ]; then
     severity=WARNING
   else
@@ -80,21 +80,21 @@ if $JAVA_HOME/bin/jps | grep ' \(CCDriver\|NCDriver\|NCService\)$' > /tmp/$$_jps
     echo "aborting"
     echo
     echo "Re-run with -f to ignore, or run stop-sample-cluster.sh -f to forcibly terminate all running ${PRODUCT} processes:"
-    cat /tmp/$$_jps | sed 's/^/  - /'
-    rm /tmp/$$_jps
+    cat /tmp/pids |  sed 's/^ *[0-9]* \([0-9]*\).*org\.apache\.hyracks\.control\.[cn]c[^ ]*\.\([^ ]*\) .*/\1 - \2/'
+    rm /tmp/$$_pids
     exit 1
   fi
 fi
 
-rm /tmp/$$_jps
+rm /tmp/$$_pids
 (
   echo "--------------------------"
   date
   echo "--------------------------"
-) | tee -a $LOGSDIR/blue-service.log | tee -a $LOGSDIR/red-service.log >> $LOGSDIR/cc.log
+) | tee -a "$LOGSDIR/blue-service.log" | tee -a "$LOGSDIR/red-service.log" >> "$LOGSDIR/cc.log"
 echo "INFO: Starting sample cluster..."
-$INSTALLDIR/bin/${NC_SERVICE_COMMAND} -logdir - -config-file $CLUSTERDIR/conf/blue.conf >> $LOGSDIR/blue-service.log 2>&1 &
-$INSTALLDIR/bin/${NC_SERVICE_COMMAND} -logdir - >> $LOGSDIR/red-service.log 2>&1 &
-$INSTALLDIR/bin/${CC_COMMAND} -config-file $CLUSTERDIR/conf/cc.conf >> $LOGSDIR/cc.log 2>&1 &
-$INSTALLDIR/bin/${HELPER_COMMAND} wait_for_cluster -timeout 30
+"$INSTALLDIR/bin/${NC_SERVICE_COMMAND}" -logdir - -config-file "$CLUSTERDIR/conf/blue.conf" >> "$LOGSDIR/blue-service.log" 2>&1 &
+"$INSTALLDIR/bin/${NC_SERVICE_COMMAND}" -logdir - >> "$LOGSDIR/red-service.log" 2>&1 &
+"$INSTALLDIR/bin/${CC_COMMAND}" -config-file "$CLUSTERDIR/conf/cc.conf" >> "$LOGSDIR/cc.log" 2>&1 &
+"$INSTALLDIR/bin/${HELPER_COMMAND}" wait_for_cluster -timeout 30
 exit $?

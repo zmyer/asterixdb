@@ -21,6 +21,7 @@ package org.apache.hyracks.algebricks.runtime.operators.aggreg;
 import java.nio.ByteBuffer;
 
 import org.apache.hyracks.algebricks.runtime.base.AlgebricksPipeline;
+import org.apache.hyracks.algebricks.runtime.base.EnforcePushRuntime;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntime;
 import org.apache.hyracks.algebricks.runtime.base.IPushRuntimeFactory;
 import org.apache.hyracks.algebricks.runtime.operators.std.NestedTupleSourceRuntimeFactory.NestedTupleSourceRuntime;
@@ -28,7 +29,9 @@ import org.apache.hyracks.api.comm.IFrameTupleAccessor;
 import org.apache.hyracks.api.comm.IFrameWriter;
 import org.apache.hyracks.api.context.IHyracksTaskContext;
 import org.apache.hyracks.api.dataflow.value.RecordDescriptor;
+import org.apache.hyracks.api.exceptions.ErrorCode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
+import org.apache.hyracks.api.job.JobFlag;
 import org.apache.hyracks.dataflow.common.comm.io.ArrayTupleBuilder;
 import org.apache.hyracks.dataflow.common.comm.io.FrameTupleAccessor;
 import org.apache.hyracks.dataflow.std.group.AbstractAccumulatingAggregatorDescriptorFactory;
@@ -51,8 +54,8 @@ public class NestedPlansAccumulatingAggregatorFactory extends AbstractAccumulati
 
     @Override
     public IAggregatorDescriptor createAggregator(IHyracksTaskContext ctx, RecordDescriptor inRecordDesc,
-            RecordDescriptor outRecordDescriptor, int[] keys, int[] partialKeys) throws HyracksDataException {
-
+            RecordDescriptor outRecordDescriptor, int[] keys, int[] partialKeys, long memoryBudget)
+            throws HyracksDataException {
         final AggregatorOutput outputWriter = new AggregatorOutput(subplans, keyFieldIdx.length, decorFieldIdx.length);
         final NestedTupleSourceRuntime[] pipelines = new NestedTupleSourceRuntime[subplans.length];
         for (int i = 0; i < subplans.length; i++) {
@@ -85,19 +88,25 @@ public class NestedPlansAccumulatingAggregatorFactory extends AbstractAccumulati
             @Override
             public void aggregate(IFrameTupleAccessor accessor, int tIndex, IFrameTupleAccessor stateAccessor,
                     int stateTupleIndex, AggregateState state) throws HyracksDataException {
+                // Checks the memory usage.
+                memoryUsageCheck();
+
                 for (int i = 0; i < pipelines.length; i++) {
                     pipelines[i].writeTuple(accessor.getBuffer(), tIndex);
                 }
             }
 
             @Override
-            public boolean outputFinalResult(ArrayTupleBuilder tupleBuilder, IFrameTupleAccessor stateAccessor, int tIndex,
-                    AggregateState state) throws HyracksDataException {
+            public boolean outputFinalResult(ArrayTupleBuilder tupleBuilder, IFrameTupleAccessor stateAccessor,
+                    int tIndex, AggregateState state) throws HyracksDataException {
                 for (int i = 0; i < pipelines.length; i++) {
                     outputWriter.setInputIdx(i);
                     pipelines[i].close();
                 }
-                // outputWriter.writeTuple(appender);
+
+                // Checks the memory usage.
+                memoryUsageCheck();
+
                 tupleBuilder.reset();
                 ArrayTupleBuilder tb = outputWriter.getTupleBuilder();
                 byte[] data = tb.getByteArray();
@@ -135,6 +144,18 @@ public class NestedPlansAccumulatingAggregatorFactory extends AbstractAccumulati
 
             }
 
+            // Checks the memory usage.
+            private void memoryUsageCheck() throws HyracksDataException {
+                if (memoryBudget > 0) {
+                    ArrayTupleBuilder tb = outputWriter.getTupleBuilder();
+                    byte[] data = tb.getByteArray();
+                    if (data.length > memoryBudget) {
+                        throw HyracksDataException.create(ErrorCode.GROUP_BY_MEMORY_BUDGET_EXCEEDS, data.length,
+                                memoryBudget);
+                    }
+                }
+            }
+
         };
     }
 
@@ -144,9 +165,13 @@ public class NestedPlansAccumulatingAggregatorFactory extends AbstractAccumulati
         IFrameWriter start = writer;
         IPushRuntimeFactory[] runtimeFactories = subplan.getRuntimeFactories();
         RecordDescriptor[] recordDescriptors = subplan.getRecordDescriptors();
+        // should enforce protocol
+        boolean enforce = ctx.getJobFlags().contains(JobFlag.ENFORCE_CONTRACT);
         for (int i = runtimeFactories.length - 1; i >= 0; i--) {
-            IPushRuntime newRuntime = runtimeFactories[i].createPushRuntime(ctx);
-            newRuntime.setFrameWriter(0, start, recordDescriptors[i]);
+            IPushRuntime newRuntime = runtimeFactories[i].createPushRuntime(ctx)[0];
+            newRuntime = enforce ? EnforcePushRuntime.enforce(newRuntime) : newRuntime;
+            start = enforce ? EnforcePushRuntime.enforce(start) : start;
+            newRuntime.setOutputFrameWriter(0, start, recordDescriptors[i]);
             if (i > 0) {
                 newRuntime.setInputRecordDescriptor(0, recordDescriptors[i - 1]);
             } else {

@@ -24,9 +24,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.asterix.external.api.IRawRecord;
 import org.apache.asterix.external.classad.CaseInsensitiveString;
@@ -38,6 +38,7 @@ import org.apache.asterix.external.classad.object.pool.ClassAdObjectPool;
 import org.apache.asterix.external.input.record.reader.stream.SemiStructuredRecordReader;
 import org.apache.asterix.external.input.stream.LocalFSInputStream;
 import org.apache.asterix.external.library.ClassAdParser;
+import org.apache.asterix.external.util.ExternalDataConstants;
 import org.apache.asterix.external.util.FileSystemWatcher;
 import org.apache.asterix.formats.nontagged.ADMPrinterFactoryProvider;
 import org.apache.asterix.formats.nontagged.SerializerDeserializerProvider;
@@ -89,7 +90,8 @@ public class ClassAdToADMTest extends TestCase {
     public void testSchemaful() {
         try {
             File file = new File("target/classad-wtih-temporals.adm");
-            File expected = new File(getClass().getResource("/results/classad-with-temporals.adm").toURI().getPath());
+            File expected =
+                    new File(getClass().getResource("/classad/results/classad-with-temporals.adm").toURI().getPath());
             FileUtils.deleteQuietly(file);
             PrintStream printStream = new PrintStream(Files.newOutputStream(Paths.get(file.toURI())));
             String[] recordFieldNames = { "GlobalJobId", "Owner", "ClusterId", "ProcId", "RemoteWallClockTime",
@@ -109,15 +111,19 @@ public class ClassAdToADMTest extends TestCase {
                 printers[i] = printerFactories[i].createPrinter();
             }
             ClassAdObjectPool objectPool = new ClassAdObjectPool();
-            String[] files = new String[] { "/classad-with-temporals.classads" };
+            String[] files = new String[] { "/classad/classad-with-temporals.classads" };
             ClassAdParser parser = new ClassAdParser(recordType, false, false, false, null, null, null, objectPool);
             ArrayTupleBuilder tb = new ArrayTupleBuilder(numOfTupleFields);
             for (String path : files) {
                 List<Path> paths = new ArrayList<>();
+                Map<String, String> config = new HashMap<>();
+                config.put(ExternalDataConstants.KEY_RECORD_START, "[");
+                config.put(ExternalDataConstants.KEY_RECORD_END, "]");
                 paths.add(Paths.get(getClass().getResource(path).toURI()));
                 FileSystemWatcher watcher = new FileSystemWatcher(paths, null, false);
                 LocalFSInputStream in = new LocalFSInputStream(watcher);
-                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader(in, "[", "]");
+                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader();
+                recordReader.configure(in, config);
                 while (recordReader.hasNext()) {
                     tb.reset();
                     IRawRecord<char[]> record = recordReader.next();
@@ -144,15 +150,19 @@ public class ClassAdToADMTest extends TestCase {
         try {
             ClassAdObjectPool objectPool = new ClassAdObjectPool();
             ClassAd pAd = new ClassAd(objectPool);
-            String[] files = new String[] { "/escapes.txt" };
+            String[] files = new String[] { "/classad/escapes.txt" };
             ClassAdParser parser = new ClassAdParser(objectPool);
             CharArrayLexerSource lexerSource = new CharArrayLexerSource();
             for (String path : files) {
                 List<Path> paths = new ArrayList<>();
+                Map<String, String> config = new HashMap<>();
+                config.put(ExternalDataConstants.KEY_RECORD_START, "[");
+                config.put(ExternalDataConstants.KEY_RECORD_END, "]");
                 paths.add(Paths.get(getClass().getResource(path).toURI()));
                 FileSystemWatcher watcher = new FileSystemWatcher(paths, null, false);
                 LocalFSInputStream in = new LocalFSInputStream(watcher);
-                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader(in, "[", "]");
+                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader();
+                recordReader.configure(in, config);
                 try {
                     Value val = new Value(objectPool);
                     while (recordReader.hasNext()) {
@@ -182,15 +192,19 @@ public class ClassAdToADMTest extends TestCase {
         try {
             ClassAdObjectPool objectPool = new ClassAdObjectPool();
             ClassAd pAd = new ClassAd(objectPool);
-            String[] files = new String[] { "/jobads.txt" };
+            String[] files = new String[] { "/classad/jobads.txt" };
             ClassAdParser parser = new ClassAdParser(objectPool);
             CharArrayLexerSource lexerSource = new CharArrayLexerSource();
             for (String path : files) {
                 List<Path> paths = new ArrayList<>();
+                Map<String, String> config = new HashMap<>();
+                config.put(ExternalDataConstants.KEY_RECORD_START, "[");
+                config.put(ExternalDataConstants.KEY_RECORD_END, "]");
                 paths.add(Paths.get(getClass().getResource(path).toURI()));
                 FileSystemWatcher watcher = new FileSystemWatcher(paths, null, false);
                 LocalFSInputStream in = new LocalFSInputStream(watcher);
-                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader(in, "[", "]");
+                SemiStructuredRecordReader recordReader = new SemiStructuredRecordReader();
+                recordReader.configure(in, config);
                 try {
                     Value val = new Value(objectPool);
                     while (recordReader.hasNext()) {
@@ -200,8 +214,7 @@ public class ClassAdToADMTest extends TestCase {
                         parser.setLexerSource(lexerSource);
                         parser.parseNext(pAd);
                         Map<CaseInsensitiveString, ExprTree> attrs = pAd.getAttrList();
-                        for (Entry<CaseInsensitiveString, ExprTree> entry : attrs.entrySet()) {
-                            ExprTree tree = entry.getValue();
+                        attrs.forEach((key, tree) -> {
                             switch (tree.getKind()) {
                                 case ATTRREF_NODE:
                                 case CLASSAD_NODE:
@@ -216,7 +229,7 @@ public class ClassAdToADMTest extends TestCase {
                                     System.out.println("Something is wrong");
                                     break;
                             }
-                        }
+                        });
                     }
                 } finally {
                     recordReader.close();

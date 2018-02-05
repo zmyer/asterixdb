@@ -21,12 +21,13 @@ package org.apache.asterix.transaction.management.opcallbacks;
 
 import org.apache.asterix.common.exceptions.ACIDException;
 import org.apache.asterix.common.transactions.AbstractOperationCallback;
+import org.apache.asterix.common.transactions.DatasetId;
 import org.apache.asterix.common.transactions.ILockManager;
 import org.apache.asterix.common.transactions.ITransactionContext;
 import org.apache.asterix.transaction.management.service.transaction.TransactionManagementConstants.LockManagerConstants.LockMode;
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.dataflow.common.data.accessors.ITupleReference;
-import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
+import org.apache.hyracks.storage.common.ISearchOperationCallback;
 
 /**
  * Assumes LSM-BTrees as primary indexes. Implements try/locking and unlocking on primary keys.
@@ -34,9 +35,9 @@ import org.apache.hyracks.storage.am.common.api.ISearchOperationCallback;
 public class PrimaryIndexInstantSearchOperationCallback extends AbstractOperationCallback
         implements ISearchOperationCallback {
 
-    public PrimaryIndexInstantSearchOperationCallback(int datasetId, int[] entityIdFields, ILockManager lockManager,
-            ITransactionContext txnCtx) {
-        super(datasetId, entityIdFields, txnCtx, lockManager);
+    public PrimaryIndexInstantSearchOperationCallback(DatasetId datasetId, long resourceId, int[] entityIdFields,
+            ILockManager lockManager, ITransactionContext txnCtx) {
+        super(datasetId, resourceId, entityIdFields, txnCtx, lockManager);
     }
 
     @Override
@@ -55,13 +56,22 @@ public class PrimaryIndexInstantSearchOperationCallback extends AbstractOperatio
         try {
             lockManager.lock(datasetId, pkHash, LockMode.S, txnCtx);
         } catch (ACIDException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 
+    /**
+     * Cancels the reconcile() operation. Since reconcile() gets a lock, this lock
+     * needs to be unlocked to reverse the effect of reconcile().
+     */
     @Override
     public void cancel(ITupleReference tuple) throws HyracksDataException {
-        //no op
+        int pkHash = computePrimaryKeyHashValue(tuple, primaryKeyFields);
+        try {
+            lockManager.unlock(datasetId, pkHash, LockMode.S, txnCtx);
+        } catch (ACIDException e) {
+            throw HyracksDataException.create(e);
+        }
     }
 
     @Override
@@ -70,7 +80,7 @@ public class PrimaryIndexInstantSearchOperationCallback extends AbstractOperatio
         try {
             lockManager.unlock(datasetId, pkHash, LockMode.S, txnCtx);
         } catch (ACIDException e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         }
     }
 

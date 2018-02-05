@@ -18,60 +18,76 @@
  */
 package org.apache.hyracks.storage.am.lsm.btree.impls;
 
+import java.util.Set;
+
 import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.storage.am.bloomfilter.impls.BloomFilter;
 import org.apache.hyracks.storage.am.btree.impls.BTree;
-import org.apache.hyracks.storage.am.common.api.IMetadataPageManager;
+import org.apache.hyracks.storage.am.lsm.common.api.AbstractLSMWithBuddyDiskComponent;
 import org.apache.hyracks.storage.am.lsm.common.api.ILSMComponentFilter;
-import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMDiskComponent;
+import org.apache.hyracks.storage.am.lsm.common.impls.AbstractLSMIndex;
+import org.apache.hyracks.storage.common.buffercache.IBufferCache;
 
-public class LSMBTreeWithBuddyDiskComponent extends AbstractLSMDiskComponent {
-
+public class LSMBTreeWithBuddyDiskComponent extends AbstractLSMWithBuddyDiskComponent {
     private final BTree btree;
-    private final BTree buddyBtree;
     private final BloomFilter bloomFilter;
+    private final BTree buddyBtree;
 
-    public LSMBTreeWithBuddyDiskComponent(BTree btree, BTree buddyBtree, BloomFilter bloomFilter,
-            ILSMComponentFilter filter) {
-        super((IMetadataPageManager) btree.getPageManager(), filter);
+    public LSMBTreeWithBuddyDiskComponent(AbstractLSMIndex lsmIndex, BTree btree, BTree buddyBtree,
+            BloomFilter bloomFilter, ILSMComponentFilter filter) {
+        super(lsmIndex, LSMBTreeDiskComponent.getMetadataPageManager(btree), filter);
         this.btree = btree;
-        this.buddyBtree = buddyBtree;
         this.bloomFilter = bloomFilter;
+        this.buddyBtree = buddyBtree;
     }
 
     @Override
-    public void destroy() throws HyracksDataException {
-        btree.deactivate();
-        btree.destroy();
-        buddyBtree.deactivate();
-        buddyBtree.destroy();
-        bloomFilter.deactivate();
-        bloomFilter.destroy();
-    }
-
-    public BTree getBTree() {
-        return btree;
-    }
-
-    public BTree getBuddyBTree() {
+    public BTree getBuddyIndex() {
         return buddyBtree;
     }
 
+    @Override
+    public long getComponentSize() {
+        return LSMBTreeDiskComponent.getComponentSize(btree)
+                + LSMBTreeWithBloomFilterDiskComponent.getComponentSize(bloomFilter)
+                + buddyBtree.getFileReference().getFile().length();
+    }
+
+    @Override
+    public Set<String> getLSMComponentPhysicalFiles() {
+        Set<String> files = LSMBTreeDiskComponent.getFiles(btree);
+        LSMBTreeWithBloomFilterDiskComponent.addFiles(files, bloomFilter);
+        files.add(buddyBtree.getFileReference().getFile().getAbsolutePath());
+        return files;
+    }
+
+    @Override
+    public void validate() throws HyracksDataException {
+        throw new UnsupportedOperationException("Validation not implemented for LSM B-Trees with Buddy B-Tree.");
+    }
+
+    @Override
+    public int getFileReferenceCount() {
+        return LSMBTreeDiskComponent.getFileReferenceCount(btree);
+    }
+
+    @Override
+    public BTree getMetadataHolder() {
+        return btree;
+    }
+
+    @Override
+    public BTree getIndex() {
+        return btree;
+    }
+
+    @Override
     public BloomFilter getBloomFilter() {
         return bloomFilter;
     }
 
     @Override
-    public long getComponentSize() {
-        long size = btree.getFileReference().getFile().length();
-        size += buddyBtree.getFileReference().getFile().length();
-        size += bloomFilter.getFileReference().getFile().length();
-        return size;
+    public IBufferCache getBloomFilterBufferCache() {
+        return getMetadataHolder().getBufferCache();
     }
-
-    @Override
-    public int getFileReferenceCount() {
-        return btree.getBufferCache().getFileReferenceCount(btree.getFileId());
-    }
-
 }

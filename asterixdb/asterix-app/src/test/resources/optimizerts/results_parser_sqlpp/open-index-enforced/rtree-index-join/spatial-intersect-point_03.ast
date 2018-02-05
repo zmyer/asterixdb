@@ -27,13 +27,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [MyData]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.MyData]
   ]
   AS Variable [ Name=$a ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [MyData]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [test.MyData]
   ]
   AS Variable [ Name=$b ]
 ]

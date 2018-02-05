@@ -20,10 +20,6 @@
 package org.apache.hyracks.storage.am.rtree;
 
 import java.util.Random;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import org.junit.Test;
 
 import org.apache.hyracks.api.dataflow.value.ISerializerDeserializer;
 import org.apache.hyracks.data.std.primitive.DoublePointable;
@@ -36,6 +32,9 @@ import org.apache.hyracks.storage.am.common.api.IPrimitiveValueProviderFactory;
 import org.apache.hyracks.storage.am.config.AccessMethodTestsConfig;
 import org.apache.hyracks.storage.am.rtree.frames.RTreePolicyType;
 import org.apache.hyracks.storage.am.rtree.util.RTreeUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Test;
 
 @SuppressWarnings("rawtypes")
 public abstract class AbstractRTreeTestDriver {
@@ -45,7 +44,7 @@ public abstract class AbstractRTreeTestDriver {
         this.testRstarPolicy = testRstarPolicy;
     }
 
-    protected final Logger LOGGER = Logger.getLogger(AbstractRTreeTestDriver.class.getName());
+    protected final Logger LOGGER = LogManager.getLogger();
 
     protected static final int numTuplesToInsert = AccessMethodTestsConfig.RTREE_NUM_TUPLES_TO_INSERT;
 
@@ -63,7 +62,7 @@ public abstract class AbstractRTreeTestDriver {
 
     @Test
     public void rtreeTwoDimensionsInt() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Two Dimensions With Integer Keys.");
         }
 
@@ -72,8 +71,8 @@ public abstract class AbstractRTreeTestDriver {
                 IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
 
         int numKeys = 4;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, IntegerPointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000, -1000
         // and the top right coordinates are 1000, 1000
         ITupleReference key = TupleUtils.createIntegerTuple(-1000, -1000, 1000, 1000);
@@ -84,7 +83,7 @@ public abstract class AbstractRTreeTestDriver {
 
     @Test
     public void rtreeTwoDimensionsDouble() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Two Dimensions With Double Keys.");
         }
 
@@ -93,8 +92,8 @@ public abstract class AbstractRTreeTestDriver {
                 DoubleSerializerDeserializer.INSTANCE, DoubleSerializerDeserializer.INSTANCE };
 
         int numKeys = 4;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, DoublePointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, DoublePointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000.0,
         // -1000.0 and the top right coordinates are 1000.0, 1000.0
         ITupleReference key = TupleUtils.createDoubleTuple(-1000.0, -1000.0, 1000.0, 1000.0);
@@ -105,7 +104,7 @@ public abstract class AbstractRTreeTestDriver {
 
     @Test
     public void rtreeFourDimensionsDouble() throws Exception {
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Four Dimensions With Double Keys.");
         }
 
@@ -116,13 +115,13 @@ public abstract class AbstractRTreeTestDriver {
                 DoubleSerializerDeserializer.INSTANCE, DoubleSerializerDeserializer.INSTANCE };
 
         int numKeys = 8;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, DoublePointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, DoublePointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000.0,
         // -1000.0, -1000.0, -1000.0 and the top right coordinates are 1000.0,
         // 1000.0, 1000.0, 1000.0
-        ITupleReference key = TupleUtils.createDoubleTuple(-1000.0, -1000.0, -1000.0, -1000.0, 1000.0, 1000.0, 1000.0,
-                1000.0);
+        ITupleReference key =
+                TupleUtils.createDoubleTuple(-1000.0, -1000.0, -1000.0, -1000.0, 1000.0, 1000.0, 1000.0, 1000.0);
 
         runTest(fieldSerdes, valueProviderFactories, numKeys, key, RTreePolicyType.RTREE);
     }
@@ -130,12 +129,12 @@ public abstract class AbstractRTreeTestDriver {
     @Test
     public void rstartreeTwoDimensionsInt() throws Exception {
         if (!testRstarPolicy) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Ignoring RTree " + getTestOpName() + " Test With Two Dimensions With Integer Keys.");
             }
             return;
         }
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Two Dimensions With Integer Keys.");
         }
 
@@ -144,8 +143,8 @@ public abstract class AbstractRTreeTestDriver {
                 IntegerSerializerDeserializer.INSTANCE, IntegerSerializerDeserializer.INSTANCE };
 
         int numKeys = 4;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, IntegerPointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, IntegerPointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000, -1000
         // and the top right coordinates are 1000, 1000
         ITupleReference key = TupleUtils.createIntegerTuple(-1000, -1000, 1000, 1000);
@@ -157,12 +156,12 @@ public abstract class AbstractRTreeTestDriver {
     @Test
     public void rstartreeTwoDimensionsDouble() throws Exception {
         if (!testRstarPolicy) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Ignoring RTree " + getTestOpName() + " Test With Two Dimensions With Double Keys.");
             }
             return;
         }
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Two Dimensions With Double Keys.");
         }
 
@@ -171,8 +170,8 @@ public abstract class AbstractRTreeTestDriver {
                 DoubleSerializerDeserializer.INSTANCE, DoubleSerializerDeserializer.INSTANCE };
 
         int numKeys = 4;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, DoublePointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, DoublePointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000.0,
         // -1000.0 and the top right coordinates are 1000.0, 1000.0
         ITupleReference key = TupleUtils.createDoubleTuple(-1000.0, -1000.0, 1000.0, 1000.0);
@@ -184,12 +183,12 @@ public abstract class AbstractRTreeTestDriver {
     @Test
     public void rstartreeFourDimensionsDouble() throws Exception {
         if (!testRstarPolicy) {
-            if (LOGGER.isLoggable(Level.INFO)) {
+            if (LOGGER.isInfoEnabled()) {
                 LOGGER.info("Ignoring RTree " + getTestOpName() + " Test With Four Dimensions With Double Keys.");
             }
             return;
         }
-        if (LOGGER.isLoggable(Level.INFO)) {
+        if (LOGGER.isInfoEnabled()) {
             LOGGER.info("RTree " + getTestOpName() + " Test With Four Dimensions With Double Keys.");
         }
 
@@ -200,13 +199,13 @@ public abstract class AbstractRTreeTestDriver {
                 DoubleSerializerDeserializer.INSTANCE, DoubleSerializerDeserializer.INSTANCE };
 
         int numKeys = 8;
-        IPrimitiveValueProviderFactory[] valueProviderFactories = RTreeUtils.createPrimitiveValueProviderFactories(
-                numKeys, DoublePointable.FACTORY);
+        IPrimitiveValueProviderFactory[] valueProviderFactories =
+                RTreeUtils.createPrimitiveValueProviderFactories(numKeys, DoublePointable.FACTORY);
         // Range search, the rectangle bottom left coordinates are -1000.0,
         // -1000.0, -1000.0, -1000.0 and the top right coordinates are 1000.0,
         // 1000.0, 1000.0, 1000.0
-        ITupleReference key = TupleUtils.createDoubleTuple(-1000.0, -1000.0, -1000.0, -1000.0, 1000.0, 1000.0, 1000.0,
-                1000.0);
+        ITupleReference key =
+                TupleUtils.createDoubleTuple(-1000.0, -1000.0, -1000.0, -1000.0, 1000.0, 1000.0, 1000.0, 1000.0);
 
         runTest(fieldSerdes, valueProviderFactories, numKeys, key, RTreePolicyType.RSTARTREE);
     }

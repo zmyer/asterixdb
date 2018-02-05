@@ -18,11 +18,12 @@
  */
 package org.apache.hyracks.server.process;
 
-import org.apache.hyracks.control.cc.CCDriver;
-
 import java.io.File;
 import java.util.List;
 
+import org.apache.hyracks.control.cc.CCDriver;
+
+@SuppressWarnings("squid:CommentedOutCodeLine")
 public class HyracksCCProcess extends HyracksServerProcess {
 
     public HyracksCCProcess(File configFile, File logFile, File appHome, File workingDir) {
@@ -41,5 +42,6 @@ public class HyracksCCProcess extends HyracksServerProcess {
     protected void addJvmArgs(List<String> cList) {
         // CC needs more than default memory
         cList.add("-Xmx1024m");
+        //cList.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005"); //NOSONAR
     }
 }

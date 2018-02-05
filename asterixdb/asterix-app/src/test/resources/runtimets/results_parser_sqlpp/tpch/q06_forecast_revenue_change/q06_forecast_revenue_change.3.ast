@@ -4,7 +4,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [revenue]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         OperatorExpr [
@@ -19,8 +19,8 @@ RecordConstructor [
           ]
         ]
         ]
-        FROM [          FunctionCall Metadata.dataset@1[
-            LiteralExpr [STRING] [LineItem]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [tpch.LineItem]
           ]
           AS Variable [ Name=$l ]
         ]

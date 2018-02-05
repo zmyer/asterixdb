@@ -59,8 +59,8 @@ public class EditDistanceEvaluator implements IScalarEvaluator {
     protected int editDistance = 0;
     protected final AMutableInt64 aInt64 = new AMutableInt64(-1);
     @SuppressWarnings("unchecked")
-    protected final ISerializerDeserializer<AInt64> int64Serde = SerializerDeserializerProvider.INSTANCE
-            .getSerializerDeserializer(BuiltinType.AINT64);
+    protected final ISerializerDeserializer<AInt64> int64Serde =
+            SerializerDeserializerProvider.INSTANCE.getSerializerDeserializer(BuiltinType.AINT64);
     protected ATypeTag itemTypeTag;
 
     protected ATypeTag firstTypeTag;
@@ -76,11 +76,11 @@ public class EditDistanceEvaluator implements IScalarEvaluator {
     public void evaluate(IFrameTupleReference tuple, IPointable result) throws HyracksDataException {
         resultStorage.reset();
         firstStringEval.evaluate(tuple, argPtr1);
-        firstTypeTag = EnumDeserializer.ATYPETAGDESERIALIZER
-                .deserialize(argPtr1.getByteArray()[argPtr1.getStartOffset()]);
+        firstTypeTag =
+                EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(argPtr1.getByteArray()[argPtr1.getStartOffset()]);
         secondStringEval.evaluate(tuple, argPtr2);
-        secondTypeTag = EnumDeserializer.ATYPETAGDESERIALIZER
-                .deserialize(argPtr2.getByteArray()[argPtr2.getStartOffset()]);
+        secondTypeTag =
+                EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(argPtr2.getByteArray()[argPtr2.getStartOffset()]);
 
         if (!checkArgTypes(firstTypeTag, secondTypeTag)) {
             result.set(resultStorage);
@@ -96,8 +96,7 @@ public class EditDistanceEvaluator implements IScalarEvaluator {
         result.set(resultStorage);
     }
 
-    protected int computeResult(IPointable left, IPointable right, ATypeTag argType)
-            throws HyracksDataException {
+    protected int computeResult(IPointable left, IPointable right, ATypeTag argType) throws HyracksDataException {
         byte[] leftBytes = left.getByteArray();
         int leftStartOffset = left.getStartOffset();
         byte[] rightBytes = right.getByteArray();
@@ -110,7 +109,7 @@ public class EditDistanceEvaluator implements IScalarEvaluator {
                 return ed.getActualUTF8StringEditDistanceVal(leftBytes, leftStartOffset + typeIndicatorSize, rightBytes,
                         rightStartOffset + typeIndicatorSize, -1);
             }
-            case ORDEREDLIST: {
+            case ARRAY: {
                 firstOrdListIter.reset(leftBytes, leftStartOffset);
                 secondOrdListIter.reset(rightBytes, rightStartOffset);
                 return (int) ed.computeSimilarity(firstOrdListIter, secondOrdListIter);
@@ -130,12 +129,12 @@ public class EditDistanceEvaluator implements IScalarEvaluator {
         }
 
         // Since they are equal, check one tag is enough.
-        if (typeTag1 != ATypeTag.STRING && typeTag1 != ATypeTag.ORDEREDLIST) { // could be an list
+        if (typeTag1 != ATypeTag.STRING && typeTag1 != ATypeTag.ARRAY) { // could be an list
             throw new TypeMismatchException(BuiltinFunctions.EDIT_DISTANCE, 0, typeTag1.serialize(),
                     ATypeTag.SERIALIZED_STRING_TYPE_TAG, ATypeTag.SERIALIZED_ORDEREDLIST_TYPE_TAG);
         }
 
-        if (typeTag1 == ATypeTag.ORDEREDLIST) {
+        if (typeTag1 == ATypeTag.ARRAY) {
             itemTypeTag = EnumDeserializer.ATYPETAGDESERIALIZER
                     .deserialize(argPtr1.getByteArray()[argPtr1.getStartOffset() + 1]);
             if (itemTypeTag == ATypeTag.ANY) {

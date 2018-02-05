@@ -63,10 +63,10 @@ public class ValidateUtil {
                     RecordUtil.toFullyQualifiedName(filterField));
         }
         switch (fieldType.getTypeTag()) {
-            case INT8:
-            case INT16:
-            case INT32:
-            case INT64:
+            case TINYINT:
+            case SMALLINT:
+            case INTEGER:
+            case BIGINT:
             case FLOAT:
             case DOUBLE:
             case STRING:
@@ -118,6 +118,10 @@ public class ValidateUtil {
             }
             List<String> fieldName = partitioningExprs.get(0);
             IAType fieldType = recType.getSubFieldType(fieldName);
+            if (fieldType == null) {
+                String unTypeField = fieldName.get(0) == null ? "" : fieldName.get(0);
+                throw new CompilationException(ErrorCode.COMPILATION_FIELD_NOT_FOUND, unTypeField);
+            }
             partitioningExprTypes.add(fieldType);
             ATypeTag pkTypeTag = fieldType.getTypeTag();
             if (pkTypeTag != ATypeTag.UUID) {
@@ -134,10 +138,10 @@ public class ValidateUtil {
                             RecordUtil.toFullyQualifiedName(partitioningExprs.get(fidx)));
                 }
                 switch (fieldType.getTypeTag()) {
-                    case INT8:
-                    case INT16:
-                    case INT32:
-                    case INT64:
+                    case TINYINT:
+                    case SMALLINT:
+                    case INTEGER:
+                    case BIGINT:
                     case FLOAT:
                     case DOUBLE:
                     case STRING:
@@ -154,7 +158,7 @@ public class ValidateUtil {
                                 RecordUtil.toFullyQualifiedName(partitioningExprs.get(fidx)));
                     default:
                         throw new CompilationException(ErrorCode.COMPILATION_ILLEGAL_PRIMARY_KEY_TYPE,
-                                fieldType.getTypeTag().name());
+                                fieldType.getTypeTag());
                 }
             }
         }
@@ -174,9 +178,9 @@ public class ValidateUtil {
      *            the type of the index that its key fields is being validated
      * @throws AlgebricksException
      */
-    public static void validateKeyFields(ARecordType recType, ARecordType metaRecType,
-            List<List<String>> keyFieldNames, List<Integer> keySourceIndicators, List<IAType> keyFieldTypes,
-            IndexType indexType) throws AlgebricksException {
+    public static void validateKeyFields(ARecordType recType, ARecordType metaRecType, List<List<String>> keyFieldNames,
+            List<Integer> keySourceIndicators, List<IAType> keyFieldTypes, IndexType indexType)
+            throws AlgebricksException {
         List<IAType> fieldTypes =
                 KeyFieldTypeUtil.getKeyTypes(recType, metaRecType, keyFieldNames, keySourceIndicators);
         int pos = 0;
@@ -200,10 +204,10 @@ public class ValidateUtil {
             switch (indexType) {
                 case BTREE:
                     switch (fieldType.getTypeTag()) {
-                        case INT8:
-                        case INT16:
-                        case INT32:
-                        case INT64:
+                        case TINYINT:
+                        case SMALLINT:
+                        case INTEGER:
+                        case BIGINT:
                         case FLOAT:
                         case DOUBLE:
                         case STRING:
@@ -249,8 +253,8 @@ public class ValidateUtil {
                 case LENGTH_PARTITIONED_WORD_INVIX:
                     switch (fieldType.getTypeTag()) {
                         case STRING:
-                        case UNORDEREDLIST:
-                        case ORDEREDLIST:
+                        case MULTISET:
+                        case ARRAY:
                         case UNION:
                             break;
                         default:
@@ -272,8 +276,8 @@ public class ValidateUtil {
                 case SINGLE_PARTITION_WORD_INVIX:
                     switch (fieldType.getTypeTag()) {
                         case STRING:
-                        case UNORDEREDLIST:
-                        case ORDEREDLIST:
+                        case MULTISET:
+                        case ARRAY:
                         case UNION:
                             break;
                         default:

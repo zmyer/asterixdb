@@ -20,14 +20,12 @@ package org.apache.asterix.om.base;
 
 import java.io.IOException;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import org.apache.asterix.common.exceptions.AsterixException;
 import org.apache.asterix.om.base.temporal.GregorianCalendarSystem;
 import org.apache.asterix.om.types.ATypeTag;
 import org.apache.asterix.om.types.BuiltinType;
 import org.apache.asterix.om.types.IAType;
-import org.apache.asterix.om.visitors.IOMVisitor;
+
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class AInterval implements IAObject {
 
@@ -66,23 +64,15 @@ public class AInterval implements IAObject {
             return false;
         } else {
             AInterval t = (AInterval) o;
-            return (t.intervalStart == this.intervalStart || t.intervalEnd == this.intervalEnd
-                    && t.typetag == this.typetag);
+            return (t.intervalStart == this.intervalStart
+                    || t.intervalEnd == this.intervalEnd && t.typetag == this.typetag);
         }
     }
 
     @Override
     public int hashCode() {
-        return (int) (((int) (this.intervalStart ^ (this.intervalStart >>> 32))) * 31 + (int) (this.intervalEnd ^ (this.intervalEnd >>> 32)))
-                * 31 + (int) this.typetag;
-    }
-
-    /* (non-Javadoc)
-     * @see org.apache.asterix.om.base.IAObject#accept(org.apache.asterix.om.visitors.IOMVisitor)
-     */
-    @Override
-    public void accept(IOMVisitor visitor) throws AsterixException {
-        visitor.visitAInterval(this);
+        return (int) (((int) (this.intervalStart ^ (this.intervalStart >>> 32))) * 31
+                + (int) (this.intervalEnd ^ (this.intervalEnd >>> 32))) * 31 + (int) this.typetag;
     }
 
     /* (non-Javadoc)
@@ -104,33 +94,32 @@ public class AInterval implements IAObject {
     @Override
     public String toString() {
         StringBuilder sbder = new StringBuilder();
-        sbder.append("AInterval: { ");
+        sbder.append("interval: { ");
         try {
             if (typetag == ATypeTag.DATE.serialize()) {
-                sbder.append("ADate: { ");
+                sbder.append("date: { ");
 
-                GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(
-                        intervalStart * ADate.CHRONON_OF_DAY, 0, sbder, GregorianCalendarSystem.Fields.YEAR,
-                        GregorianCalendarSystem.Fields.DAY, false);
+                GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalStart * ADate.CHRONON_OF_DAY,
+                        0, sbder, GregorianCalendarSystem.Fields.YEAR, GregorianCalendarSystem.Fields.DAY, false);
 
-                sbder.append(" }, ADate: {");
+                sbder.append(" }, date: {");
                 GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalEnd * ADate.CHRONON_OF_DAY,
                         0, sbder, GregorianCalendarSystem.Fields.YEAR, GregorianCalendarSystem.Fields.DAY, false);
                 sbder.append(" }");
             } else if (typetag == ATypeTag.TIME.serialize()) {
-                sbder.append("ATime: { ");
+                sbder.append("time: { ");
                 GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalStart, 0, sbder,
                         GregorianCalendarSystem.Fields.HOUR, GregorianCalendarSystem.Fields.MILLISECOND, true);
-                sbder.append(" }, ATime: { ");
+                sbder.append(" }, time: { ");
 
                 GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalEnd, 0, sbder,
                         GregorianCalendarSystem.Fields.HOUR, GregorianCalendarSystem.Fields.MILLISECOND, true);
                 sbder.append(" }");
             } else if (typetag == ATypeTag.DATETIME.serialize()) {
-                sbder.append("ADateTime: { ");
+                sbder.append("datetime: { ");
                 GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalStart, 0, sbder,
                         GregorianCalendarSystem.Fields.YEAR, GregorianCalendarSystem.Fields.MILLISECOND, true);
-                sbder.append(" }, ADateTime: { ");
+                sbder.append(" }, datetime: { ");
                 GregorianCalendarSystem.getInstance().getExtendStringRepUntilField(intervalEnd, 0, sbder,
                         GregorianCalendarSystem.Fields.YEAR, GregorianCalendarSystem.Fields.MILLISECOND, true);
                 sbder.append(" }");
@@ -155,7 +144,7 @@ public class AInterval implements IAObject {
     }
 
     @Override
-    public ObjectNode toJSON()  {
+    public ObjectNode toJSON() {
         // TODO(madhusudancs): Remove this method when a printer based JSON serializer is implemented.
         return null;
     }

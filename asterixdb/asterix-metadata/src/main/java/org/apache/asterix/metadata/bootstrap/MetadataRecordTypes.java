@@ -48,6 +48,7 @@ public final class MetadataRecordTypes {
     public static final String FIELD_NAME_DATAVERSE_NAME = "DataverseName";
     public static final String FIELD_NAME_DATA_FORMAT = "DataFormat";
     public static final String FIELD_NAME_DEFINITION = "Definition";
+    public static final String FIELD_NAME_DEPENDENCIES = "Dependencies";
     public static final String FIELD_NAME_DERIVED = "Derived";
     public static final String FIELD_NAME_DESCRIPTION = "Description";
     public static final String FIELD_NAME_EXTERNAL_DETAILS = "ExternalDetails";
@@ -321,16 +322,20 @@ public final class MetadataRecordTypes {
     public static final int FUNCTION_ARECORD_FUNCTION_DEFINITION_FIELD_INDEX = 5;
     public static final int FUNCTION_ARECORD_FUNCTION_LANGUAGE_FIELD_INDEX = 6;
     public static final int FUNCTION_ARECORD_FUNCTION_KIND_FIELD_INDEX = 7;
+    public static final int FUNCTION_ARECORD_FUNCTION_DEPENDENCIES_FIELD_INDEX = 8;
     public static final ARecordType FUNCTION_RECORDTYPE = createRecordType(
             // RecordTypeName
             RECORD_NAME_FUNCTION,
             // FieldNames
             new String[] { FIELD_NAME_DATAVERSE_NAME, FIELD_NAME_NAME, FIELD_NAME_ARITY, FIELD_NAME_PARAMS,
-                    FIELD_NAME_RETURN_TYPE, FIELD_NAME_DEFINITION, FIELD_NAME_LANGUAGE, FIELD_NAME_KIND },
+                    FIELD_NAME_RETURN_TYPE, FIELD_NAME_DEFINITION, FIELD_NAME_LANGUAGE, FIELD_NAME_KIND,
+                    FIELD_NAME_DEPENDENCIES },
             // FieldTypes
             new IAType[] { BuiltinType.ASTRING, BuiltinType.ASTRING, BuiltinType.ASTRING,
                     new AOrderedListType(BuiltinType.ASTRING, null), BuiltinType.ASTRING, BuiltinType.ASTRING,
-                    BuiltinType.ASTRING, BuiltinType.ASTRING },
+                    BuiltinType.ASTRING, BuiltinType.ASTRING,
+                    new AOrderedListType(new AOrderedListType(new AOrderedListType(BuiltinType.ASTRING, null), null),
+                            null) },
             //IsOpen?
             true);
     //------------------------------------------ Adapter ----------------------------------------//
@@ -356,17 +361,16 @@ public final class MetadataRecordTypes {
     public static final String RECORD_NAME_FEED = "FeedRecordType";
     public static final int FEED_ARECORD_DATAVERSE_NAME_FIELD_INDEX = 0;
     public static final int FEED_ARECORD_FEED_NAME_FIELD_INDEX = 1;
-    public static final int FEED_ARECORD_ADAPTOR_NAME_INDEX = 2;
-    public static final int FEED_ARECORD_ADAPTOR_CONFIG_INDEX = 3;
-    public static final int FEED_ARECORD_TIMESTAMP_FIELD_INDEX = 4;
+    public static final int FEED_ARECORD_ADAPTOR_CONFIG_INDEX = 2;
+    public static final int FEED_ARECORD_TIMESTAMP_FIELD_INDEX = 3;
     public static final ARecordType FEED_RECORDTYPE = createRecordType(
             // RecordTypeName
             RECORD_NAME_FEED,
             // FieldNames
-            new String[] { FIELD_NAME_DATAVERSE_NAME, FIELD_NAME_FEED_NAME, FIELD_NAME_ADAPTER_NAME,
-                    FIELD_NAME_ADAPTER_CONFIGURATION, FIELD_NAME_TIMESTAMP },
+            new String[] { FIELD_NAME_DATAVERSE_NAME, FIELD_NAME_FEED_NAME, FIELD_NAME_ADAPTER_CONFIGURATION,
+                    FIELD_NAME_TIMESTAMP },
             // FieldTypes
-            new IAType[] { BuiltinType.ASTRING, BuiltinType.ASTRING, BuiltinType.ASTRING,
+            new IAType[] { BuiltinType.ASTRING, BuiltinType.ASTRING,
                     new AUnorderedListType(FEED_ADAPTER_CONFIGURATION_RECORDTYPE, null), BuiltinType.ASTRING },
             //IsOpen?
             true);
@@ -380,7 +384,6 @@ public final class MetadataRecordTypes {
     public static final int FEED_CONN_APPLIED_FUNCTIONS_FIELD_INDEX = 4;
     public static final int FEED_CONN_POLICY_FIELD_INDEX = 5;
 
-
     public static final ARecordType FEED_CONNECTION_RECORDTYPE = createRecordType(
             // RecordTypeName
             RECORD_NAME_FEED_CONNECTION,
@@ -389,7 +392,7 @@ public final class MetadataRecordTypes {
                     FIELD_NAME_RETURN_TYPE, FIELD_NAME_APPLIED_FUNCTIONS, FIELD_NAME_POLICY_NAME },
             // FieldTypes
             new IAType[] { BuiltinType.ASTRING, BuiltinType.ASTRING, BuiltinType.ASTRING, BuiltinType.ASTRING,
-                    new AUnorderedListType(BuiltinType.ASTRING, null), BuiltinType.ASTRING},
+                    new AUnorderedListType(BuiltinType.ASTRING, null), BuiltinType.ASTRING },
             //IsOpen?
             true);
 

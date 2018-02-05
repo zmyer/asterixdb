@@ -34,7 +34,7 @@ public class AsyncFIFOPageQueueManager implements Runnable {
     protected BufferCache bufferCache;
     volatile protected PageQueue pageQueue;
 
-    public AsyncFIFOPageQueueManager(BufferCache bufferCache){
+    public AsyncFIFOPageQueueManager(BufferCache bufferCache) {
         this.bufferCache = bufferCache;
     }
 
@@ -43,7 +43,8 @@ public class AsyncFIFOPageQueueManager implements Runnable {
         public final IFIFOPageWriter writer;
 
         protected PageQueue(IBufferCache bufferCache, IFIFOPageWriter writer) {
-            if(DEBUG) System.out.println("[FIFO] New Queue");
+            if (DEBUG)
+                System.out.println("[FIFO] New Queue");
             this.bufferCache = bufferCache;
             this.writer = writer;
         }
@@ -59,35 +60,33 @@ public class AsyncFIFOPageQueueManager implements Runnable {
         @Override
         public void put(ICachedPage page) throws HyracksDataException {
             try {
-                if(!poisoned.get()) {
+                if (!poisoned.get()) {
                     queue.put(page);
-                }
-                else{
+                } else {
                     throw new HyracksDataException("Queue is closing");
                 }
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                throw HyracksDataException.create(e);
             }
         }
     }
 
-
     public PageQueue createQueue(IFIFOPageWriter writer) {
         if (pageQueue == null) {
-            synchronized(this){
+            synchronized (this) {
                 if (pageQueue == null) {
                     writerThread = new Thread(this);
                     writerThread.setName("FIFO Writer Thread");
                     writerThread.start();
-                    pageQueue = new PageQueue(bufferCache,writer);
+                    pageQueue = new PageQueue(bufferCache, writer);
                 }
             }
         }
         return pageQueue;
     }
 
-    public void destroyQueue(){
+    public void destroyQueue() {
         poisoned.set(true);
         if (writerThread == null) {
             synchronized (this) {
@@ -99,21 +98,21 @@ public class AsyncFIFOPageQueueManager implements Runnable {
 
         //Dummy cached page to act as poison pill
         CachedPage poisonPill = new CachedPage();
-        poisonPill.setQueueInfo(new QueueInfo(true,true));
+        poisonPill.setQueueInfo(new QueueInfo(true, true));
 
-        try{
+        try {
             synchronized (poisonPill) {
                 queue.put(poisonPill);
-                while(queue.contains(poisonPill)){
+                while (queue.contains(poisonPill)) {
                     poisonPill.wait();
                 }
             }
-        } catch (InterruptedException e){
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
 
-    public void finishQueue() {
+    public void finishQueue() throws HyracksDataException {
         if (writerThread == null) {
             synchronized (this) {
                 if (writerThread == null) {
@@ -121,47 +120,48 @@ public class AsyncFIFOPageQueueManager implements Runnable {
                 }
             }
         }
-        if(DEBUG) System.out.println("[FIFO] Finishing Queue");
         try {
             //Dummy cached page to act as low water mark
             CachedPage lowWater = new CachedPage();
-            lowWater.setQueueInfo(new QueueInfo(true,false));
-            synchronized(lowWater){
+            lowWater.setQueueInfo(new QueueInfo(true, false));
+            synchronized (lowWater) {
                 queue.put(lowWater);
-                while(queue.contains(lowWater)){
-                        lowWater.wait();
+                while (queue.contains(lowWater)) {
+                    lowWater.wait();
                 }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            // TODO what do we do here?
-            e.printStackTrace();
+            throw HyracksDataException.create(e);
         }
-        if(DEBUG) System.out.println("[FIFO] Queue finished");
     }
 
     @Override
     public void run() {
-        if (DEBUG) System.out.println("[FIFO] Writer started");
+        if (DEBUG)
+            System.out.println("[FIFO] Writer started");
         boolean die = false;
         while (!die) {
             ICachedPage entry;
             try {
                 entry = queue.take();
-            } catch(InterruptedException e) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
-            if (entry.getQueueInfo() != null && entry.getQueueInfo().hasWaiters()){
-                synchronized(entry) {
-                    if(entry.getQueueInfo().isPoison()) { die = true; }
+            if (entry.getQueueInfo() != null && entry.getQueueInfo().hasWaiters()) {
+                synchronized (entry) {
+                    if (entry.getQueueInfo().isPoison()) {
+                        die = true;
+                    }
                     entry.notifyAll();
                     continue;
                 }
             }
 
-            if (DEBUG) System.out.println("[FIFO] Write " + BufferedFileHandle.getFileId(((CachedPage)entry).dpid)+","
-                    + BufferedFileHandle.getPageId(((CachedPage)entry).dpid));
+            if (DEBUG)
+                System.out.println("[FIFO] Write " + BufferedFileHandle.getFileId(((CachedPage) entry).dpid) + ","
+                        + BufferedFileHandle.getPageId(((CachedPage) entry).dpid));
 
             try {
                 pageQueue.getWriter().write(entry, bufferCache);

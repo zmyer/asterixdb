@@ -52,8 +52,8 @@ public class GetRecordFieldsEvalFactory implements IScalarEvaluatorFactory {
     public IScalarEvaluator createScalarEvaluator(final IHyracksTaskContext ctx) throws HyracksDataException {
         return new IScalarEvaluator() {
 
-            private final ARecordPointable recordPointable = (ARecordPointable) ARecordPointable.FACTORY
-                    .createPointable();
+            private final ARecordPointable recordPointable =
+                    (ARecordPointable) ARecordPointable.FACTORY.createPointable();
             private IPointable inputArg0 = new VoidPointable();
             private IScalarEvaluator eval0 = recordEvalFactory.createScalarEvaluator(ctx);
             private ArrayBackedValueStorage resultStorage = new ArrayBackedValueStorage();
@@ -77,8 +77,6 @@ public class GetRecordFieldsEvalFactory implements IScalarEvaluatorFactory {
                 try {
                     rfu.processRecord(recordPointable, recordType, out, 0);
                 } catch (IOException e) {
-                    throw new HyracksDataException(e);
-                } catch (AsterixException e) {
                     throw new HyracksDataException(e);
                 }
                 result.set(resultStorage);

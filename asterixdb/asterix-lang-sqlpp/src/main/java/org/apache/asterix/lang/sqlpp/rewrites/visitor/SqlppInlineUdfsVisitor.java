@@ -43,7 +43,6 @@ import org.apache.asterix.lang.sqlpp.clause.SelectRegular;
 import org.apache.asterix.lang.sqlpp.clause.SelectSetOperation;
 import org.apache.asterix.lang.sqlpp.clause.UnnestClause;
 import org.apache.asterix.lang.sqlpp.expression.CaseExpression;
-import org.apache.asterix.lang.sqlpp.expression.IndependentSubquery;
 import org.apache.asterix.lang.sqlpp.expression.SelectExpression;
 import org.apache.asterix.lang.sqlpp.struct.SetOperationRight;
 import org.apache.asterix.lang.sqlpp.util.SqlppRewriteUtil;
@@ -119,6 +118,9 @@ public class SqlppInlineUdfsVisitor extends AbstractInlineUdfsVisitor
 
     @Override
     public Boolean visit(Projection projection, List<FunctionDecl> funcs) throws CompilationException {
+        if (projection.star() == true) {
+            return false;
+        }
         Pair<Boolean, Expression> p = inlineUdfsInExpr(projection.getExpression(), funcs);
         projection.setExpression(p.second);
         return p.first;
@@ -223,14 +225,6 @@ public class SqlppInlineUdfsVisitor extends AbstractInlineUdfsVisitor
     }
 
     @Override
-    public Boolean visit(IndependentSubquery independentSubquery, List<FunctionDecl> funcs)
-            throws CompilationException {
-        Pair<Boolean, Expression> p = inlineUdfsInExpr(independentSubquery.getExpr(), funcs);
-        independentSubquery.setExpr(p.second);
-        return p.first;
-    }
-
-    @Override
     public Boolean visit(CaseExpression caseExpr, List<FunctionDecl> funcs) throws CompilationException {
         Pair<Boolean, Expression> result = inlineUdfsInExpr(caseExpr.getConditionExpr(), funcs);
         caseExpr.setConditionExpr(result.second);
@@ -254,8 +248,7 @@ public class SqlppInlineUdfsVisitor extends AbstractInlineUdfsVisitor
         Map<Expression, Expression> varExprMap = new HashMap<>();
         for (LetClause lc : letClauses) {
             // inline let variables one by one iteratively.
-            lc.setBindingExpr(SqlppRewriteUtil.substituteExpression(lc.getBindingExpr(),
-                    varExprMap, context));
+            lc.setBindingExpr(SqlppRewriteUtil.substituteExpression(lc.getBindingExpr(), varExprMap, context));
             varExprMap.put(lc.getVarExpr(), lc.getBindingExpr());
         }
         return varExprMap;

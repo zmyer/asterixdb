@@ -19,7 +19,7 @@
 package org.apache.asterix.om.utils;
 
 import org.apache.asterix.common.config.DatasetConfig.IndexType;
-import org.apache.asterix.common.exceptions.AsterixException;
+import org.apache.asterix.common.exceptions.ErrorCode;
 import org.apache.asterix.dataflow.data.nontagged.serde.AInt16SerializerDeserializer;
 import org.apache.asterix.dataflow.data.nontagged.serde.AIntervalSerializerDeserializer;
 import org.apache.asterix.dataflow.data.nontagged.serde.AOrderedListSerializerDeserializer;
@@ -39,6 +39,7 @@ import org.apache.hyracks.algebricks.common.exceptions.AlgebricksException;
 import org.apache.hyracks.algebricks.common.exceptions.NotImplementedException;
 import org.apache.hyracks.api.dataflow.value.IBinaryComparatorFactory;
 import org.apache.hyracks.api.dataflow.value.ITypeTraits;
+import org.apache.hyracks.api.exceptions.HyracksDataException;
 import org.apache.hyracks.data.std.primitive.ByteArrayPointable;
 import org.apache.hyracks.storage.am.lsm.invertedindex.tokenizers.IBinaryTokenizerFactory;
 import org.apache.hyracks.util.string.UTF8StringUtil;
@@ -62,10 +63,10 @@ public final class NonTaggedFormatUtil {
         switch (type) {
             case STRING:
             case BINARY:
-            case RECORD:
+            case OBJECT:
             case INTERVAL:
-            case ORDEREDLIST:
-            case UNORDEREDLIST:
+            case ARRAY:
+            case MULTISET:
             case POLYGON:
             case ANY:
                 return false;
@@ -106,30 +107,30 @@ public final class NonTaggedFormatUtil {
     }
 
     public static int getFieldValueLength(byte[] serNonTaggedAObject, int offset, ATypeTag typeTag, boolean tagged)
-            throws AsterixException {
+            throws HyracksDataException {
         switch (typeTag) {
             case ANY:
                 ATypeTag tag = EnumDeserializer.ATYPETAGDESERIALIZER.deserialize(serNonTaggedAObject[offset]);
                 if (tag == ATypeTag.ANY) {
-                    throw new AsterixException("Field value has type tag ANY, but it should have a concrete type.");
+                    throw HyracksDataException.create(ErrorCode.FIELD_SHOULD_BE_TYPED);
                 }
                 return getFieldValueLength(serNonTaggedAObject, offset, tag, true) + 1;
             case MISSING:
             case NULL:
                 return 0;
             case BOOLEAN:
-            case INT8:
+            case TINYINT:
                 return 1;
-            case INT16:
+            case SMALLINT:
                 return 2;
-            case INT32:
+            case INTEGER:
             case FLOAT:
             case DATE:
             case YEARMONTHDURATION:
                 return 4;
             case TIME:
                 return 4;
-            case INT64:
+            case BIGINT:
             case DOUBLE:
             case DATETIME:
             case DAYTIMEDURATION:
@@ -173,19 +174,19 @@ public final class NonTaggedFormatUtil {
                     int len = ByteArrayPointable.getContentLength(serNonTaggedAObject, offset);
                     return len + ByteArrayPointable.getNumberBytesToStoreMeta(len);
                 }
-            case RECORD:
+            case OBJECT:
                 if (tagged) {
                     return ARecordSerializerDeserializer.getRecordLength(serNonTaggedAObject, offset + 1) - 1;
                 } else {
                     return ARecordSerializerDeserializer.getRecordLength(serNonTaggedAObject, offset) - 1;
                 }
-            case ORDEREDLIST:
+            case ARRAY:
                 if (tagged) {
                     return AOrderedListSerializerDeserializer.getOrderedListLength(serNonTaggedAObject, offset + 1) - 1;
                 } else {
                     return AOrderedListSerializerDeserializer.getOrderedListLength(serNonTaggedAObject, offset) - 1;
                 }
-            case UNORDEREDLIST:
+            case MULTISET:
                 if (tagged) {
                     return AUnorderedListSerializerDeserializer.getUnorderedListLength(serNonTaggedAObject, offset + 1)
                             - 1;
@@ -249,7 +250,7 @@ public final class NonTaggedFormatUtil {
         IAType type = keyType;
         ATypeTag typeTag = keyType.getTypeTag();
         // Extract item type from list.
-        if (typeTag == ATypeTag.UNORDEREDLIST || typeTag == ATypeTag.ORDEREDLIST) {
+        if (typeTag == ATypeTag.MULTISET || typeTag == ATypeTag.ARRAY) {
             AbstractCollectionType listType = (AbstractCollectionType) keyType;
             if (!listType.isTyped()) {
                 throw new AlgebricksException("Cannot build an inverted index on untyped lists.)");

@@ -51,8 +51,11 @@ public class JoinUtils {
     private JoinUtils() {
     }
 
-    public static void setJoinAlgorithmAndExchangeAlgo(AbstractBinaryJoinOperator op, IOptimizationContext context)
-            throws AlgebricksException {
+    public static void setJoinAlgorithmAndExchangeAlgo(AbstractBinaryJoinOperator op, boolean topLevelOp,
+            IOptimizationContext context) throws AlgebricksException {
+        if (!topLevelOp) {
+            throw new IllegalStateException("Micro operator not implemented for: " + op.getOperatorTag());
+        }
         List<LogicalVariable> sideLeft = new LinkedList<>();
         List<LogicalVariable> sideRight = new LinkedList<>();
         List<LogicalVariable> varsLeft = op.getInputs().get(0).getValue().getSchema();
@@ -107,13 +110,13 @@ public class JoinUtils {
         LogicalPropertiesVisitor.computeLogicalPropertiesDFS(opBuild, context);
         ILogicalPropertiesVector v = context.getLogicalPropertiesVector(opBuild);
         AlgebricksConfig.ALGEBRICKS_LOGGER
-                .fine("// HybridHashJoin inner branch -- Logical properties for " + opBuild + ": " + v + "\n");
+                .debug("// HybridHashJoin inner branch -- Logical properties for " + opBuild + ": " + v + "\n");
         if (v != null) {
             int size2 = v.getMaxOutputFrames();
             HybridHashJoinPOperator hhj = (HybridHashJoinPOperator) op.getPhysicalOperator();
             if (size2 > 0 && size2 * hhj.getFudgeFactor() <= hhj.getMemSizeInFrames()) {
                 AlgebricksConfig.ALGEBRICKS_LOGGER
-                        .fine("// HybridHashJoin inner branch " + opBuild + " fits in memory\n");
+                        .debug("// HybridHashJoin inner branch " + opBuild + " fits in memory\n");
                 // maintains the local properties on the probe side
                 op.setPhysicalOperator(
                         new InMemoryHashJoinPOperator(hhj.getKind(), hhj.getPartitioningType(), hhj.getKeysLeftBranch(),
@@ -178,33 +181,48 @@ public class JoinUtils {
             return null;
         }
         AbstractFunctionCallExpression fexp = (AbstractFunctionCallExpression) e;
-        IExpressionAnnotation ann = fexp.getAnnotations().get(BroadcastExpressionAnnotation.BROADCAST_ANNOTATION_KEY);
-        if (ann == null) {
-            return null;
-        }
-        BroadcastSide side = (BroadcastSide) ann.getObject();
-        if (side == null) {
-            return null;
-        }
-        int i;
-        switch (side) {
-            case LEFT:
-                i = 0;
-                break;
-            case RIGHT:
-                i = 1;
-                break;
-            default:
-                return null;
-        }
-        ArrayList<LogicalVariable> vars = new ArrayList<>();
-        fexp.getArguments().get(i).getValue().getUsedVariables(vars);
-        if (varsLeft.containsAll(vars)) {
-            return BroadcastSide.LEFT;
-        } else if (varsRight.containsAll(vars)) {
-            return BroadcastSide.RIGHT;
+        FunctionIdentifier fi = fexp.getFunctionIdentifier();
+        if (fi.equals(AlgebricksBuiltinFunctions.AND)) {
+            BroadcastSide fBcastSide = null;
+            for (Mutable<ILogicalExpression> a : fexp.getArguments()) {
+                BroadcastSide aBcastSide = getBroadcastJoinSide(a.getValue(), varsLeft, varsRight);
+                if (fBcastSide == null) {
+                    fBcastSide = aBcastSide;
+                } else if (aBcastSide != null && !aBcastSide.equals(fBcastSide)) {
+                    return null;
+                }
+            }
+            return fBcastSide;
         } else {
-            return null;
+            IExpressionAnnotation ann =
+                    fexp.getAnnotations().get(BroadcastExpressionAnnotation.BROADCAST_ANNOTATION_KEY);
+            if (ann == null) {
+                return null;
+            }
+            BroadcastSide side = (BroadcastSide) ann.getObject();
+            if (side == null) {
+                return null;
+            }
+            int i;
+            switch (side) {
+                case LEFT:
+                    i = 0;
+                    break;
+                case RIGHT:
+                    i = 1;
+                    break;
+                default:
+                    return null;
+            }
+            ArrayList<LogicalVariable> vars = new ArrayList<>();
+            fexp.getArguments().get(i).getValue().getUsedVariables(vars);
+            if (varsLeft.containsAll(vars)) {
+                return BroadcastSide.LEFT;
+            } else if (varsRight.containsAll(vars)) {
+                return BroadcastSide.RIGHT;
+            } else {
+                return null;
+            }
         }
     }
 }

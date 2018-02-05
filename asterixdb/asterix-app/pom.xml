@@ -16,12 +16,13 @@
  ! specific language governing permissions and limitations
  ! under the License.
  !-->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <artifactId>apache-asterixdb</artifactId>
     <groupId>org.apache.asterix</groupId>
-    <version>0.9.1-SNAPSHOT</version>
+    <version>0.9.3-SNAPSHOT</version>
   </parent>
   <artifactId>asterix-app</artifactId>
   <licenses>
@@ -33,6 +34,7 @@
     </license>
   </licenses>
   <properties>
+    <root.dir>${basedir}/..</root.dir>
     <appendedResourcesDirectory>${basedir}/src/main/appended-resources</appendedResourcesDirectory>
     <sonar.sources>pom.xml,src/main/java,src/main/resources</sonar.sources>
   </properties>
@@ -52,7 +54,6 @@
       <plugin>
         <groupId>pl.project13.maven</groupId>
         <artifactId>git-commit-id-plugin</artifactId>
-        <version>2.2.0</version>
         <executions>
           <execution>
             <goals>
@@ -82,25 +83,6 @@
         <artifactId>maven-resources-plugin</artifactId>
         <executions>
           <execution>
-            <id>copy-external-library</id>
-            <phase>generate-resources</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>src/test/resources/externallib</outputDirectory>
-              <overwrite>true</overwrite>
-              <resources>
-                <resource>
-                  <directory>../asterix-external-data/target</directory>
-                  <includes>
-                    <include>testlib-zip-binary-assembly.zip</include>
-                  </includes>
-                </resource>
-              </resources>
-            </configuration>
-          </execution>
-          <execution>
             <id>copy-external-data-resources</id>
             <phase>generate-resources</phase>
             <goals>
@@ -113,7 +95,6 @@
                 <resource>
                   <directory>../asterix-external-data/src/test/resources</directory>
                   <includes>
-                    <include>beer.csv</include>
                     <include>change_feed.csv</include>
                   </includes>
                 </resource>
@@ -141,6 +122,7 @@
                 </includes>
               </inputFiles>
               <outputDir>target/data</outputDir>
+              <skip>${skip.testResources}</skip>
             </configuration>
           </execution>
         </executions>
@@ -148,16 +130,110 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-external-testlib</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <includeClassifiers>testlib</includeClassifiers>
+              <outputDirectory>target/data/externallib</outputDirectory>
+              <overwrite>true</overwrite>
+              <stripVersion>true</stripVersion>
+            </configuration>
+          </execution>
+        </executions>
         <configuration>
-          <ignoredUsedUndeclaredDependencies>
+          <ignoredUsedUndeclaredDependencies combine.children="append">
             <ignoredUsedUndeclaredDependency>commons-logging:commons-logging-api:*</ignoredUsedUndeclaredDependency>
             <ignoredUsedUndeclaredDependency>org.apache.hive:hive-exec:*</ignoredUsedUndeclaredDependency>
           </ignoredUsedUndeclaredDependencies>
-          <usedDependencies>
+          <usedDependencies combine.children="append">
             <usedDependency>org.apache.hadoop:hadoop-common</usedDependency>
-            <usedDependency>org.apache.asterix:asterix-external-data</usedDependency>
           </usedDependencies>
+          <ignoredUnusedDeclaredDependencies>
+            <ignoredUnusedDeclaredDependency>org.apache.asterix:asterix-external-data:zip:*</ignoredUnusedDeclaredDependency>
+            <ignoredUnusedDeclaredDependency>org.apache.asterix:asterix-external-data:test-jar:*</ignoredUnusedDeclaredDependency>
+          </ignoredUnusedDeclaredDependencies>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>default</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <licenses combine.children="append">
+                <license implementation="org.apache.rat.analysis.license.MITLicense" />
+              </licenses>
+              <excludes combine.children="append">
+                <exclude>src/test/resources/**/results_parser_sqlpp/**</exclude>
+                <exclude>src/test/resources/**/results/**</exclude>
+                <exclude>src/test/resources/fuzzyjoin/pub/fuzzy-join-aql*.dot</exclude>
+                <exclude>src/test/resources/fuzzyjoin/pub/fuzzy-join-aql*.json</exclude>
+                <exclude>**/data/**</exclude>
+                <exclude>src/test//resources/**/data/**</exclude>
+                <exclude>src/main/resources/queryui/**</exclude>
+                <exclude>src/main/resources/webui/**</exclude>
+                <exclude>src/test/resources/**/only*.xml</exclude>
+                <exclude>src/main/resources/sdk/**</exclude>
+                <exclude>src/main/resources/dashboard/**</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>webqueryui</id>
+            <phase>validate</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <reportFile>${project.build.directory}/webqueryui-rat.txt</reportFile>
+              <licenses combine.children="append">
+                <license implementation="org.apache.rat.analysis.license.MITLicense" />
+                <license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
+                  <licenseFamilyCategory>MIT</licenseFamilyCategory>
+                  <licenseFamilyName>JQuery</licenseFamilyName>
+                  <patterns>(c) jQuery Foundation | jquery.org/license</patterns>
+                </license>
+                <license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
+                  <licenseFamilyCategory>MIT</licenseFamilyCategory>
+                  <licenseFamilyName>Bootstrap</licenseFamilyName>
+                  <patterns>Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)</patterns>
+                </license>
+                <license implementation="org.apache.rat.analysis.license.SimplePatternBasedLicense">
+                  <licenseFamilyCategory>MIT</licenseFamilyCategory>
+                  <licenseFamilyName>AngularJS</licenseFamilyName>
+                  <patterns>http://angularjs.org | (c) 2010-2016 Google, Inc. | License: MIT</patterns>
+                </license>
+              </licenses>
+              <licenseFamilies combine.children="append">
+                <licenseFamily implementation="org.apache.rat.license.MITLicenseFamily" />
+                <licenseFamily implementation="org.apache.rat.license.SimpleLicenseFamily">
+                  <familyName>JQuery</familyName>
+                </licenseFamily>
+                <licenseFamily implementation="org.apache.rat.license.SimpleLicenseFamily">
+                  <familyName>Bootstrap</familyName>
+                </licenseFamily>
+                <licenseFamily implementation="org.apache.rat.license.SimpleLicenseFamily">
+                  <familyName>AngularJS</familyName>
+                </licenseFamily>
+              </licenseFamilies>
+              <includes>
+                <include>src/main/resources/queryui/**</include>
+                <include>src/main/resources/webui/**</include>
+              </includes>
+              <excludes>src/main/resources/queryui/fonts/glyphicons-halflings-regular.svg</excludes>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
     <pluginManagement>
@@ -174,7 +250,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.asterix</groupId>
                     <artifactId>asterix-test-datagenerator-maven-plugin</artifactId>
-                    <versionRange>[0.8.9-SNAPSHOT,)</versionRange>
+                    <versionRange>[0.0,)</versionRange>
                     <goals>
                       <goal>generate-testdata</goal>
                     </goals>
@@ -190,6 +266,79 @@
       </plugins>
     </pluginManagement>
   </build>
+  <profiles>
+    <profile>
+      <id>skip.asterix-app.tests</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>asterix-gerrit-asterix-app</id>
+      <properties>
+        <test.excludes>**/SqlppExecutionWithCancellationTest.java,**/DmlTest.java,**/RepeatedTest.java,**/SqlppExecutionTest.java</test.excludes>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>SqlppExecutionTest</id>
+                <configuration>
+                  <includes combine.self="override">
+                    <include>**/SqlppExecutionTest.java</include>
+                  </includes>
+                  <excludes combine.self="override"/>
+                  <argLine>
+                    -enableassertions -Xmx${test.heap.size}m
+                    -Dfile.encoding=UTF-8
+                    -Xdebug
+                    -Xrunjdwp:transport=dt_socket,server=y,address=8000,suspend=${debug.suspend.flag}
+                    -Xloggc:"${project.build.directory}/surefire-reports/SqlppExecutionTest-%p-gc.log" -XX:+PrintGC -XX:+PrintGCDateStamps -XX:GCLogFileSize=10M
+                  </argLine>
+                </configuration>
+                <goals>
+                  <goal>test</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>asterix-gerrit-asterix-app-sql-execution</id>
+      <properties>
+        <test.includes/>
+        <itest.includes>**/SqlppExecution*IT.java</itest.includes>
+        <failIfNoTests>false</failIfNoTests>
+      </properties>
+    </profile>
+    <profile>
+      <id>asterix-gerrit-verify-asterix-app</id>
+      <properties>
+        <test.includes/>
+        <itest.excludes>**/SqlppExecution*IT.java,**/RebalanceWithCancellationIT.java</itest.excludes>
+        <failIfNoTests>false</failIfNoTests>
+      </properties>
+    </profile>
+    <profile>
+      <id>asterix-gerrit-rebalance-cancellation</id>
+      <properties>
+        <test.includes>**/RebalanceWithCancellationIT.java</test.includes>
+      </properties>
+    </profile>
+  </profiles>
   <dependencies>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
@@ -237,6 +386,11 @@
     </dependency>
     <dependency>
       <groupId>org.apache.asterix</groupId>
+      <artifactId>asterix-dashboard</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.asterix</groupId>
       <artifactId>asterix-common</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
@@ -269,6 +423,14 @@
       <artifactId>asterix-external-data</artifactId>
       <version>${project.version}</version>
       <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.asterix</groupId>
+      <artifactId>asterix-external-data</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <classifier>testlib</classifier>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -311,15 +473,6 @@
       <artifactId>hyracks-storage-am-lsm-btree</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.asterix</groupId>
-      <artifactId>asterix-events</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-hdfs</artifactId>
       <classifier>tests</classifier>
@@ -338,6 +491,10 @@
       <artifactId>hyracks-net</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.apache.hyracks</groupId>
+      <artifactId>hyracks-ipc</artifactId>
+    </dependency>
+    <dependency>
       <groupId>javax.xml.bind</groupId>
       <artifactId>jaxb-api</artifactId>
       <scope>test</scope>
@@ -345,8 +502,6 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
-      <version>1.4.1</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.hyracks</groupId>
@@ -467,6 +622,26 @@
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hyracks</groupId>
+      <artifactId>hyracks-storage-am-lsm-btree-test</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hyracks</groupId>
+      <artifactId>hyracks-comm</artifactId>
+      <version>${hyracks.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-jul</artifactId>
+      <version>2.10.0</version>
     </dependency>
   </dependencies>
 </project>

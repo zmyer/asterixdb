@@ -26,7 +26,7 @@
   <parent>
     <groupId>org.apache.hyracks</groupId>
     <artifactId>hyracks-maven-plugins</artifactId>
-    <version>0.3.1-SNAPSHOT</version>
+    <version>0.3.3-SNAPSHOT</version>
   </parent>
 
   <properties>
@@ -48,7 +48,7 @@
                                   <pluginExecutionFilter>
                                       <groupId>org.apache.maven.plugins</groupId>
                                       <artifactId>maven-plugin-plugin</artifactId>
-                                      <versionRange>[3.3,)</versionRange>
+                                      <versionRange>[0.0,)</versionRange>
                                       <goals>
                                           <goal>descriptor</goal>
                                       </goals>

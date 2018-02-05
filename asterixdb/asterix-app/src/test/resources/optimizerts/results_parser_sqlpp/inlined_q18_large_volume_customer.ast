@@ -79,7 +79,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [sum_quantity]
     :
-    FunctionCall inlined_q18_large_volume_customer.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -87,7 +87,9 @@ RecordConstructor [
           Field=l_quantity
         ]
         ]
-        FROM [          Variable [ Name=$l ]
+        FROM [          FunctionCall asterix.dataset@1[
+            LiteralExpr [STRING] [inlined_q18_large_volume_customer.l]
+          ]
           AS Variable [ Name=$j ]
         ]
       )
@@ -95,13 +97,13 @@ RecordConstructor [
   )
 ]
 ]
-FROM [  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Customers]
+FROM [  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [inlined_q18_large_volume_customer.Customers]
   ]
   AS Variable [ Name=$c ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [Orders]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [inlined_q18_large_volume_customer.Orders]
   ]
   AS Variable [ Name=$o ]
 ,
@@ -116,7 +118,7 @@ FROM [  FunctionCall Metadata.dataset@1[
       (
         LiteralExpr [STRING] [t_sum_quantity]
         :
-        FunctionCall inlined_q18_large_volume_customer.sum@1[
+        FunctionCall asterix.sum@1[
           (
             SELECT ELEMENT [
             FieldAccessor [
@@ -124,7 +126,9 @@ FROM [  FunctionCall Metadata.dataset@1[
               Field=l_quantity
             ]
             ]
-            FROM [              Variable [ Name=$l ]
+            FROM [              FunctionCall asterix.dataset@1[
+                LiteralExpr [STRING] [inlined_q18_large_volume_customer.l]
+              ]
               AS Variable [ Name=$i ]
             ]
           )
@@ -132,8 +136,8 @@ FROM [  FunctionCall Metadata.dataset@1[
       )
     ]
     ]
-    FROM [      FunctionCall Metadata.dataset@1[
-        LiteralExpr [STRING] [LineItems]
+    FROM [      FunctionCall asterix.dataset@1[
+        LiteralExpr [STRING] [inlined_q18_large_volume_customer.LineItems]
       ]
       AS Variable [ Name=$l ]
     ]
@@ -144,7 +148,7 @@ FROM [  FunctionCall Metadata.dataset@1[
         Variable [ Name=$l ]
         Field=l_orderkey
       ]
-      GROUP AS Variable [ Name=#1 ]
+      GROUP AS Variable [ Name=#2 ]
       (
         l:=Variable [ Name=$l ]
       )
@@ -152,8 +156,8 @@ FROM [  FunctionCall Metadata.dataset@1[
   )
   AS Variable [ Name=$t ]
 ,
-  FunctionCall Metadata.dataset@1[
-    LiteralExpr [STRING] [LineItems]
+  FunctionCall asterix.dataset@1[
+    LiteralExpr [STRING] [inlined_q18_large_volume_customer.LineItems]
   ]
   AS Variable [ Name=$l ]
 ]
@@ -237,7 +241,7 @@ Groupby
     Variable [ Name=$o ]
     Field=o_totalprice
   ]
-  GROUP AS Variable [ Name=#2 ]
+  GROUP AS Variable [ Name=#1 ]
   (
     c:=Variable [ Name=$c ]
     o:=Variable [ Name=$o ]

@@ -29,6 +29,7 @@ public class FeedStreamDataFlowController extends AbstractFeedDataFlowController
 
     private final IStreamDataParser dataParser;
     private final AsterixInputStream stream;
+    protected long incomingRecordsCount = 0;
 
     public FeedStreamDataFlowController(IHyracksTaskContext ctx, FeedTupleForwarder tupleForwarder,
             FeedLogManager feedLogManager, IStreamDataParser streamParser, AsterixInputStream inputStream) {
@@ -42,22 +43,35 @@ public class FeedStreamDataFlowController extends AbstractFeedDataFlowController
         try {
             tupleForwarder.initialize(ctx, writer);
             while (true) {
-                tb.reset();
-                if (!dataParser.parse(tb.getDataOutput())) {
+                if (!parseNext()) {
                     break;
                 }
                 tb.addFieldEndOffset();
                 tupleForwarder.addTuple(tb);
+                incomingRecordsCount++;
             }
         } catch (Exception e) {
-            throw new HyracksDataException(e);
+            throw HyracksDataException.create(e);
         } finally {
             tupleForwarder.close();
         }
     }
 
+    private boolean parseNext() throws HyracksDataException {
+        while (true) {
+            try {
+                tb.reset();
+                return dataParser.parse(tb.getDataOutput());
+            } catch (Exception e) {
+                if (!handleException(e)) {
+                    throw e;
+                }
+            }
+        }
+    }
+
     @Override
-    public boolean stop() throws HyracksDataException {
+    public boolean stop(long timeout) throws HyracksDataException {
         try {
             if (stream.stop()) {
                 return true;
@@ -69,8 +83,7 @@ public class FeedStreamDataFlowController extends AbstractFeedDataFlowController
         return false;
     }
 
-    @Override
-    public boolean handleException(Throwable th) {
+    private boolean handleException(Throwable th) {
         boolean handled = true;
         try {
             handled &= stream.handleException(th);
@@ -82,5 +95,10 @@ public class FeedStreamDataFlowController extends AbstractFeedDataFlowController
             return false;
         }
         return handled;
+    }
+
+    @Override
+    public String getStats() {
+        return "{\"incoming-records-number\": " + incomingRecordsCount + "}";
     }
 }

@@ -42,7 +42,7 @@ FunctionDecl q22_customer_tmp([]) {
 Query:
 Let Variable [ Name=$avg ]
   :=
-  FunctionCall tpch.avg@1[
+  FunctionCall asterix.avg@1[
     (
       SELECT ELEMENT [
       FieldAccessor [
@@ -50,8 +50,8 @@ Let Variable [ Name=$avg ]
         Field=c_acctbal
       ]
       ]
-      FROM [        FunctionCall Metadata.dataset@1[
-          LiteralExpr [STRING] [Customer]
+      FROM [        FunctionCall asterix.dataset@1[
+          LiteralExpr [STRING] [tpch.Customer]
         ]
         AS Variable [ Name=$c ]
       ]
@@ -76,16 +76,16 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [numcust]
     :
-    FunctionCall tpch.sql-count@1[
+    FunctionCall asterix.count@1[
       (
         SELECT ELEMENT [
-        FieldAccessor [
-          Variable [ Name=#2 ]
-          Field=ct
+        FunctionCall asterix.field-access-by-name@2[
+          Variable [ Name=$g ]
+          LiteralExpr [STRING] [ct]
         ]
         ]
-        FROM [          Variable [ Name=#1 ]
-          AS Variable [ Name=#2 ]
+        FROM [          Variable [ Name=$g ]
+          AS Variable [ Name=$g ]
         ]
       )
     ]
@@ -93,7 +93,7 @@ RecordConstructor [
   (
     LiteralExpr [STRING] [totacctbal]
     :
-    FunctionCall tpch.sum@1[
+    FunctionCall asterix.sum@1[
       (
         SELECT ELEMENT [
         FieldAccessor [
@@ -101,7 +101,17 @@ RecordConstructor [
           Field=c_acctbal
         ]
         ]
-        FROM [          Variable [ Name=$ct ]
+        FROM [          (
+            SELECT ELEMENT [
+            FunctionCall asterix.field-access-by-name@2[
+              Variable [ Name=$g ]
+              LiteralExpr [STRING] [ct]
+            ]
+            ]
+            FROM [              Variable [ Name=$g ]
+              AS Variable [ Name=$g ]
+            ]
+          )
           AS Variable [ Name=$i ]
         ]
       )
@@ -129,7 +139,7 @@ Groupby
     Variable [ Name=$ct ]
     Field=cntrycode
   ]
-  GROUP AS Variable [ Name=#1 ]
+  GROUP AS Variable [ Name=$g ]
   (
     ct:=Variable [ Name=$ct ]
   )
